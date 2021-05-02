@@ -1,0 +1,88 @@
+;;; consult-empv.el --- Consult dependent functions for empv -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2021  Isa Mert Gurbuz
+
+;; Author: Isa Mert Gurbuz <isamert@protonmail.com>
+;; Version: 0.1
+;; Homepage: https://github.com/isamert/empv
+;; License: GPL-3.0-or-later
+;; Package-Requires: ((emacs "25.1") (consult "0.5"))
+
+;; This program is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;; Consult dependent functions for empv
+
+;;; Code:
+
+(require 'empv)
+(require 'consult)
+
+(defun consult-empv--get-input-with-suggestions ()
+  "Get an input from user, using YouTube search suggestions."
+  (consult--read
+   (consult-empv-yt--search-generator)
+   :prompt "Search in YouTube videos: "
+   :lookup #'consult--lookup-member
+   :initial consult-async-default-split
+   :require-match nil))
+
+(defun consult-empv-youtube ()
+  "Search in YouTube videos with interactive suggestions using `consult' and `empv'."
+  (interactive)
+  (empv--youtube (consult-empv--get-input-with-suggestions) 'video))
+
+(defun consult-empv-youtube-multiple ()
+  "Search in YouTube videos with interactive suggestions using `consult' and `empv'."
+  (interactive)
+  (empv--youtube-multiple (consult-empv--get-input-with-suggestions) 'video))
+
+(defun consult-empv-youtube-playlist ()
+  "Search in YouTube playlists with interactive suggestions using `consult' and `empv'."
+  (interactive)
+  (empv--youtube (consult-empv--get-input-with-suggestions) 'playlist))
+
+(defun consult-empv-youtube-playlist-multiple ()
+  "Search in YouTube playlists with interactive suggestions using `consult' and `empv'."
+  (interactive)
+  (empv--youtube-multiple (consult-empv--get-input-with-suggestions) 'playlist))
+
+(defun consult-empv-yt--search-generator ()
+  "Generate an async search closure for TYPE and FILTER."
+  (thread-first (consult--async-sink)
+    (consult--async-refresh-immediate)
+    (consult-empv--async-search)
+    (consult--async-throttle)
+    (consult--async-split)))
+
+(defun consult-empv--async-search (next)
+  "Async search provider for `consult-empv'.
+This gets the suggestions based on the current action and returns
+results to consult using NEXT."
+  (lambda (action)
+    (pcase action
+      ((pred stringp)
+       (when (not (string-empty-p action))
+         (empv--request
+          (format "%s/search/suggestions" empv-invidious-instance)
+          `(("q" . ,action))
+          (lambda (result)
+            (funcall next 'flush)
+            (when result
+              (funcall next (alist-get 'suggestions result)))))))
+      (_ (funcall next action)))))
+
+(provide 'consult-empv)
+;;; consult-empv.el ends here
