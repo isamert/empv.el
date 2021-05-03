@@ -313,7 +313,7 @@ URI might be a string or a list of strings."
     (empv--dbg "Starting MPV.")
     (empv--make-process uri)
     ;; TODO: remove sleep
-    (sleep-for 1)
+    (sleep-for 1.5)
     (empv--make-network-process)
     (empv--observe metadata (empv--handle-metadata-change it))))
 
