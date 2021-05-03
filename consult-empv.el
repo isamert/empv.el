@@ -39,26 +39,6 @@
    :initial consult-async-default-split
    :require-match nil))
 
-(defun consult-empv-youtube ()
-  "Search in YouTube videos with interactive suggestions using `consult' and `empv'."
-  (interactive)
-  (empv--youtube (consult-empv--get-input-with-suggestions) 'video))
-
-(defun consult-empv-youtube-multiple ()
-  "Search in YouTube videos with interactive suggestions using `consult' and `empv'."
-  (interactive)
-  (empv--youtube-multiple (consult-empv--get-input-with-suggestions) 'video))
-
-(defun consult-empv-youtube-playlist ()
-  "Search in YouTube playlists with interactive suggestions using `consult' and `empv'."
-  (interactive)
-  (empv--youtube (consult-empv--get-input-with-suggestions) 'playlist))
-
-(defun consult-empv-youtube-playlist-multiple ()
-  "Search in YouTube playlists with interactive suggestions using `consult' and `empv'."
-  (interactive)
-  (empv--youtube-multiple (consult-empv--get-input-with-suggestions) 'playlist))
-
 (defun consult-empv-yt--search-generator ()
   "Generate an async search closure for TYPE and FILTER."
   (thread-first (consult--async-sink)
@@ -83,6 +63,30 @@ results to consult using NEXT."
             (when result
               (funcall next (alist-get 'suggestions result)))))))
       (_ (funcall next action)))))
+
+;;;###autoload
+(defun consult-empv-youtube ()
+  "Search in YouTube videos with interactive suggestions using `consult' and `empv'."
+  (interactive)
+  (empv--youtube (consult-empv--get-input-with-suggestions) 'video))
+
+;;;###autoload
+(defun consult-empv-youtube-multiple ()
+  "Search in YouTube videos with interactive suggestions using `consult' and `empv'."
+  (interactive)
+  (empv--youtube-multiple (consult-empv--get-input-with-suggestions) 'video))
+
+;;;###autoload
+(defun consult-empv-youtube-playlist ()
+  "Search in YouTube playlists with interactive suggestions using `consult' and `empv'."
+  (interactive)
+  (empv--youtube (consult-empv--get-input-with-suggestions) 'playlist))
+
+;;;###autoload
+(defun consult-empv-youtube-playlist-multiple ()
+  "Search in YouTube playlists with interactive suggestions using `consult' and `empv'."
+  (interactive)
+  (empv--youtube-multiple (consult-empv--get-input-with-suggestions) 'playlist))
 
 (provide 'consult-empv)
 ;;; consult-empv.el ends here
