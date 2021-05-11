@@ -1,7 +1,7 @@
 * empv.el
 An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this package provides somewhat comprehensive interface to mpv with bunch of convenience functions.
 
-/empv/ is mostly focused on audio but it also provides some means to manage videos. It also supports YouTube searches. If you are a =consult= user, then you can also install =consult-empv= package to get search suggestions while using empv's YouTube search capabilities.
+/empv/ is mostly focused on audio but it also provides some means to manage videos. It also supports YouTube searches. If you are a [[https://github.com/minad/consult][consult]] user, then you can also install =consult-empv= package to get search suggestions while using empv's YouTube search capabilities.
 
 Workflow is generally =M-x empv-something= and =completing-read= based, no buffers or complex interfaces. Scroll down to see available [[*Interactive functions and configuration][interactive functions]]. No default keybindings are provided.
 
