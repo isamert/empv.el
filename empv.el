@@ -470,7 +470,10 @@ MPV."
   "Select a playlist entry and play it."
   (interactive)
   (empv--playlist-select-item-and
-   (empv--cmd 'set_property `(playlist-pos ,(car (split-string item " "))))))
+   (empv--cmd
+    'set_property
+    `(playlist-pos ,(car (split-string item " ")))
+    (empv-resume))))
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interactive - Misc
