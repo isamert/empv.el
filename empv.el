@@ -365,7 +365,7 @@ This function also tries to disable sorting in `completing-read' function."
 This is just a simple wrapper around `empv-play' that displays
 `find-file' dialog if called interactively."
   (interactive "fPlay file: ")
-  (empv--play-or-enqueue path))
+  (empv--play-or-enqueue (expand-file-name path)))
 
 ;;;###autoload
 (defun empv-play-directory (path)
