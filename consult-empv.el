@@ -36,8 +36,11 @@
   (consult--read
    (consult-empv-yt--search-generator)
    :prompt "Search in YouTube videos: "
-   :lookup #'consult--lookup-member
+   :lookup (lambda (_ candidates cand)
+             (or (consult--lookup-member nil candidates cand)
+                 (string-trim-left cand consult-async-default-split)))
    :initial consult-async-default-split
+   :sort nil
    :require-match nil))
 
 (defun consult-empv-yt--search-generator ()
