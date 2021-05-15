@@ -549,7 +549,7 @@ object."
     (url-retrieve
      full-url
      (lambda (_status)
-       (let ((result (buffer-string)))
+       (let ((result (decode-coding-string (buffer-string) 'utf-8)))
          (kill-buffer)
          (funcall callback (empv--read-result (or (cadr (split-string result "\n\n")) "{}"))))))))
 
