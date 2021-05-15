@@ -27,6 +27,7 @@
 
 ;;; Code:
 
+(eval-when-compile (require 'subr-x))
 (require 'empv)
 (require 'consult)
 
@@ -54,7 +55,7 @@ results to consult using NEXT."
   (lambda (action)
     (pcase action
       ((pred stringp)
-       (when (not (string-empty-p action))
+       (when (not (string-empty-p (string-trim action)))
          (empv--request
           (format "%s/search/suggestions" empv-invidious-instance)
           `(("q" . ,action))
