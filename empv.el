@@ -151,7 +151,9 @@ directory.  nil means starting in `default-directory'."
   (let* ((json-object-type 'alist)
          (json-array-type 'list)
          (json-key-type 'symbol)
-         (json (json-read-from-string result)))
+         (json (condition-case nil
+                   (json-read-from-string result)
+                 (error (empv--dbg "Error while reading JSON :: %s" result) nil))))
     json))
 
 (defun empv--new-request-id ()
