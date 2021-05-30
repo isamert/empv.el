@@ -295,18 +295,25 @@ URI might be a string or a list of strings."
     (artist . ,(empv--metadata-get data 'artist 'icy-artist))
     (genre  . ,(empv--metadata-get data 'genre 'icy-genre))))
 
+(defun empv--create-media-summary-for-notification (data handler)
+  "Generate a formatted media title like \"Song name - Artist\".
+Title is generated using DATA and passed to the HANDLER."
+  (let ((metadata (empv--extract-metadata data)))
+    (if (alist-get 'title metadata)
+        (funcall handler (format "%s %s %s"
+                                 (alist-get 'title metadata)
+                                 (or (and (alist-get 'artist metadata) "-") "")
+                                 (or (alist-get 'artist metadata) "")))
+      (empv--cmd
+       'get_property 'media-title
+       (funcall handler it)))))
+
 (defun empv--handle-metadata-change (data)
   "Display info about the current track using DATA."
   (empv--dbg "handle-metadata-change <> %s" data)
-  (let ((metadata (empv--extract-metadata data)))
-    (if (alist-get 'title metadata)
-        (message "empv :: %s %s %s"
-                 (alist-get 'title metadata)
-                 (or (and (alist-get 'artist metadata) "-") "")
-                 (or (alist-get 'artist metadata) ""))
-      (empv--cmd
-       'get_property 'media-title
-       (message "empv :: %s" it)))))
+  (empv--create-media-summary-for-notification
+   data
+   (lambda (msg) (empv--display-event "%s" msg))))
 
 (defun empv-start (&optional uri)
   "Start mpv using `empv-mpv-command' with given URI."
@@ -488,9 +495,12 @@ If ARG is non-nil, then also put it to `kill-ring'."
   (interactive "P")
   (empv--cmd
    'get_property 'metadata
-   (empv--handle-metadata-change it)
-   (when arg
-     (kill-new it))))
+   (empv--create-media-summary-for-notification
+    it
+    (lambda (msg)
+      (message "%s" msg)
+      (when arg
+        (kill-new msg))))))
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Radio
