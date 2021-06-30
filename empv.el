@@ -498,7 +498,7 @@ If ARG is non-nil, then also put it to `kill-ring'."
    (empv--create-media-summary-for-notification
     it
     (lambda (msg)
-      (message "%s" msg)
+      (empv--display-event "%s" msg)
       (when arg
         (kill-new msg))))))
 
