@@ -22,6 +22,9 @@ Another option is just downloading =empv.el= file and putting into your =load-pa
   (require 'empv)
 #+end_src
 
+* Embark and Consult integration
+If you have [[https://github.com/minad/consult][consult]] and [[https://github.com/oantolin/embark][embark]] installed on your system, =empv= will integrate itself with those packages and you'll get some embark actions that you can use on the displayed candidates.
+
 * Interactive functions and configuration
 This list is not complete. I only listed most important functions. Do =M-x= and then search for =empv-= to list all available functions. Here are some information about functions:
 - Most of the functions will ask you if you want to directly play your selection or if you want to enqueue it.
