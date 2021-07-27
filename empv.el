@@ -119,6 +119,10 @@ directory.  nil means starting in `default-directory'."
 (defvar empv--network-process nil)
 (defvar empv--callback-table (make-hash-table :test 'equal))
 (defvar empv--dbg nil)
+(defvar empv--last-candidates '()
+  "Latest candidates that are shown in a `completing-read' by empv.
+Mainly used by embark actions defined in this package.")
+(defvar empv--youtube-last-type nil)
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Utility
@@ -581,7 +585,6 @@ finishes."
       callback
       (seq-map #'empv--format-yt-item request-result)))))
 
-
 (defun empv--youtube-process-result (results type selected)
   "Find and return youtube url for SELECTED item of TYPE in RESULTS."
   (let ((is-video (eq type 'video)))
@@ -591,13 +594,32 @@ finishes."
       (alist-get (if is-video 'videoId 'playlistId))
       (format "https://youtube.com/%s=%s" (if is-video "watch?v" "playlist?list")))))
 
+(cl-defun empv--completing-read (candidates &key prompt category)
+  "`completing-read' wrapper.
+
+It uses `consult--read' if it's available or fallsback to
+`completing-read'.  Using `consult--read' enables the use of
+embark actions through the CATEGORY.  CANDIDATES and PROMPT are
+required."
+  (setq empv--last-candidates candidates)
+  (if (require 'consult nil 'noerror)
+    (consult--read
+     candidates
+     :prompt prompt
+     :category category)
+    (completing-read prompt candidates)))
+
 (defun empv--youtube (term type)
   "Search TERM in YouTube.
 See `empv--youtube-search' for TYPE."
+  (setq empv--youtube-last-type type)
   (empv--youtube-search
    term type
    (lambda (results)
-     (thread-last (completing-read (format "YouTube results for '%s': " term) results)
+     (thread-last (empv--completing-read
+                   results
+                   :prompt (format "YouTube results for '%s': " term)
+                   :category 'empv-youtube)
        (empv--youtube-process-result results type)
        (empv--play-or-enqueue)))))
 

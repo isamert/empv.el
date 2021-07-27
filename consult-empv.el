@@ -36,6 +36,7 @@
   (consult--read
    (consult-empv-yt--search-generator)
    :prompt "Search in YouTube videos: "
+   :category 'empv-youtube
    :lookup (lambda (_ candidates cand)
              (or (consult--lookup-member nil candidates cand)
                  (string-trim-left cand consult-async-default-split)))
@@ -91,6 +92,18 @@ results to consult using NEXT."
   "Search in YouTube playlists with interactive suggestions using `consult' and `empv'."
   (interactive)
   (empv--youtube-multiple (consult-empv--get-input-with-suggestions) 'playlist))
+
+(when (require 'embark nil 'noerror)
+  (defun empv-embark-copy-youtube-link (key)
+    (let ((link (empv--youtube-process-result empv--last-candidates empv--youtube-last-type key)))
+      (kill-new link)
+      (empv--display-event "Youtube link copied into your kill-ring: %s" link)))
+
+  (embark-define-keymap empv-embark-youtube-result-actions
+    "Actions for JIRA issues."
+    ("y" empv-embark-copy-youtube-link))
+
+  (add-to-list 'embark-keymap-alist '(empv-youtube . empv-embark-youtube-result-actions)))
 
 (provide 'consult-empv)
 ;;; consult-empv.el ends here
