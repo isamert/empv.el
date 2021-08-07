@@ -112,6 +112,17 @@ directory.  nil means starting in `default-directory'."
   :group 'empv)
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Public variables
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defvar empv-current-radio-channel
+  nil
+  "Currently playing radio channel.
+The format is `(channel name . channel address)'.  This variable
+does not clean itself up, it's possible that currently no radio
+is playing but this variable is still holds some channel.")
+
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Internal variables
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -510,18 +521,23 @@ If ARG is non-nil, then also put it to `kill-ring'."
 ;; Radio
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defun empv--play-radio-channel (channel &optional ask)
+  (setq empv-current-radio-channel channel)
+  (if ask
+      (empv--play-or-enqueue (cdr channel))
+    (empv-play (cdr channel))))
+
 (defun empv--get-radio-url ()
   "Get a radio channel URL from the user."
   (thread-last empv-radio-channels
     (completing-read "Channel: ")
-    (empv-flipcall #'assoc-string empv-radio-channels)
-    (cdr)))
+    (empv-flipcall #'assoc-string empv-radio-channels)))
 
 ;;;###autoload
 (defun empv-play-radio ()
   "Play radio channels."
   (interactive)
-  (empv--play-or-enqueue (empv--get-radio-url)))
+  (empv--play-radio-channel (empv--get-radio-url) t))
 
 ;;;###autoload
 (defun empv-play-random-channel ()
@@ -532,7 +548,7 @@ If ARG is non-nil, then also put it to `kill-ring'."
                    (random)
                    (empv-flipcall #'nth empv-radio-channels))))
     (empv--display-event "Playing %s" (car channel))
-    (empv-play (cdr channel))))
+    (empv--play-radio-channel channel)))
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; YouTube/Invidious
