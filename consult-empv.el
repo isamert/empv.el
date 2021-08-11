@@ -39,8 +39,8 @@
    :category 'empv-youtube
    :lookup (lambda (_ candidates cand)
              (or (consult--lookup-member nil candidates cand)
-                 (string-trim-left cand consult-async-default-split)))
-   :initial consult-async-default-split
+                 (string-trim-left cand (consult--async-split-initial ""))))
+   :initial (consult--async-split-initial "")
    :sort nil
    :require-match nil))
 
