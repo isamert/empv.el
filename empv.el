@@ -117,6 +117,20 @@ Supply a path to enable logging. `nil' means no logging. "
   :type 'string
   :group 'empv)
 
+(defcustom empv-radio-log-format
+  "* [#{channel-name}] #{track-title}\n"
+  "The format used when `empv-log-current-radio-song-name' is called.
+`#{channel-name}' and `#{track-title}' is replaced with their
+current values at the time of calling."
+  :type 'string
+  :group 'empv)
+
+(defcustom empv-radio-log-file
+  "~/logged-radio-songs.org"
+  "The file that is used by `empv-log-current-radio-song-name'."
+  :type 'string
+  :group 'empv)
+
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public variables
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -463,6 +477,21 @@ MPV."
   (interactive)
   (setq empv--dbg (not empv--dbg))
   (empv--display-event  "Debug mode is %s" empv--dbg))
+
+(defun empv-log-current-radio-song-name ()
+  "Log current radio song name with the radio channel name.
+The song's are logged into `empv-radio-log-file' with the format
+that is defined in `empv-radio-log-format'."
+  (interactive)
+  (empv--cmd
+   'get_property 'metadata
+   (when-let ((title (alist-get 'icy-title it)))
+     (write-region
+      (thread-last empv-radio-log-format
+        (string-replace "#{channel-name}" (car empv-current-radio-channel))
+        (string-replace "#{track-title}" title))
+      nil empv-radio-log-file 'append)
+     (message "%s" title))))
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interactive - Playlist
