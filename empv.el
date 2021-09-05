@@ -111,6 +111,12 @@ directory.  nil means starting in `default-directory'."
   :type 'string
   :group 'empv)
 
+(defcustom empv-log-events-to-file nil
+  "Log all events to given file.
+Supply a path to enable logging. `nil' means no logging. "
+  :type 'string
+  :group 'empv)
+
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public variables
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -158,8 +164,13 @@ Mainly used by embark actions defined in this package.")
 
 (defun empv--display-event (msg &rest rest)
   "Print MSG with REST if `empv-display-events' is non-nil."
-  (when empv-display-events
-    (apply 'message `(,(format "empv :: %s" msg) ,@rest))))
+  (let ((formatted-msg `(,(format "empv :: %s" msg) ,@rest)))
+    (when empv-log-events-to-file
+      (write-region
+       (concat (apply 'format formatted-msg) "\n")
+       nil empv-log-events-to-file 'append))
+    (when empv-display-events
+      (apply 'message formatted-msg))))
 
 (defun empv--read-result (result)
   "Read JSON RESULT into an elisp structre."
