@@ -167,7 +167,10 @@ Mainly used by embark actions defined in this package.")
   (let ((formatted-msg `(,(format "empv :: %s" msg) ,@rest)))
     (when empv-log-events-to-file
       (write-region
-       (concat (apply 'format formatted-msg) "\n")
+       (concat
+        (format-time-string "[%Y-%m-%d %H:%M:%S] ")
+        (apply 'format formatted-msg)
+        "\n")
        nil empv-log-events-to-file 'append))
     (when empv-display-events
       (apply 'message formatted-msg))))
