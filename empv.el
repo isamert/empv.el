@@ -68,6 +68,11 @@ https://invidious-example.com/api/v1"
   :type 'string
   :group 'empv)
 
+(defcustom empv-youtube-thumbnail-quality "default"
+  "Default value for YouTube thumbnail quality."
+  :type 'string
+  :group 'empv)
+
 (defcustom empv-audio-dir (or (getenv "$XDG_MUSIC_DIR") "~/Music")
   "The directory that you keep your videos in."
   :type 'string
@@ -776,6 +781,59 @@ Limit directory treversal at most DEPTH levels.  By default it's
   (empv--play-or-enqueue
    (empv--select-files "Select an audio file: " empv-audio-dir empv-audio-file-extensions)))
 
+(defun WIP-yt-results-with-thumbnails ()
+  ;; TODO Define major mode
+  ;; hl-line-mode
+  ;; - q -> quit
+  ;; - n,p -> next/prev line
+  ;; - j,k -> next/prev line
+  ;; - enter/o -> play
+  ;; - e -> enqueue
+  (let ((buffer (get-buffer-create "*empv-yt-results*"))
+        (total-count (length empv--last-candidates))
+        (completed-count 0))
+    (with-current-buffer buffer
+      (insert (make-string total-count ?\n)))
+    (seq-do-indexed
+     (lambda (video index)
+       (let* ((video-info (cdr video))
+              (video-title (car video))
+              (video-id (alist-get 'videoId video-info))
+              (filename (format
+                         (expand-file-name "~/.cache/empv_%s_%s.jpg")
+                         video-id
+                         empv-youtube-thumbnail-quality)))
+         (thread-last video
+           (alist-get 'videoThumbnails video-info)
+           (seq-find (lambda (thumb)
+                       (equal empv-youtube-thumbnail-quality
+                              (alist-get 'quality thumb))))
+           (cdr)
+           (alist-get 'url)
+           (start-process
+            (format "empv-download-process-%s" video-id)
+            "*empv-thumbnail-downloads*"
+            (if (file-exists-p filename) "printf" "curl")
+            "-o"
+            filename)
+           (empv-flipcall
+            #'set-process-sentinel
+            (lambda (p e)
+              (with-current-buffer buffer
+                (goto-line index)
+                (delete-region
+                 (line-beginning-position)
+                 (1+ (line-end-position)))
+                (insert (format "%s. [[%s]] -- %s\n" (1+ index) filename video-title))
+                (iimage-recenter)
+                (setq completed-count (1+ completed-count))
+                (when (eq completed-count total-count)
+                  (hl-line-mode)
+                  (iimage-mode)
+                  (read-only-mode)
+                  (goto-char (point-min)))))))))
+     empv--last-candidates)
+    (pop-to-buffer-same-window buffer)))
 
 (provide 'empv)
 ;;; empv.el ends here
