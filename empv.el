@@ -793,17 +793,27 @@ Limit directory treversal at most DEPTH levels.  By default it's
         (total-count (length empv--last-candidates))
         (completed-count 0))
     (with-current-buffer buffer
-      (insert (make-string total-count ?\n)))
+      (tabulated-list-mode)
+      (setq tabulated-list-entries
+            (seq-map-indexed
+             (lambda (it index)
+               (let* ((video-info (cdr it))
+                      (video-title (alist-get 'title video-info))
+                      (video-view (format "%2.fk views" (/ (alist-get 'viewCount video-info) 1000.0)))
+                      (video-length (format "%2.f mins" (/ (alist-get 'lengthSeconds video-info) 60.0))))
+                 (list index (vector "<IMAGE>" video-title video-length video-view))))
+             empv--last-candidates))
+      (tabulated-list-init-header))
+
     (seq-do-indexed
      (lambda (video index)
        (let* ((video-info (cdr video))
-              (video-title (car video))
               (video-id (alist-get 'videoId video-info))
               (filename (format
                          (expand-file-name "~/.cache/empv_%s_%s.jpg")
                          video-id
                          empv-youtube-thumbnail-quality)))
-         (thread-last video
+         (thread-last video-info
            (alist-get 'videoThumbnails video-info)
            (seq-find (lambda (thumb)
                        (equal empv-youtube-thumbnail-quality
@@ -820,20 +830,19 @@ Limit directory treversal at most DEPTH levels.  By default it's
             #'set-process-sentinel
             (lambda (p e)
               (with-current-buffer buffer
-                (goto-line index)
-                (delete-region
-                 (line-beginning-position)
-                 (1+ (line-end-position)))
-                (insert (format "%s. [[%s]] -- %s\n" (1+ index) filename video-title))
-                (iimage-recenter)
+                (setf
+                 (elt (car (alist-get index tabulated-list-entries)) 0)
+                 (format "[[%s]]" filename))
                 (setq completed-count (1+ completed-count))
                 (when (eq completed-count total-count)
-                  (hl-line-mode)
+                  (tabulated-list-print)
                   (iimage-mode)
-                  (read-only-mode)
-                  (goto-char (point-min)))))))))
+                  (back-to-indentation))))))))
      empv--last-candidates)
     (pop-to-buffer-same-window buffer)))
+
+(WIP-yt-results-with-thumbnails)
+
 
 (provide 'empv)
 ;;; empv.el ends here
