@@ -785,6 +785,15 @@ Limit directory treversal at most DEPTH levels.  By default it's
 ;; empv-youtube-results-mode
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defvar empv-youtube-results-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "p") #'empv-youtube-results-play-current)
+    (define-key map (kbd "a") #'empv-youtube-results-enqueue-current)
+    (define-key map (kbd "Y") #'empv-youtube-results-copy-current)
+    (define-key map (kbd "RET") #'empv-youtube-results-play-or-enqueue-current)
+    map)
+  "Keymap for `empv-youtube-results-mode'.")
+
 (define-derived-mode empv-youtube-results-mode tabulated-list-mode "empv-youtube-results-mode"
   "Major mode for interacting with YouTube results with thumbnails."
   (setq tabulated-list-padding 3)
@@ -792,12 +801,6 @@ Limit directory treversal at most DEPTH levels.  By default it's
                                ("Title" 60 t)
                                ("Length"  10 t)
                                ("Views" 10 t)]))
-
-;; TODO move
-(define-key empv-youtube-results-mode-map (kbd "p") #'empv-youtube-results-play-current)
-(define-key empv-youtube-results-mode-map (kbd "a") #'empv-youtube-results-enqueue-current)
-(define-key empv-youtube-results-mode-map (kbd "y") #'empv-youtube-results-copy-current)
-(define-key empv-youtube-results-mode-map (kbd "RET") #'empv-youtube-results-play-or-enqueue-current)
 
 (defadvice tabulated-list-sort (after empv-tabulated-list-sort-after activate)
   (when (derived-mode-p 'empv-youtube-results-mode)
@@ -876,7 +879,9 @@ Limit directory treversal at most DEPTH levels.  By default it's
 
 (defun empv-youtube-results-copy-current ()
   (interactive)
-  (kill-new (empv-youtube-results--current-video-url)))
+  (let ((it (empv-youtube-results--current-video-url)))
+    (kill-new it)
+    (message "Copied %s!" it)))
 
 ;; TODO Maybe add non-tabulated version of this
 (defun empv-youtube-tabulated-last-results ()
