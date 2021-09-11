@@ -781,30 +781,44 @@ Limit directory treversal at most DEPTH levels.  By default it's
   (empv--play-or-enqueue
    (empv--select-files "Select an audio file: " empv-audio-dir empv-audio-file-extensions)))
 
-(defun WIP-yt-results-with-thumbnails ()
-  ;; TODO Define major mode
-  ;; hl-line-mode
-  ;; - q -> quit
-  ;; - n,p -> next/prev line
-  ;; - j,k -> next/prev line
-  ;; - enter/o -> play
-  ;; - e -> enqueue
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; empv-youtube-results-mode
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define-derived-mode empv-youtube-results-mode tabulated-list-mode "empv-youtube-results-mode"
+  "Major mode for interacting with YouTube results with thumbnails."
+  (setq tabulated-list-padding 3)
+  (setq tabulated-list-format [("Thumbnail" 20 nil)
+                               ("Title" 60 t)
+                               ("Length"  10 t)
+                               ("Views" 10 t)]))
+
+;; TODO move
+(define-key empv-youtube-results-mode-map (kbd "p") #'empv-youtube-results-play-current)
+(define-key empv-youtube-results-mode-map (kbd "a") #'empv-youtube-results-enqueue-current)
+(define-key empv-youtube-results-mode-map (kbd "y") #'empv-youtube-results-copy-current)
+(define-key empv-youtube-results-mode-map (kbd "RET") #'empv-youtube-results-play-or-enqueue-current)
+
+(defadvice tabulated-list-sort (after empv-tabulated-list-sort-after activate)
+  (when (derived-mode-p 'empv-youtube-results-mode)
+    (iimage-recenter)))
+
+(defun empv--youtube-show-tabulated-results (candidates)
   (let ((buffer (get-buffer-create "*empv-yt-results*"))
-        (total-count (length empv--last-candidates))
+        (total-count (length candidates))
         (completed-count 0))
     (with-current-buffer buffer
-      (tabulated-list-mode)
+      (empv-youtube-results-mode)
       (setq tabulated-list-entries
             (seq-map-indexed
              (lambda (it index)
                (let* ((video-info (cdr it))
                       (video-title (alist-get 'title video-info))
-                      (video-view (format "%2.fk views" (/ (alist-get 'viewCount video-info) 1000.0)))
-                      (video-length (format "%2.f mins" (/ (alist-get 'lengthSeconds video-info) 60.0))))
-                 (list index (vector "<IMAGE>" video-title video-length video-view))))
-             empv--last-candidates))
+                      (video-view (format "%0.2fk views" (/ (alist-get 'viewCount video-info) 1000.0)))
+                      (video-length (format "%0.2f mins" (/ (alist-get 'lengthSeconds video-info) 60.0))))
+                 (list index (vector "<THUMBNAIL>" video-title video-length video-view))))
+             candidates))
       (tabulated-list-init-header))
-
     (seq-do-indexed
      (lambda (video index)
        (let* ((video-info (cdr video))
@@ -838,10 +852,38 @@ Limit directory treversal at most DEPTH levels.  By default it's
                   (tabulated-list-print)
                   (iimage-mode)
                   (back-to-indentation))))))))
-     empv--last-candidates)
+     candidates)
     (pop-to-buffer-same-window buffer)))
 
-(WIP-yt-results-with-thumbnails)
+(defun empv-youtube-results--current-video-url ()
+  (thread-last empv--last-candidates
+    (nth (tabulated-list-get-id))
+    (cdr)
+    (alist-get 'videoId)
+    (format "https://youtube.com/watch?v=%s")))
+
+(defun empv-youtube-results-play-current ()
+  (interactive)
+  (empv-play (empv-youtube-results--current-video-url)))
+
+(defun empv-youtube-results-enqueue-current ()
+  (interactive)
+  (empv-enqueue (empv-youtube-results--current-video-url)))
+
+(defun empv-youtube-results-play-or-enqueue-current ()
+  (interactive)
+  (empv--play-or-enqueue (empv-youtube-results--current-video-url)))
+
+(defun empv-youtube-results-copy-current ()
+  (interactive)
+  (kill-new (empv-youtube-results--current-video-url)))
+
+;; TODO Maybe add non-tabulated version of this
+(defun empv-youtube-tabulated-last-results ()
+  "Show last search results in tabulated mode with thumbnails."
+  (interactive)
+  (empv--youtube-show-tabulated-results empv--last-candidates))
+
 
 
 (provide 'empv)
