@@ -118,10 +118,10 @@ Supply a path to enable logging. `nil' means no logging. "
   :group 'empv)
 
 (defcustom empv-radio-log-format
-  "* [#{channel-name}] #{track-title}\n"
+  "* #{timestamp} [#{channel-name}] #{track-title}\n"
   "The format used when `empv-log-current-radio-song-name' is called.
-`#{channel-name}' and `#{track-title}' is replaced with their
-current values at the time of calling."
+`#{channel-name}', `#{timestamp}' and `#{track-title}' are
+replaced with their current values at the time of calling."
   :type 'string
   :group 'empv)
 
@@ -488,6 +488,7 @@ that is defined in `empv-radio-log-format'."
    (when-let ((title (alist-get 'icy-title it)))
      (write-region
       (thread-last empv-radio-log-format
+        (string-replace "#{timestamp}" (format "[%s]" (format-time-string "%Y-%m-%d %a %H:%M")))
         (string-replace "#{channel-name}" (car empv-current-radio-channel))
         (string-replace "#{track-title}" title))
       nil empv-radio-log-file 'append)
