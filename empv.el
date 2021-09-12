@@ -68,12 +68,24 @@ https://invidious-example.com/api/v1"
   :type 'string
   :group 'empv)
 
-(defcustom empv-audio-dir (or (getenv "$XDG_MUSIC_DIR") "~/Music")
-  "The directory that you keep your videos in."
+(defcustom empv-youtube-use-tabulated-results
+  nil
+  "Show YouTube results in a tabulated buffer with thumbnails if not nil.
+Otherwise simply use `completing-read'."
+  :type 'boolean
+  :group 'empv)
+
+(defcustom empv-youtube-thumbnail-quality "default"
+  "Default value for YouTube thumbnail quality."
   :type 'string
   :group 'empv)
 
-(defcustom empv-video-dir (or (getenv "$XDG_VIDEOS_DIR") "~/Videos")
+(defcustom empv-audio-dir (or (getenv "$XDG_MUSIC_DIR") "~/Music")
+  "The directory that you keep your music in."
+  :type 'string
+  :group 'empv)
+
+(defcustom empv-video-dir (or (getenv "$XDG_VIDEOS_DIR") "~/Downloads")
   "The directory that you keep your videos in."
   :type 'string
   :group 'empv)
@@ -113,7 +125,7 @@ directory.  nil means starting in `default-directory'."
 
 (defcustom empv-log-events-to-file nil
   "Log all events to given file.
-Supply a path to enable logging. `nil' means no logging. "
+Supply a path to enable logging.  nil means no logging."
   :type 'string
   :group 'empv)
 
@@ -384,11 +396,9 @@ This function also tries to disable sorting in `completing-read' function."
   `(empv--run
     (empv--cmd
      'get_property 'playlist
-     ;; TODO: disable other sorting mechanisms
-     ;; right now it only disables selectrum
-     (let* ((selectrum-should-sort nil)
-            (item (completing-read "Select track: " (seq-map-indexed #'empv--format-playlist-item it))))
-       (ignore selectrum-should-sort)
+     (let ((item (empv--completing-read
+                  "Select track: "
+                  (seq-map-indexed #'empv--format-playlist-item it))))
        (ignore item)
        ,@forms))))
 
@@ -573,9 +583,9 @@ If ARG is non-nil, then also put it to `kill-ring'."
 
 (defun empv--get-radio-url ()
   "Get a radio channel URL from the user."
-  (thread-last empv-radio-channels
-    (completing-read "Channel: ")
-    (empv-flipcall #'assoc-string empv-radio-channels)))
+  (assoc-string
+   (empv--completing-read "Channel: " empv-radio-channels :sort t)
+   empv-radio-channels))
 
 ;;;###autoload
 (defun empv-play-radio ()
@@ -654,34 +664,40 @@ finishes."
       (alist-get (if is-video 'videoId 'playlistId))
       (format "https://youtube.com/%s=%s" (if is-video "watch?v" "playlist?list")))))
 
-(cl-defun empv--completing-read (candidates &key prompt category)
+(cl-defun empv--completing-read (prompt candidates &key category sort)
   "`completing-read' wrapper.
 
 It uses `consult--read' if it's available or fallsback to
 `completing-read'.  Using `consult--read' enables the use of
 embark actions through the CATEGORY.  CANDIDATES and PROMPT are
 required."
-  (setq empv--last-candidates candidates)
-  (if (require 'consult nil 'noerror)
-    (consult--read
-     candidates
-     :prompt prompt
-     :category category)
-    (completing-read prompt candidates)))
+  (let ((selectrum-should-sort sort))
+    (setq empv--last-candidates candidates)
+    (if (require 'consult nil 'noerror)
+        (consult--read
+         candidates
+         :prompt prompt
+         :category category)
+      (completing-read prompt candidates))))
 
 (defun empv--youtube (term type)
   "Search TERM in YouTube.
 See `empv--youtube-search' for TYPE."
-  (setq empv--youtube-last-type type)
-  (empv--youtube-search
-   term type
-   (lambda (results)
-     (thread-last (empv--completing-read
-                   results
-                   :prompt (format "YouTube results for '%s': " term)
-                   :category 'empv-youtube)
-       (empv--youtube-process-result results type)
-       (empv--play-or-enqueue)))))
+  (let ((use-tabulated empv-youtube-use-tabulated-results))
+    (setq empv--youtube-last-type type)
+    (empv--youtube-search
+     term type
+     (lambda (results)
+       (if use-tabulated
+           (progn
+             (setq empv--last-candidates results)
+             (empv-youtube-tabulated-last-results))
+         (thread-last (empv--completing-read
+                       (format "YouTube results for '%s': " term)
+                       results
+                       :category 'empv-youtube)
+           (empv--youtube-process-result results type)
+           (empv--play-or-enqueue)))))))
 
 (defun empv--youtube-multiple (term type)
   "Like `empv--youtube' but use `completing-read-multiple'.
@@ -698,6 +714,14 @@ See `empv--youtube' for TERM and TYPE."
   "Search TERM in YouTube videos."
   (interactive "sSearch in YouTube videos: ")
   (empv--youtube term 'video))
+
+;;;###autoload
+(defun empv-youtube-tabulated (term)
+  "Search TERM in YouTube videos.
+Show results in a tabulated buffers with thumbnails."
+  (interactive "sSearch in YouTube videos: ")
+  (let ((empv-youtube-use-tabulated-results t))
+    (empv--youtube term 'video)))
 
 ;;;###autoload
 (defun empv-youtube-multiple (term)
@@ -735,7 +759,7 @@ PROMPT is shown to user while selecting.
 Limit directory treversal at most DEPTH levels.  By default it's
 `empv-max-directory-search-depth'"
   (thread-last (empv--find-files path extensions depth)
-    (completing-read prompt)
+    (empv--completing-read prompt)
     (empv-flipcall #'expand-file-name path)))
 
 (defun empv--select-files (prompt path extensions &optional depth)
@@ -776,6 +800,114 @@ Limit directory treversal at most DEPTH levels.  By default it's
   (interactive)
   (empv--play-or-enqueue
    (empv--select-files "Select an audio file: " empv-audio-dir empv-audio-file-extensions)))
+
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; empv-youtube-results-mode
+;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defvar empv-youtube-results-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "p") #'empv-youtube-results-play-current)
+    (define-key map (kbd "a") #'empv-youtube-results-enqueue-current)
+    (define-key map (kbd "Y") #'empv-youtube-results-copy-current)
+    (define-key map (kbd "RET") #'empv-youtube-results-play-or-enqueue-current)
+    map)
+  "Keymap for `empv-youtube-results-mode'.")
+
+(define-derived-mode empv-youtube-results-mode tabulated-list-mode "empv-youtube-results-mode"
+  "Major mode for interacting with YouTube results with thumbnails."
+  (setq tabulated-list-padding 3)
+  (setq tabulated-list-format [("Thumbnail" 20 nil)
+                               ("Title" 60 t)
+                               ("Length"  10 t)
+                               ("Views" 10 t)]))
+
+(defadvice tabulated-list-sort (after empv-tabulated-list-sort-after activate)
+  (when (derived-mode-p 'empv-youtube-results-mode)
+    (iimage-recenter)))
+
+(defun empv--youtube-show-tabulated-results (candidates)
+  (let ((buffer (get-buffer-create "*empv-yt-results*"))
+        (total-count (length candidates))
+        (completed-count 0))
+    (with-current-buffer buffer
+      (empv-youtube-results-mode)
+      (setq tabulated-list-entries
+            (seq-map-indexed
+             (lambda (it index)
+               (let* ((video-info (cdr it))
+                      (video-title (alist-get 'title video-info))
+                      (video-view (format "%0.2fk views" (/ (alist-get 'viewCount video-info) 1000.0)))
+                      (video-length (format "%0.2f mins" (/ (alist-get 'lengthSeconds video-info) 60.0))))
+                 (list index (vector "<THUMBNAIL>" video-title video-length video-view))))
+             candidates))
+      (tabulated-list-init-header))
+    (seq-do-indexed
+     (lambda (video index)
+       (let* ((video-info (cdr video))
+              (video-id (alist-get 'videoId video-info))
+              (filename (format
+                         (expand-file-name "~/.cache/empv_%s_%s.jpg")
+                         video-id
+                         empv-youtube-thumbnail-quality)))
+         (thread-last video-info
+           (alist-get 'videoThumbnails video-info)
+           (seq-find (lambda (thumb)
+                       (equal empv-youtube-thumbnail-quality
+                              (alist-get 'quality thumb))))
+           (cdr)
+           (alist-get 'url)
+           (start-process
+            (format "empv-download-process-%s" video-id)
+            "*empv-thumbnail-downloads*"
+            (if (file-exists-p filename) "printf" "curl")
+            "-o"
+            filename)
+           (empv-flipcall
+            #'set-process-sentinel
+            (lambda (p e)
+              (with-current-buffer buffer
+                (setf
+                 (elt (car (alist-get index tabulated-list-entries)) 0)
+                 (format "[[%s]]" filename))
+                (setq completed-count (1+ completed-count))
+                (when (eq completed-count total-count)
+                  (tabulated-list-print)
+                  (iimage-mode)
+                  (back-to-indentation))))))))
+     candidates)
+    (pop-to-buffer-same-window buffer)))
+
+(defun empv-youtube-results--current-video-url ()
+  (thread-last empv--last-candidates
+    (nth (tabulated-list-get-id))
+    (cdr)
+    (alist-get 'videoId)
+    (format "https://youtube.com/watch?v=%s")))
+
+(defun empv-youtube-results-play-current ()
+  (interactive)
+  (empv-play (empv-youtube-results--current-video-url)))
+
+(defun empv-youtube-results-enqueue-current ()
+  (interactive)
+  (empv-enqueue (empv-youtube-results--current-video-url)))
+
+(defun empv-youtube-results-play-or-enqueue-current ()
+  (interactive)
+  (empv--play-or-enqueue (empv-youtube-results--current-video-url)))
+
+(defun empv-youtube-results-copy-current ()
+  (interactive)
+  (let ((it (empv-youtube-results--current-video-url)))
+    (kill-new it)
+    (message "Copied %s!" it)))
+
+;; TODO Maybe add non-tabulated version of this
+(defun empv-youtube-tabulated-last-results ()
+  "Show last search results in tabulated mode with thumbnails."
+  (interactive)
+  (empv--youtube-show-tabulated-results empv--last-candidates))
 
 
 (provide 'empv)
