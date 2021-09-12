@@ -68,6 +68,13 @@ https://invidious-example.com/api/v1"
   :type 'string
   :group 'empv)
 
+(defcustom empv-youtube-use-tabulated-results
+  nil
+  "Show YouTube results in a tabulated buffer with thumbnails if not nil.
+Otherwise simply use `completing-read'."
+  :type 'boolean
+  :group 'empv)
+
 (defcustom empv-youtube-thumbnail-quality "default"
   "Default value for YouTube thumbnail quality."
   :type 'string
@@ -118,7 +125,7 @@ directory.  nil means starting in `default-directory'."
 
 (defcustom empv-log-events-to-file nil
   "Log all events to given file.
-Supply a path to enable logging. `nil' means no logging. "
+Supply a path to enable logging.  nil means no logging."
   :type 'string
   :group 'empv)
 
@@ -675,16 +682,21 @@ required."
 (defun empv--youtube (term type)
   "Search TERM in YouTube.
 See `empv--youtube-search' for TYPE."
-  (setq empv--youtube-last-type type)
-  (empv--youtube-search
-   term type
-   (lambda (results)
-     (thread-last (empv--completing-read
-                   (format "YouTube results for '%s': " term)
-                   results
-                   :category 'empv-youtube)
-       (empv--youtube-process-result results type)
-       (empv--play-or-enqueue)))))
+  (let ((use-tabulated empv-youtube-use-tabulated-results))
+    (setq empv--youtube-last-type type)
+    (empv--youtube-search
+     term type
+     (lambda (results)
+       (if use-tabulated
+           (progn
+             (setq empv--last-candidates results)
+             (empv-youtube-tabulated-last-results))
+         (thread-last (empv--completing-read
+                       (format "YouTube results for '%s': " term)
+                       results
+                       :category 'empv-youtube)
+           (empv--youtube-process-result results type)
+           (empv--play-or-enqueue)))))))
 
 (defun empv--youtube-multiple (term type)
   "Like `empv--youtube' but use `completing-read-multiple'.
@@ -701,6 +713,14 @@ See `empv--youtube' for TERM and TYPE."
   "Search TERM in YouTube videos."
   (interactive "sSearch in YouTube videos: ")
   (empv--youtube term 'video))
+
+;;;###autoload
+(defun empv-youtube-tabulated (term)
+  "Search TERM in YouTube videos.
+Show results in a tabulated buffers with thumbnails."
+  (interactive "sSearch in YouTube videos: ")
+  (let ((empv-youtube-use-tabulated-results t))
+    (empv--youtube term 'video)))
 
 ;;;###autoload
 (defun empv-youtube-multiple (term)
@@ -887,7 +907,6 @@ Limit directory treversal at most DEPTH levels.  By default it's
   "Show last search results in tabulated mode with thumbnails."
   (interactive)
   (empv--youtube-show-tabulated-results empv--last-candidates))
-
 
 
 (provide 'empv)
