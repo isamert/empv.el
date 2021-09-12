@@ -74,11 +74,11 @@ https://invidious-example.com/api/v1"
   :group 'empv)
 
 (defcustom empv-audio-dir (or (getenv "$XDG_MUSIC_DIR") "~/Music")
-  "The directory that you keep your videos in."
+  "The directory that you keep your music in."
   :type 'string
   :group 'empv)
 
-(defcustom empv-video-dir (or (getenv "$XDG_VIDEOS_DIR") "~/Videos")
+(defcustom empv-video-dir (or (getenv "$XDG_VIDEOS_DIR") "~/Downloads")
   "The directory that you keep your videos in."
   :type 'string
   :group 'empv)
@@ -389,11 +389,9 @@ This function also tries to disable sorting in `completing-read' function."
   `(empv--run
     (empv--cmd
      'get_property 'playlist
-     ;; TODO: disable other sorting mechanisms
-     ;; right now it only disables selectrum
-     (let* ((selectrum-should-sort nil)
-            (item (completing-read "Select track: " (seq-map-indexed #'empv--format-playlist-item it))))
-       (ignore selectrum-should-sort)
+     (let ((item (empv--completing-read
+                  "Select track: "
+                  (seq-map-indexed #'empv--format-playlist-item it))))
        (ignore item)
        ,@forms))))
 
@@ -577,9 +575,9 @@ If ARG is non-nil, then also put it to `kill-ring'."
 
 (defun empv--get-radio-url ()
   "Get a radio channel URL from the user."
-  (thread-last empv-radio-channels
-    (completing-read "Channel: ")
-    (empv-flipcall #'assoc-string empv-radio-channels)))
+  (assoc-string
+   (empv--completing-read "Channel: " empv-radio-channels :sort t)
+   empv-radio-channels))
 
 ;;;###autoload
 (defun empv-play-radio ()
@@ -658,20 +656,21 @@ finishes."
       (alist-get (if is-video 'videoId 'playlistId))
       (format "https://youtube.com/%s=%s" (if is-video "watch?v" "playlist?list")))))
 
-(cl-defun empv--completing-read (candidates &key prompt category)
+(cl-defun empv--completing-read (prompt candidates &key category sort)
   "`completing-read' wrapper.
 
 It uses `consult--read' if it's available or fallsback to
 `completing-read'.  Using `consult--read' enables the use of
 embark actions through the CATEGORY.  CANDIDATES and PROMPT are
 required."
-  (setq empv--last-candidates candidates)
-  (if (require 'consult nil 'noerror)
-    (consult--read
-     candidates
-     :prompt prompt
-     :category category)
-    (completing-read prompt candidates)))
+  (let ((selectrum-should-sort sort))
+    (setq empv--last-candidates candidates)
+    (if (require 'consult nil 'noerror)
+        (consult--read
+         candidates
+         :prompt prompt
+         :category category)
+      (completing-read prompt candidates))))
 
 (defun empv--youtube (term type)
   "Search TERM in YouTube.
@@ -681,8 +680,8 @@ See `empv--youtube-search' for TYPE."
    term type
    (lambda (results)
      (thread-last (empv--completing-read
+                   (format "YouTube results for '%s': " term)
                    results
-                   :prompt (format "YouTube results for '%s': " term)
                    :category 'empv-youtube)
        (empv--youtube-process-result results type)
        (empv--play-or-enqueue)))))
@@ -739,7 +738,7 @@ PROMPT is shown to user while selecting.
 Limit directory treversal at most DEPTH levels.  By default it's
 `empv-max-directory-search-depth'"
   (thread-last (empv--find-files path extensions depth)
-    (completing-read prompt)
+    (empv--completing-read prompt)
     (empv-flipcall #'expand-file-name path)))
 
 (defun empv--select-files (prompt path extensions &optional depth)
