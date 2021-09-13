@@ -112,13 +112,12 @@ Show results in a tabulated buffers with thumbnails."
     (kill-new link)
     (empv--display-event "Youtube link copied into your kill-ring: %s" link)))
 
-(when (require 'embark nil 'noerror)
-  (embark-define-keymap empv-embark-youtube-result-actions
-    "Actions for empv YouTube results."
-    ("y" empv-embark-copy-youtube-link)
-    ("a" empv-embark-enqueue-youtube))
+(embark-define-keymap empv-embark-youtube-result-actions
+  "Actions for empv YouTube results."
+  ("y" empv-embark-copy-youtube-link)
+  ("a" empv-embark-enqueue-youtube))
 
-  (add-to-list 'embark-keymap-alist '(empv-youtube . empv-embark-youtube-result-actions)))
+(add-to-list 'embark-keymap-alist '(empv-youtube . empv-embark-youtube-result-actions))
 
 (provide 'consult-empv)
 ;;; consult-empv.el ends here
