@@ -456,6 +456,20 @@ see `empv-base-directory'."
    (empv--cmd 'cycle 'pause)))
 
 ;;;###autoload
+(defun empv-volume-up ()
+  "Up the volume to a max of 100%"
+  (interactive)
+  (empv--cmd 'get_property 'volume
+	     (empv--cmd 'set_property `(volume ,(min (+ it 5) 100)))))
+
+;;;###autoload
+(defun empv-volume-down ()
+  "Down the volume to a min of 0%"
+  (interactive)
+  (empv--cmd 'get_property 'volume
+	     (empv--cmd 'set_property `(volume ,(max (- it 5) 0)))))
+
+;;;###autoload
 (defun empv-toggle-video ()
   "Toggle the video display.
 You can press \"_\" to hide it again when you are focused on
