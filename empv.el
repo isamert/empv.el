@@ -469,6 +469,15 @@ see `empv-base-directory'."
   (empv--cmd 'get_property 'volume
 	     (empv--cmd 'set_property `(volume ,(max (- it 5) 0)))))
 
+(defun empv-set-volume ()
+  "Set the exact volume."
+  (interactive)
+  (empv--cmd
+   'get_property 'volume
+   (let* ((current (string-trim-right (number-to-string it) ".0"))
+          (in (read-string (format "Volume (0-100, current %s): " current))))
+     (empv--cmd 'set_property `(volume ,in)))))
+
 ;;;###autoload
 (defun empv-toggle-video ()
   "Toggle the video display.
