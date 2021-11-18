@@ -456,6 +456,18 @@ see `empv-base-directory'."
    (empv--cmd 'cycle 'pause)))
 
 ;;;###autoload
+(defun empv-current-loop-on ()
+  "Turn on loop for current file"
+  (interactive)
+  (empv--cmd 'set_property '(loop-file inf)))
+
+;;;###autoload
+(defun empv-current-loop-off ()
+  "Turn off loop for current file"
+  (interactive)
+  (empv--cmd 'set_property '(loop-file no)))
+
+;;;###autoload
 (defun empv-volume-up ()
   "Up the volume to a max of 100%"
   (interactive)
@@ -575,6 +587,18 @@ that is defined in `empv-radio-log-format'."
     'set_property
     `(playlist-pos ,(car (split-string item " ")))
     (empv-resume))))
+
+;;;###autoload
+(defun empv-playlist-loop-on ()
+  "Turn on loop for playlist"
+  (interactive)
+  (empv--cmd 'set_property '(loop-playlist inf)))
+
+;;;###autoload
+(defun empv-current-loop-off ()
+  "Turn off loop for playlist"
+  (interactive)
+  (empv--cmd 'set_property '(loop-playlist no)))
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interactive - Misc
