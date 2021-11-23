@@ -85,7 +85,7 @@ Otherwise simply use `completing-read'."
   :type 'string
   :group 'empv)
 
-(defcustom empv-video-dir (or (getenv "$XDG_VIDEOS_DIR") "~/Downloads")
+(defcustom empv-video-dir (or (getenv "$XDG_VIDEOS_DIR") "~/Videos")
   "The directory that you keep your videos in."
   :type 'string
   :group 'empv)
