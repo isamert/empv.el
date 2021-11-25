@@ -709,7 +709,9 @@ finishes."
       (empv-flipcall #'assoc-string results)
       (cdr)
       (alist-get (if is-video 'videoId 'playlistId))
-      (format "https://youtube.com/%s=%s" (if is-video "watch?v" "playlist?list")))))
+      (format "https://youtube.com/%1$s=%3$s # %2$s"
+	      (if is-video "watch?v" "playlist?list")
+	      selected))))
 
 (cl-defun empv--completing-read (prompt candidates &key category sort)
   "`completing-read' wrapper.
