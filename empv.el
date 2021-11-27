@@ -726,7 +726,8 @@ required."
         (consult--read
          candidates
          :prompt prompt
-         :category category)
+         :category category
+         :sort sort)
       (completing-read prompt candidates))))
 
 (defun empv--youtube (term type)
