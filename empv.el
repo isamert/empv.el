@@ -655,19 +655,26 @@ If ARG is non-nil, then also put it to `kill-ring'."
 ;; YouTube/Invidious
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; TODO: make this colorful
 (defun empv--format-yt-item (it)
   "Format IT into `(\"formatted video title\" . it)'."
-  `(,(pcase (alist-get 'type it)
-       ("video" (format "%s // [%.2fK views | %.2f mins]"
-                        (alist-get 'title it)
-                        (/ (alist-get 'viewCount it) 1000.0)
-                        (/ (alist-get 'lengthSeconds it) 60.0)))
-       ("playlist" (format "%s // [%s videos by %s]"
-                           (alist-get 'title it)
-                           (alist-get 'videoCount it)
-                           (alist-get 'author it))))
-    . ,it))
+  (let-alist it
+    (cons
+     (pcase (alist-get 'type it)
+       ("video" (format "[%s] %s"
+                        (propertize (format "%.2sK views, %.2s mins"
+                                            (/ .viewCount 1000.0)
+                                            (/ .lengthSeconds 60.0))
+                                    'face
+                                    'italic)
+                        .title))
+       ("playlist" (format "[%s] %s"
+                           (propertize (format "%s videos by %s"
+                                               .videoCount
+                                               .author)
+                                       'face
+                                       'italic)
+                           .title)))
+     it)))
 
 (defun empv--request-format-param (pair)
   "Format given PAIR into a URL parameter."
