@@ -76,12 +76,6 @@ results to consult using NEXT."
   (empv--youtube (consult-empv--get-input-with-suggestions) 'video))
 
 ;;;###autoload
-(defun consult-empv-youtube ()
-  "Search in YouTube videos with interactive suggestions using `consult' and `empv'."
-  (interactive)
-  (empv--youtube (consult-empv--get-input-with-suggestions) 'video))
-
-;;;###autoload
 (defun consult-empv-youtube-tabulated ()
   "Search in YouTube videos with interactive suggestions using `consult' and `empv'.
 Show results in a tabulated buffers with thumbnails."
@@ -111,6 +105,9 @@ Show results in a tabulated buffers with thumbnails."
   (let ((link (empv--youtube-process-result empv--last-candidates empv--youtube-last-type key)))
     (kill-new link)
     (empv--display-event "Youtube link copied into your kill-ring: %s" link)))
+
+(defun empv-embark-enqueue-youtube (key)
+  (empv-enqueue (empv--youtube-process-result empv--last-candidates empv--youtube-last-type key)))
 
 (embark-define-keymap empv-embark-youtube-result-actions
   "Actions for empv YouTube results."
