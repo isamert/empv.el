@@ -738,16 +738,10 @@ See `empv--youtube-search' for TYPE."
     (empv--youtube-search
      term type
      (lambda (results)
+       (setq empv--last-candidates results)
        (if use-tabulated
-           (progn
-             (setq empv--last-candidates results)
-             (empv-youtube-tabulated-last-results))
-         (thread-last (empv--completing-read
-                       (format "YouTube results for '%s': " term)
-                       results
-                       :category 'empv-youtube)
-           (empv--youtube-process-result results type)
-           (empv--play-or-enqueue)))))))
+           (empv-youtube-tabulated-last-results)
+         (empv-youtube-last-results))))))
 
 (defun empv--youtube-multiple (term type)
   "Like `empv--youtube' but use `completing-read-multiple'.
@@ -953,12 +947,20 @@ Limit directory treversal at most DEPTH levels.  By default it's
     (kill-new it)
     (message "Copied %s!" it)))
 
-;; TODO Maybe add non-tabulated version of this
 (defun empv-youtube-tabulated-last-results ()
   "Show last search results in tabulated mode with thumbnails."
   (interactive)
   (empv--youtube-show-tabulated-results empv--last-candidates))
 
+(defun empv-youtube-last-results ()
+  "Show last search results."
+  (interactive)
+  (thread-last (empv--completing-read
+                (format "YouTube results: ")
+                empv--last-candidates
+                :category 'empv-youtube)
+    (empv--youtube-process-result empv--last-candidates empv--youtube-last-type)
+    (empv--play-or-enqueue)))
 
 (provide 'empv)
 ;;; empv.el ends here
