@@ -414,7 +414,8 @@ This function also tries to disable sorting in `completing-read' function."
       (progn
         (empv--cmd 'loadfile uri)
         (empv-resume))
-    (empv-start uri)))
+    (empv-start uri))
+  (empv--display-event "Playing %s" uri))
 
 (defun empv-resume ()
   "Resume the playback."
@@ -548,7 +549,8 @@ that is defined in `empv-radio-log-format'."
   "Like `empv-play' but add the given URI to end of the playlist."
   (interactive "sEnter an URI to play: ")
   (empv--run
-   (empv--cmd 'loadfile `(,uri "append-play"))))
+   (empv--cmd 'loadfile `(,uri "append-play"))
+   (empv--display-event "Enqueued %s" uri)))
 
 ;;;###autoload
 (defun empv-playlist-next ()
