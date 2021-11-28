@@ -317,6 +317,23 @@ happens."
        (empv-start))
      ,@forms))
 
+(defmacro empv--let-properties (props &rest forms)
+  (declare (indent 1))
+  `(let ((props-alist (make-hash-table))
+         (prop-count (length ,props))
+         (finalized-count 0))
+     (seq-do
+      (lambda (prop)
+        (empv--send-command
+         (list "get_property" prop)
+         (lambda (result)
+           (map-put! props-alist prop result)
+           (setq finalized-count (1+ finalized-count))
+           (when (eq finalized-count prop-count)
+             (let-alist (map-into props-alist 'alist)
+               ,@forms)))))
+      ,props)))
+
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Essential functions
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -350,25 +367,22 @@ URI might be a string or a list of strings."
     (artist . ,(empv--metadata-get data 'artist 'icy-artist))
     (genre  . ,(empv--metadata-get data 'genre 'icy-genre))))
 
-(defun empv--create-media-summary-for-notification (data handler)
-  "Generate a formatted media title like \"Song name - Artist\".
-Title is generated using DATA and passed to the HANDLER."
-  (let ((metadata (empv--extract-metadata data)))
-    (if (alist-get 'title metadata)
-        (funcall handler (format "%s %s %s"
-                                 (alist-get 'title metadata)
-                                 (or (and (alist-get 'artist metadata) "-") "")
-                                 (or (alist-get 'artist metadata) "")))
-      (empv--cmd
-       'get_property 'media-title
-       (funcall handler it)))))
+(defun empv--create-media-summary-for-notification (metadata)
+  "Generate a formatted media title like \"Song name - Artist\" from given METADATA."
+  (let-alist (empv--extract-metadata metadata)
+    (when .title
+      (format "%s %s %s"
+              .title
+              (or (and .artist "-") "")
+              (or .artist "")))))
 
 (defun empv--handle-metadata-change (data)
   "Display info about the current track using DATA."
   (empv--dbg "handle-metadata-change <> %s" data)
-  (empv--create-media-summary-for-notification
-   data
-   (lambda (msg) (empv--display-event "%s" msg))))
+  (if-let ((media-title (empv--create-media-summary-for-notification data)))
+      (empv--display-event "%s" media-title)
+    (empv--let-properties '(media-title)
+      (empv--display-event "%s" .media-title))))
 
 (defun empv-start (&optional uri)
   "Start mpv using `empv-mpv-command' with given URI."
@@ -611,14 +625,11 @@ that is defined in `empv-radio-log-format'."
   "Display currently playing item's name.
 If ARG is non-nil, then also put it to `kill-ring'."
   (interactive "P")
-  (empv--cmd
-   'get_property 'metadata
-   (empv--create-media-summary-for-notification
-    it
-    (lambda (msg)
-      (empv--display-event "%s" msg)
+  (empv--let-properties '(playlist-pos-1 playlist-count percent-pos metadata media-title)
+    (let ((title (or (empv--create-media-summary-for-notification .metadata) .media-title)))
+      (empv--display-event "%s (%d%%, %s/%s)" title .percent-pos .playlist-pos-1 .playlist-count)
       (when arg
-        (kill-new msg))))))
+        (kill-new title)))))
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Radio
