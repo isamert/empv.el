@@ -713,14 +713,12 @@ finishes."
 
 (defun empv--youtube-process-result (results type selected)
   "Find and return youtube url for SELECTED item of TYPE in RESULTS."
-  (let ((is-video (eq type 'video)))
-    (thread-last selected
-      (empv-flipcall #'assoc-string results)
-      (cdr)
-      (alist-get (if is-video 'videoId 'playlistId))
-      (format "https://youtube.com/%1$s=%3$s # %2$s"
-	      (if is-video "watch?v" "playlist?list")
-	      selected))))
+  (let ((is-video (eq type 'video))
+        (info (cdr (assoc-string selected results))))
+    (format "https://youtu.be/%s=%s # %s"
+	          (if is-video "watch?v" "playlist?list")
+            (alist-get (if is-video 'videoId 'playlistId) info)
+	          (alist-get 'title info))))
 
 (cl-defun empv--completing-read (prompt candidates &key category sort)
   "`completing-read' wrapper.
@@ -932,11 +930,10 @@ Limit directory treversal at most DEPTH levels.  By default it's
     (pop-to-buffer-same-window buffer)))
 
 (defun empv-youtube-results--current-video-url ()
-  (thread-last empv--last-candidates
-    (nth (tabulated-list-get-id))
-    (cdr)
-    (alist-get 'videoId)
-    (format "https://youtube.com/watch?v=%s")))
+  (empv--youtube-process-result
+   empv--last-candidates
+   'video
+   (car (nth (tabulated-list-get-id) empv--last-candidates))))
 
 (defun empv-youtube-results-play-current ()
   (interactive)
