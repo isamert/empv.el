@@ -145,6 +145,14 @@ replaced with their current values at the time of calling."
   :type 'string
   :group 'empv)
 
+(defcustom empv-allow-insecure-connections
+  nil
+  "Allow insecure connections (expired certificates etc.) while
+doing network calls. This could be useful for being able to use
+some invidious instances."
+  :type 'boolean
+  :group 'empv)
+
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Public variables
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -925,7 +933,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
             (format "empv-download-process-%s" video-id)
             "*empv-thumbnail-downloads*"
             (if (file-exists-p filename) "printf" "curl")
-            "--insecure"
+            (if empv-allow-insecure-connections "--insecure" "")
             "-o"
             filename)
            (empv-flipcall
