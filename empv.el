@@ -311,6 +311,12 @@ happens."
      (empv--send-command
       `(,,cmd ,,args) (lambda (it) (ignore it) ,@forms t))))
 
+(defmacro empv--cmd-seq (&rest forms)
+  (seq-reduce
+   (lambda (acc it) `(empv--cmd ,(nth 0 it) ,(nth 1 it) (,@acc)))
+   (reverse forms)
+   '()))
+
 (defmacro empv--observe (property &rest forms)
   "Observe PROPERTY and call FORMS when it does chage."
   `(empv--send-command
@@ -432,13 +438,17 @@ This function also tries to disable sorting in `completing-read' function."
 
 ;;;###autoload
 (defun empv-play (uri)
-  "Play given URI."
+  "Play given URI. Add given URI to end of the current playlist and
+immediately switch to it"
   (interactive "sEnter an URI to play: ")
   (if (empv--running?)
-      (progn
-        (empv--cmd 'loadfile uri)
-        (empv-resume))
-    (empv-start uri))
+      (empv--cmd-seq
+       ('loadfile (list uri 'append))
+       ('get_property 'playlist-count)
+       ('playlist-play-index (1- it))))
+  (empv--cmd
+   'get_property 'volume
+   (empv-start uri))
   (empv--display-event "Playing %s" uri))
 
 (defun empv-resume ()
@@ -610,8 +620,8 @@ that is defined in `empv-radio-log-format'."
   (interactive)
   (empv--playlist-select-item-and
    (empv--cmd
-    'set_property
-    `(playlist-pos ,(car (split-string item " ")))
+    'playlist-play-index
+    (car (split-string item " "))
     (empv-resume))))
 
 ;;;###autoload
