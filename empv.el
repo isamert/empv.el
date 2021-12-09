@@ -657,9 +657,11 @@ If ARG is non-nil, then also put it to `kill-ring'."
 
 (defun empv--play-radio-channel (channel &optional ask)
   (setq empv-current-radio-channel channel)
-  (if ask
-      (empv--play-or-enqueue (cdr channel))
-    (empv-play (cdr channel))))
+  ;; See #6
+  (let ((url (format "%s# %s" (cdr channel) (car channel))))
+    (if ask
+        (empv--play-or-enqueue url)
+      (empv-play url))))
 
 (defun empv--get-radio-url ()
   "Get a radio channel URL from the user."
@@ -746,7 +748,8 @@ finishes."
   "Find and return youtube url for SELECTED item of TYPE in RESULTS."
   (let ((is-video (eq type 'video))
         (info (cdr (assoc-string selected results))))
-    (format "https://youtu.be/%s=%s # %s"
+    ;; See #6
+    (format "https://youtu.be/%s=%s# %s"
 	          (if is-video "watch?v" "playlist?list")
             (alist-get (if is-video 'videoId 'playlistId) info)
 	          (alist-get 'title info))))
