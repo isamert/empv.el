@@ -71,7 +71,9 @@ https://invidious-example.com/api/v1"
 (defcustom empv-youtube-use-tabulated-results
   nil
   "Show YouTube results in a tabulated buffer with thumbnails if not nil.
-Otherwise simply use `completing-read'."
+Otherwise simply use `completing-read'. You can still use
+`empv-youtube-tabulated' or `consult-empv-youtube-tabulated'
+commands if this variable is `nil'."
   :type 'boolean
   :group 'empv)
 
@@ -923,6 +925,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
             (format "empv-download-process-%s" video-id)
             "*empv-thumbnail-downloads*"
             (if (file-exists-p filename) "printf" "curl")
+            "--insecure"
             "-o"
             filename)
            (empv-flipcall
