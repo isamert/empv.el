@@ -583,7 +583,7 @@ that is defined in `empv-radio-log-format'."
   "Like `empv-play' but add the given URI to end of the playlist."
   (interactive "sEnter an URI to play: ")
   (empv--run
-   (empv--cmd 'loadfile `(,uri "append-play"))
+   (empv--cmd 'loadfile `(,uri append-play))
    (empv--display-event "Enqueued %s" uri)))
 
 ;;;###autoload
