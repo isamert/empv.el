@@ -424,13 +424,12 @@ INDEX is the place where the item appears in the playlist."
   "Select a playlist item and then run FORMS with the input.
 This function also tries to disable sorting in `completing-read' function."
   `(empv--run
-    (empv--cmd
-     'get_property 'playlist
-     (let ((item (empv--completing-read
-                  "Select track: "
-                  (seq-map-indexed #'empv--format-playlist-item it))))
-       (ignore item)
-       ,@forms))))
+    (empv--let-properties '(playlist)
+      (let ((item (empv--completing-read
+                   "Select track: "
+                   (seq-map-indexed #'empv--format-playlist-item .playlist))))
+        (ignore item)
+        ,@forms))))
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interactive - Basics
@@ -504,24 +503,25 @@ see `empv-base-directory'."
 (defun empv-volume-up ()
   "Up the volume to a max of 100%"
   (interactive)
-  (empv--cmd 'get_property 'volume
-	     (empv--cmd 'set_property `(volume ,(min (+ it 5) 100)))))
+  (empv--cmd-seq
+   ('get_property 'volume)
+	 ('set_property `(volume ,(min (+ it 5) 100)))))
 
 ;;;###autoload
 (defun empv-volume-down ()
   "Down the volume to a min of 0%"
   (interactive)
-  (empv--cmd 'get_property 'volume
-	     (empv--cmd 'set_property `(volume ,(max (- it 5) 0)))))
+  (empv--cmd-seq
+   ('get_property 'volume)
+	 ('set_property `(volume ,(max (- it 5) 0)))))
 
 (defun empv-set-volume ()
   "Set the exact volume."
   (interactive)
-  (empv--cmd
-   'get_property 'volume
-   (let* ((current (string-trim-right (number-to-string it) ".0"))
-          (in (read-string (format "Volume (0-100, current %s): " current))))
-     (empv--cmd 'set_property `(volume ,in)))))
+  (empv--let-properties '(volume)
+    (let* ((current (string-trim-right (number-to-string .volume) ".0"))
+           (in (read-string (format "Volume (0-100, current %s): " current))))
+      (empv--cmd 'set_property `(volume ,in)))))
 
 ;;;###autoload
 (defun empv-toggle-video ()
@@ -561,16 +561,16 @@ MPV."
 The song's are logged into `empv-radio-log-file' with the format
 that is defined in `empv-radio-log-format'."
   (interactive)
-  (empv--cmd
-   'get_property 'metadata
-   (when-let ((title (alist-get 'icy-title it)))
-     (write-region
-      (thread-last empv-radio-log-format
-        (string-replace "#{timestamp}" (format "[%s]" (format-time-string "%Y-%m-%d %a %H:%M")))
-        (string-replace "#{channel-name}" (car empv-current-radio-channel))
-        (string-replace "#{track-title}" title))
-      nil empv-radio-log-file 'append)
-     (message "%s" title))))
+  (empv--let-properties '(metadata)
+    (when-let ((title (alist-get 'icy-title .metadata)))
+      (write-region
+       (thread-last
+         empv-radio-log-format
+         (string-replace "#{timestamp}" (format "[%s]" (format-time-string "%Y-%m-%d %a %H:%M")))
+         (string-replace "#{channel-name}" (car empv-current-radio-channel))
+         (string-replace "#{track-title}" title))
+       nil empv-radio-log-file 'append)
+      (message "%s" title))))
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interactive - Playlist
@@ -619,8 +619,7 @@ that is defined in `empv-radio-log-format'."
   (empv--playlist-select-item-and
    (empv--cmd
     'playlist-play-index
-    (car (split-string item " "))
-    (empv-resume))))
+    (car (split-string item " ")))))
 
 ;;;###autoload
 (defun empv-playlist-loop-on ()
