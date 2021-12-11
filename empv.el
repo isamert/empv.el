@@ -444,7 +444,8 @@ immediately switch to it"
       (empv--cmd-seq
        ('loadfile (list uri 'append))
        ('get_property 'playlist-count)
-       ('playlist-play-index (1- it)))
+       ('playlist-play-index (1- it))
+       ('set_property '(pause :json-false)))
     (empv-start uri))
   (empv--display-event "Playing %s" uri))
 
