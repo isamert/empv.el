@@ -629,7 +629,7 @@ that is defined in `empv-radio-log-format'."
   (empv--cmd 'set_property '(loop-playlist inf)))
 
 ;;;###autoload
-(defun empv-current-loop-off ()
+(defun empv-playlist-loop-off ()
   "Turn off loop for playlist"
   (interactive)
   (empv--cmd 'set_property '(loop-playlist no)))
