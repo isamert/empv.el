@@ -3,7 +3,7 @@ An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this pa
 
 /empv/ is mostly focused on audio but it also provides some means to manage videos. It also supports YouTube searches. If you are a [[https://github.com/minad/consult][consult]] user, then you can also install =consult-empv= package to get search suggestions while using empv's YouTube search capabilities.
 
-Workflow is generally =M-x empv-something= and =completing-read= based, no buffers or complex interfaces. Scroll down to see available [[*Interactive functions and configuration][interactive functions]]. No default keybindings are provided.
+Workflow is generally =M-x empv-something= and =completing-read= based, no buffers or complex interfaces (except for the tabulated YouTube results). Scroll down to see available [[*Interactive functions and configuration][interactive functions]]. No default keybindings are provided.
 
 * Installation
 First, you need to install [[https://mpv.io][mpv]], go check out it's installation instructions for your operating system/distribution. Then you can install /empv.el/ using:
@@ -92,6 +92,15 @@ You can select an invidious instance from [[https://api.invidious.io/][here]].
 - =empv-youtube= :: Search given term in Youtube videos and then interactively select one of the results.
 - =empv-youtube-multiple= :: Multiple selection version of =empv-youtube=.
 - =empv-youtube-playlist= :: Search given term in Youtube playlists and then interactively select and start playing selected playlist.
+- =empv-youtube-last-results= :: Show last set of search results.
+
+Thumbnails greatly help to identify the right video in a search. Using ~completing-read~ falls short here, /empv.el/ offers some additional commands to address this issue:
+
+- =empv-youtube-tabulated= :: Search given term in YouTube and display them in a buffer with video thumbnails. This buffer has some default keybindings, like:
+  - ~p~ plays the current selection, ~a~ adds the current selection to the end of the queue, ~Y~ copies the video address, ~Return~ asks you to play or enqueue the current selection.
+- =empv-youtube-tabulated-last-results= :: Show last set of search results in a tabulated search result buffer with thumbnails. This command works even if the last search was done using the ~completing-read~ interface.
+
+You can also set ~empv-youtube-use-tabulated-results~ to a non-nil value to make YouTube commands use the tabulated interface by default at all times.
 
 If you have installed =consult-empv.el=:
 - =consult-empv-youtube= :: Like =empv-youtube= but it also shows search suggestions while typing the query.
