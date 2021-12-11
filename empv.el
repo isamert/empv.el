@@ -618,9 +618,9 @@ that is defined in `empv-radio-log-format'."
   "Select a playlist entry and play it."
   (interactive)
   (empv--playlist-select-item-and
-   (empv--cmd
-    'playlist-play-index
-    (car (split-string item " ")))))
+   (empv--cmd-seq
+    ('playlist-play-index (car (split-string item " ")))
+    ('set_property '(pause :json-false)))))
 
 ;;;###autoload
 (defun empv-playlist-loop-on ()
