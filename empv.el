@@ -639,12 +639,16 @@ that is defined in `empv-radio-log-format'."
 
 ;;;###autoload
 (defun empv-display-current (arg)
-  "Display currently playing item's name.
-If ARG is non-nil, then also put it to `kill-ring'."
+  "Display currently playing item's title and media player state.
+If ARG is non-nil, then also put the title to `kill-ring'."
   (interactive "P")
-  (empv--let-properties '(playlist-pos-1 playlist-count percent-pos metadata media-title)
-    (let ((title (or (empv--create-media-summary-for-notification .metadata) .media-title)))
-      (empv--display-event "%s (%d%%, %s/%s)" title .percent-pos .playlist-pos-1 .playlist-count)
+  (empv--let-properties '(playlist-pos-1 playlist-count percent-pos metadata media-title pause paused-for-cache)
+    (let ((title (or (empv--create-media-summary-for-notification .metadata) .media-title))
+          (state (cond
+                  ((eq .paused-for-cache t) "Buffering...")
+                  ((eq .pause t) "Paused")
+                  (t "Playing"))))
+      (empv--display-event "[%s] %s (%d%%, %s/%s)" state title (or .percent-pos 0) .playlist-pos-1 .playlist-count)
       (when arg
         (kill-new title)))))
 
