@@ -516,6 +516,7 @@ see `empv-base-directory'."
    ('get_property 'volume)
 	 ('set_property `(volume ,(max (- it 5) 0)))))
 
+;;;###autoload
 (defun empv-set-volume ()
   "Set the exact volume."
   (interactive)
@@ -523,6 +524,31 @@ see `empv-base-directory'."
     (let* ((current (string-trim-right (number-to-string .volume) ".0"))
            (in (read-string (format "Volume (0-100, current %s): " current))))
       (empv--cmd 'set_property `(volume ,in)))))
+
+;;;###autoload
+(defun empv-set-playback-speed ()
+  "Set the exact playback speed."
+  (interactive)
+  (empv--let-properties '(speed)
+    (let* ((current (format "%.2f" .speed))
+           (in (read-string (format "Speed (current %s): " current))))
+      (empv--cmd 'set_property `(speed ,in)))))
+
+;;;###autoload
+(defun empv-playback-speed-down ()
+  "Lower the playback speed by `0.25'."
+  (interactive)
+  (empv--cmd-seq
+   ('get_property 'speed)
+	 ('set_property `(speed ,(max (- it 0.25) 0)))))
+
+;;;###autoload
+(defun empv-playback-speed-up ()
+  "Increase the playback speed by `0.25'."
+  (interactive)
+  (empv--cmd-seq
+   ('get_property 'speed)
+	 ('set_property `(speed ,(+ it 0.25)))))
 
 ;;;###autoload
 (defun empv-toggle-video ()
