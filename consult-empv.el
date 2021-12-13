@@ -30,6 +30,7 @@
 (eval-when-compile (require 'subr-x))
 (require 'empv)
 (require 'consult)
+(require 'embark)
 
 (defun consult-empv--get-input-with-suggestions ()
   "Get an input from user, using YouTube search suggestions."

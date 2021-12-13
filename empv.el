@@ -329,7 +329,7 @@ happens."
 (defmacro empv--run (&rest forms)
   "Start if mpv is not running already and then run FORMS."
   `(progn
-     (when (not (empv--running?))
+     (unless (empv--running?)
        (empv-start))
      ,@forms))
 
@@ -403,7 +403,7 @@ URI might be a string or a list of strings."
 (defun empv-start (&optional uri)
   "Start mpv using `empv-mpv-command' with given URI."
   (interactive)
-  (when (not (empv--running?))
+  (unless (empv--running?)
     (empv--dbg "Starting MPV.")
     (empv--make-process uri)
     ;; TODO: remove sleep
