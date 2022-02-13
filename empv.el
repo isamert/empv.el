@@ -681,7 +681,7 @@ If ARG is non-nil, then also put the title to `kill-ring'."
 
 (defun empv--extract-metadata-from-title (title)
   (mapcar
-   (lambda (it) (string-trim it))
+   #'string-trim
    (split-string (replace-regexp-in-string "(.*)" "" title) "-")))
 
 (defun empv-display-lyrics ()
