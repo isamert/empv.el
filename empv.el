@@ -679,13 +679,20 @@ If ARG is non-nil, then also put the title to `kill-ring'."
       (when arg
         (kill-new title)))))
 
+(defun empv--extract-metadata-from-title (title)
+  (mapcar
+   (lambda (it) (string-trim it))
+   (split-string (replace-regexp-in-string "(.*)" "" title) "-")))
+
 (defun empv-display-lyrics ()
   (interactive)
   (if (require 'versuri nil t)
-      (empv--let-properties '(metadata)
-        (versuri-display
-         (empv--metadata-get .metadata 'artist 'icy-artist)
-         (empv--metadata-get .metadata 'title 'icy-title)))
+      (empv--let-properties '(metadata media-title)
+        (let* ((extracted (empv--extract-metadata-from-title .media-title))
+               (artist (or (empv--metadata-get .metadata 'artist 'icy-artist) (car extracted)))
+               (song (or (empv--metadata-get .metadata 'title 'icy-title) (cadr extracted))))
+          (empv--display-event "Retrieving lyrics for '%s - %s'..." artist song)
+          (versuri-display artist song)))
     (user-error "Please install `versuri' first to use this feature. Do `M-x' `package-install', type `versuri' and hit `Enter'.")))
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
