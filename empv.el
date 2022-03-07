@@ -805,7 +805,8 @@ It uses `consult--read' if it's available or fallsback to
 `completing-read'.  Using `consult--read' enables the use of
 embark actions through the CATEGORY.  CANDIDATES and PROMPT are
 required."
-  (let ((selectrum-should-sort sort))
+  (let ((selectrum-should-sort sort)
+        (vertico-sort-function (when sort vertico-sort-function)))
     (setq empv--last-candidates candidates)
     (if (require 'consult nil 'noerror)
         (consult--read
