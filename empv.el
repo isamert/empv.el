@@ -992,6 +992,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
             "*empv-thumbnail-downloads*"
             (if (file-exists-p filename) "printf" "curl")
             (if empv-allow-insecure-connections "--insecure" "")
+            "-L"
             "-o"
             filename)
            (empv-flipcall
