@@ -32,6 +32,7 @@
 (require 'map)
 (require 'json)
 (require 'url)
+(require 'vertico)
 
 (defgroup empv nil
   "A media player for Emacs"
