@@ -18,11 +18,7 @@ First, you need to install [[https://mpv.io][mpv]], go check out it's installati
 
 Alternatively, you can use the [[https://github.com/raxod502/straight.el][straight]] package manager:
 #+begin_src elisp
-  (use-package empv
-    :straight (empv
-	       :type git
-	       :host github
-	       :repo "isamert/empv.el"))
+  (straight-use-package '(empv :type git :host github :repo "isamert/empv.el"))
 #+end_src
 
 Another option is just downloading =empv.el= file and putting into your =load-path=, afterwards you can simply do the following in your =init.el=:
