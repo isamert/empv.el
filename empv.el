@@ -806,7 +806,7 @@ It uses `consult--read' if it's available or fallsback to
 embark actions through the CATEGORY.  CANDIDATES and PROMPT are
 required."
   (let ((selectrum-should-sort sort)
-        (vertico-sort-function (when sort vertico-sort-function)))
+        (vertico-sort-function (when (and sort (boundp 'vertico-sort-function)) vertico-sort-function)))
     (setq empv--last-candidates candidates)
     (if (require 'consult nil 'noerror)
         (consult--read
