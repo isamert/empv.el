@@ -38,7 +38,7 @@
    (consult-empv-yt--search-generator)
    :prompt "Search in YouTube videos: "
    :category 'empv-youtube
-   :lookup (lambda (_ candidates cand)
+   :lookup (lambda (_ candidates cand &rest _)
              (or (consult--lookup-member nil candidates cand)
                  (string-trim-left cand (consult--async-split-initial ""))))
    :initial (consult--async-split-initial "")
