@@ -979,34 +979,43 @@ Limit directory treversal at most DEPTH levels.  By default it's
               (filename (format
                          (expand-file-name "~/.cache/empv_%s_%s.jpg")
                          video-id
-                         empv-youtube-thumbnail-quality)))
-         (thread-last video-info
-           (alist-get 'videoThumbnails video-info)
-           (seq-find (lambda (thumb)
-                       (equal empv-youtube-thumbnail-quality
-                              (alist-get 'quality thumb))))
-           (cdr)
-           (alist-get 'url)
-           (start-process
-            (format "empv-download-process-%s" video-id)
-            "*empv-thumbnail-downloads*"
-            (if (file-exists-p filename) "printf" "curl")
-            (if empv-allow-insecure-connections "--insecure" "")
-            "-L"
-            "-o"
-            filename)
-           (empv-flipcall
-            #'set-process-sentinel
-            (lambda (p e)
-              (with-current-buffer buffer
-                (setf
-                 (elt (car (alist-get index tabulated-list-entries)) 0)
-                 (format "[[%s]]" filename))
-                (setq completed-count (1+ completed-count))
-                (when (eq completed-count total-count)
-                  (tabulated-list-print)
-                  (iimage-mode)
-                  (back-to-indentation))))))))
+                         empv-youtube-thumbnail-quality))
+              (thumb-url (thread-last
+                           video-info
+                           (alist-get 'videoThumbnails video-info)
+                           (seq-find (lambda (thumb)
+                                       (equal empv-youtube-thumbnail-quality
+                                              (alist-get 'quality thumb))))
+                           (cdr)
+                           (alist-get 'url)))
+              (args (seq-filter
+                     #'identity
+                     (list
+                      (if (file-exists-p filename)
+                          "printf" "curl")
+                      (if empv-allow-insecure-connections
+                          "--insecure" nil)
+                      "-L"
+                      "-o"
+                      filename
+                      thumb-url))))
+         (empv--dbg "Dowloading thumbnail using: '%s'" args)
+         (set-process-sentinel
+          (apply #'start-process
+                 (format "empv-download-process-%s" video-id)
+                 "*empv-thumbnail-downloads*"
+                 args)
+          (lambda (p e)
+            (empv--dbg "Download finished for image index=%s, url=%s, path=%s" index thumb-url filename)
+            (with-current-buffer buffer
+              (setf
+               (elt (car (alist-get index tabulated-list-entries)) 0)
+               (format "[[%s]]" filename))
+              (setq completed-count (1+ completed-count))
+              (when (eq completed-count total-count)
+                (tabulated-list-print)
+                (iimage-mode)
+                (back-to-indentation)))))))
      candidates)
     (pop-to-buffer-same-window buffer)))
 
