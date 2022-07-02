@@ -104,7 +104,7 @@ If you have installed =consult-empv.el=:
 - =consult-empv-youtube-playlist= :: Like =empv-youtube-playlist= but it also shows search suggestions while typing the query.
 - =consult-empv-youtube-playlist-multiple= :: Multiple selection version of =consult-empv-youtube=.
 
-*** A note about =empv-toggle-video=
+** A note about =empv-toggle-video=
 If you start playing a YouTube video, it'll start playing in background. You may be tempted to call =empv-toggle-video= to start watching the video itself but it'll not work. /mpv/ tries to be smart when it's in background it only downloads the audio if it's possible. If you want to be able to watch YouTube videos whenever you want, you need to add something like this to your configuration to force-download videos:
 
 #+begin_src elisp
