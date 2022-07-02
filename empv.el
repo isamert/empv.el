@@ -570,6 +570,17 @@ MPV."
   (setq empv--callback-table (make-hash-table :test 'equal)))
 
 ;;;###autoload
+(defun empv-save-and-exit ()
+  "Exit and save the current playing position.
+Playing that file later will seek to the previous position on
+start.  This is equivalent to doing `Shift + q' on an mpv
+window."
+  (interactive)
+  (empv--cmd
+   'quit-watch-later '()
+   (empv-exit)))
+
+;;;###autoload
 (defun empv-toggle-event-display ()
   "Toggle debug mode."
   (interactive)

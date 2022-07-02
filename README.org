@@ -42,6 +42,10 @@ This list is not complete. I only listed most important functions. Do =M-x= and 
 - =empv-pause= :: Pause.
 - =empv-toggle= :: Toggle the pause state.
 - =empv-exit= :: Shut down empv.
+- =empv-save-and-exit= :: Shut down empv save the current playing position. You can also add ~--save-position-on-quit~ to ~empv-mpv-args~ to get the same effect by default so that every time you quit empv, it'll automatically save the playback position of the currently playing file and it'll seek to previous position on start.
+  #+begin_src emacs-lisp
+    (add-to-list 'empv-mpv-args "--save-position-on-quit")
+  #+end_src
 
 ** Playlist functions
 - =empv-playlist-next= :: Play the next media in the playlist.
