@@ -449,6 +449,39 @@ immediately switch to it"
     (empv-start uri))
   (empv--display-event "Playing %s" uri))
 
+(defun empv-seek (target &optional type)
+  "Change the playback position according to TARGET.
+TYPE is `(\"relative\")' by default.  It can be one of the
+following or combination of them (like `(\"absolute\"
+\"keyframes\")'):
+
+relative (default)
+    Seek relative to current position (a negative value seeks backwards).
+absolute
+    Seek to a given time (a negative value starts from the end of the file).
+absolute-percent
+    Seek to a given percent position.
+relative-percent
+    Seek relative to current position in percent.
+keyframes
+    Always restart playback at keyframe boundaries (fast).
+exact
+    Always do exact/hr/precise seeks (slow).
+
+Some examples:
+
+    (empv-seek \"33:27\" '(\"absolute\")) -> Jump exactly to 33:27.
+    (empv-seek \"40\" '(\"relative\"))    -> Seek +40 seconds
+
+See this[1] for more information.
+
+[1]: https://mpv.io/manual/master/#command-interface-seek-%3Ctarget%3E-[%3Cflags%3E]"
+  (interactive
+   (let ((type (completing-read-multiple "How? " '("relative" "absolute" "relative-percent" "absolute-percent" "keyframes" "exact")))
+         (target (read-string "Target: ")))
+     (list target type)))
+  (empv--cmd 'seek `(,target ,(string-join (or type '("relative")) "+"))))
+
 (defun empv-resume ()
   "Resume the playback."
   (interactive)
