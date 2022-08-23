@@ -350,6 +350,15 @@ happens."
                ,@forms)))))
       ,props)))
 
+(defmacro empv--with-video-enabled (&rest forms)
+  `(let* ((empv-mpv-args (seq-filter (lambda (it) (not (equal it "--no-video"))) empv-mpv-args))
+          (result (progn ,@forms)))
+     (empv--cmd
+      'get_property 'video
+      (when (eq it :json-false)
+        (empv-toggle-video)))
+     result))
+
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Essential functions
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -951,15 +960,17 @@ Limit directory treversal at most DEPTH levels.  By default it's
 (defun empv-play-video ()
   "Interactively select and play a video file from `empv-video-dir'."
   (interactive)
-  (empv--play-or-enqueue
-   (empv--select-file "Select a video file: " empv-video-dir empv-video-file-extensions)))
+  (empv--with-video-enabled
+   (empv--play-or-enqueue
+    (empv--select-file "Select a video file: " empv-video-dir empv-video-file-extensions))))
 
 ;;;###autoload
 (defun empv-play-video-multiple ()
   "Interactively select and play video file(s) from `empv-video-dir'."
   (interactive)
-  (empv--play-or-enqueue
-   (empv--select-files "Select a video file(s): " empv-video-dir empv-video-file-extensions)))
+  (empv--with-video-enabled
+   (empv--play-or-enqueue
+    (empv--select-files "Select a video file(s): " empv-video-dir empv-video-file-extensions))))
 
 ;;;###autoload
 (defun empv-play-audio ()
