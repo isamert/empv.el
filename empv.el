@@ -918,6 +918,36 @@ Show results in a tabulated buffers with thumbnails."
   (interactive "sSearch in YouTube playlists: ")
   (empv--youtube term 'playlist))
 
+(defun empv-youtube-show-current-comments ()
+  "Show YouTube comments for currently playing (or paused) YouTube
+video."
+  (interactive)
+  (empv--let-properties '(path)
+    (empv-youtube-show-comments .path)))
+
+(defun empv-youtube-show-comments (video-id)
+  "Show comments of a YouTube video in a nicely formatted org
+buffer."
+  (interactive "sURL or ID: ")
+  (setq video-id (replace-regexp-in-string "^.*v=\\([A-Za-z0-9_-]+\\).*" "\\1" video-id))
+  (empv--request
+   (format "%s/comments/%s" empv-invidious-instance video-id)
+   '()
+   (lambda (result)
+     (let ((buffer (get-buffer-create (format "*empv-yt-comments-%s*" video-id))))
+       (switch-to-buffer-other-window buffer)
+       (with-current-buffer buffer
+         (erase-buffer)
+         (org-mode)
+         (when (require 'emojify nil t)
+           (emojify-mode))
+         (seq-map
+          (lambda (comment)
+            (let-alist comment
+              (insert (format "* %s (👍 %s)%s\n%s\n"
+                              .author .likeCount (if .creatorHeart " ❤️" "") .content))))
+          (alist-get 'comments result)))))))
+
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Videos and music
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
