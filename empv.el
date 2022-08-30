@@ -735,18 +735,31 @@ If ARG is non-nil, then also put the title to `kill-ring'."
 (defun empv--extract-metadata-from-title (title)
   (mapcar
    #'string-trim
-   (split-string (replace-regexp-in-string "(.*)" "" title) "-")))
+   (thread-first
+     ;; Remove stuff inside parenthesis so that it removes stuff like "(Offical video)", "(HQ)" etc.
+     (replace-regexp-in-string "\\((.*)\\|\\[.*\\]\\)" "" title)
+     ;; Split it, assuming that it's named like "Artist - Song title"
+     ;; TODO: split by ":" if no "-" is found?
+     (split-string  "-")
+     (seq-subseq 0 2))))
 
 (defun empv-display-lyrics ()
+  "Display the lyrics for the currently playing (or paused) song.
+This works best if the media has proper tags set but it also
+tries to guess artist name and song name from the path/title
+etc."
   (interactive)
   (if (require 'versuri nil t)
       (empv--let-properties '(metadata media-title)
         (let* ((extracted (empv--extract-metadata-from-title .media-title))
                (artist (or (empv--metadata-get .metadata 'artist 'icy-artist) (car extracted)))
                (song (or (empv--metadata-get .metadata 'title 'icy-title) (cadr extracted))))
+          ;; Sometimes artist name gets into the song title, lets try to remove that
+          (setq song (string-trim (replace-regexp-in-string artist "" song)
+                                  "[ \t\n\r-]+" "[ \t\n\r-]+"))
           (empv--display-event "Retrieving lyrics for '%s - %s'..." artist song)
           (versuri-display artist song)))
-    (user-error "Please install `versuri' first to use this feature. Do `M-x' `package-install', type `versuri' and hit `Enter'.")))
+    (user-error "Please install `versuri' first to use this feature.  Do `M-x' `package-install', type `versuri' and hit `Enter' (or use your prefered method of installing a package)")))
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Radio
