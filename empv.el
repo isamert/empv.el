@@ -335,9 +335,9 @@ happens."
 
 (defmacro empv--let-properties (props &rest forms)
   (declare (indent 1))
-  `(let ((props-alist (make-hash-table))
-         (prop-count (length ,props))
-         (finalized-count 0))
+  `(let* ((prop-count (length ,props))
+          (props-alist (make-hash-table :size prop-count))
+          (finalized-count 0))
      (seq-do
       (lambda (prop)
         (empv--send-command
