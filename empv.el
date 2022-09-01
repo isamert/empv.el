@@ -92,6 +92,11 @@ commands if this variable is `nil'."
   :type 'string
   :group 'empv)
 
+(defcustom empv-playlist-dir empv-audio-dir
+  "The directory that you keep your playlists in."
+  :type 'string
+  :group 'empv)
+
 (defcustom empv-radio-channels
   '(("SomaFM - Groove Salad" . "http://www.somafm.com/groovesalad.pls")
     ("SomaFM - Drone Zone" . "http://www.somafm.com/dronezone.pls")
@@ -712,6 +717,33 @@ that is defined in `empv-radio-log-format'."
   "Turn off loop for playlist"
   (interactive)
   (empv--cmd 'set_property '(loop-playlist no)))
+
+(defun empv--playlist-apply (fn &rest args)
+  "Call FN with the current playlist, and the extra ARGS.
+
+Example:
+ (empv--playlist-apply
+  (lambda (playlist arg1 arg2)
+   (message \"Got a playlist with %d songs!\" (length playlist))))"
+  (empv--let-properties '(playlist)
+    (let ((files (mapcar (lambda (it) (alist-get 'filename it)) .playlist)))
+      (apply fn files args))))
+
+(defun empv--playlist-save-to-file (playlist &optional filename)
+  "Save the PLAYLIST content to FILENAME."
+  (with-temp-buffer
+    (insert (mapconcat 'identity playlist "\n"))
+    (let* ((pl-name-regex "empv-playlist-\\(?1:[[:digit:]]+\\)\\.m3u")
+           (pl-last (file-name-sans-extension (car (last (directory-files empv-playlist-dir nil pl-name-regex)))))
+           (num (if (null pl-last) 0 (1+ (string-to-number (if (string-match pl-name-regex pl-last) (match-string 1 pl-last) "0")))))
+           (filename (or filename (expand-file-name (format "empv-playlist-%d.m3u" num) empv-playlist-dir))))
+      (write-file filename))))
+
+;;;###autoload
+(defun empv-playtlist-save-to-file (filename)
+  "Save the current playlist to FILENAME."
+  (interactive "FSave playlist to: ")
+  (empv--playlist-apply #'empv--playlist-save-to-file filename))
 
 ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interactive - Misc
