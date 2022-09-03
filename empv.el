@@ -3,7 +3,7 @@
 ;; Copyright (C) 2021  Isa Mert Gurbuz
 
 ;; Author: Isa Mert Gurbuz <isamert@protonmail.com>
-;; Version: 0.6
+;; Version: 1.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
 ;; Package-Requires: ((emacs "27.1"))
@@ -48,12 +48,15 @@
   :group 'empv)
 
 (defcustom empv-mpv-args `("--no-video" "--no-terminal" "--idle" ,(concat "--input-ipc-server=" empv-socket-file))
-  "Args used while starting mpv.  This should contain --input-ipc-server=<empv-socket-file>, also --idle is recommended for keeping your state."
+  "Args used while starting mpv.  This should contain
+`--input-ipc-server=<empv-socket-file>', also --idle is recommended
+for keeping your state."
   :type 'list
   :group 'empv)
 
 (defcustom empv-display-events t
-  "Wheter to show events (like track changed, stopped etc.) at the bottom of the screen."
+  "Wheter to show events (like track changed, stopped etc.) at
+the bottom of the screen."
   :type 'boolean
   :group 'empv)
 
@@ -158,9 +161,16 @@ some invidious instances."
   :type 'boolean
   :group 'empv)
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Public variables
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defcustom empv-action-handler
+  'read-multiple-choice
+  "Default action handler. `empv' uses the given function for
+listing possible actions on a selection."
+  :type '(choice (const :tag "completing-read" completing-read)
+                 (const :tag "read-multiple-choice" read-multiple-choice))
+  :group 'empv)
+
+
+;;; Public variables
 
 (defvar empv-current-radio-channel
   nil
@@ -169,9 +179,8 @@ The format is `(channel name . channel address)'.  This variable
 does not clean itself up, it's possible that currently no radio
 is playing but this variable is still holds some channel.")
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Internal variables
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Internal variables
 
 (defvar empv--process nil)
 (defvar empv--network-process nil)
@@ -181,10 +190,11 @@ is playing but this variable is still holds some channel.")
   "Latest candidates that are shown in a `completing-read' by empv.
 Mainly used by embark actions defined in this package.")
 (defvar empv--youtube-last-type nil)
+(defvar empv--action-selection-default-title "Action"
+  "The text displayed on action selection menus.")
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Utility
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Utility
 
 (defun empv-flipcall (fn x y)
   "Flip arguments of given binary function FN and call it with Y and X."
@@ -230,9 +240,36 @@ Mainly used by embark actions defined in this package.")
   "Generate a new unique request id."
   (format "%s" (random)))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Handlers
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro empv--select-action (prompt &rest forms)
+  (declare (indent 1))
+  (let* ((selection-only? (listp (car forms)))
+         (actions
+          (if selection-only?
+              (mapcar #'list (car forms))
+            (seq-partition forms 3)))
+         (used-keys '())
+         (rmc-choices
+          (mapcar
+           (lambda (it)
+             (list (let ((new (seq-find
+                               (lambda (it) (not (memq it used-keys)))
+                               (downcase (car it)))))
+                     (push new used-keys)
+                     new)
+                   (downcase (car it))))
+           actions))
+         (cr-choices (mapcar #'car actions))
+         (prompt (if (eq prompt '_) 'empv--action-selection-default-title prompt)))
+    `(let ((result (pcase empv-action-handler
+                     ('read-multiple-choice (nth 1 (read-multiple-choice ,prompt ',rmc-choices)))
+                     ('completing-read (completing-read ,(format "%s: " prompt) ',cr-choices)))))
+       ,(if selection-only?
+            'result
+          `(pcase (downcase result)
+             ,@(mapcar (lambda (it) (list (downcase (seq-find #'stringp it)) (car (last it)))) actions))))))
+
+
+;;; Handlers
 
 (defun empv--sentinel (_proc msg)
   "Clean up after connection closes with MSG."
@@ -264,9 +301,8 @@ Mainly used by embark actions defined in this package.")
      #'string-trim
      (split-string incoming "\n")))))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Process primitives
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Process primitives
 
 (defun empv--make-network-process ()
   "Create the network process for mpv."
@@ -304,9 +340,8 @@ happens."
       (empv--dbg ">> %s" msg)
       request-id)))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Essential macros
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Essential macros
 
 (defmacro empv--cmd (cmd &optional args &rest forms)
   "Run CMD with ARGS and then call FORMS with the result."
@@ -364,27 +399,24 @@ happens."
         (empv-toggle-video)))
      result))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Essential functions
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Essential functions
 
 (defun empv--play-or-enqueue (uri)
   "Play or enqueue the URI based on user input.
 URI might be a string or a list of strings."
   (interactive)
-  (pcase (completing-read "Select action: " '("Play" "Enqueue"))
-    ("Play"
-     (cond
-      ((stringp uri) (empv-play uri))
-      ((listp uri) (empv--run
-                    (empv--cmd
-                     'stop nil
-                     (seq-do #'empv-enqueue uri)
-                     (empv-resume))))))
-    ("Enqueue"
-     (cond
-      ((stringp uri) (empv-enqueue uri))
-      ((listp uri) (seq-do #'empv-enqueue uri))))))
+  (empv--select-action _
+    "Play" → (cond
+              ((stringp uri) (empv-play uri))
+              ((listp uri) (empv--run
+                            (empv--cmd
+                             'stop nil
+                             (seq-do #'empv-enqueue uri)
+                             (empv-resume)))))
+    "Enqueue" → (cond
+                 ((stringp uri) (empv-enqueue uri))
+                 ((listp uri) (seq-do #'empv-enqueue uri)))))
 
 (defun empv--metadata-get (alist main fallback)
   "Get MAIN from ALIST, if it's nill get FALLBACK from ALIST."
@@ -445,9 +477,8 @@ This function also tries to disable sorting in `completing-read' function."
         (ignore item)
         ,@forms))))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Interactive - Basics
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Interactive - Basics
 
 ;;;###autoload
 (defun empv-play (uri)
@@ -491,7 +522,7 @@ See this[1] for more information.
 
 [1]: https://mpv.io/manual/master/#command-interface-seek-%3Ctarget%3E-[%3Cflags%3E]"
   (interactive
-   (let ((type (completing-read-multiple "How? " '("relative" "absolute" "relative-percent" "absolute-percent" "keyframes" "exact")))
+   (let ((type (empv--select-action "How? " ("relative" "absolute" "relative-percent" "absolute-percent" "keyframes" "exact")))
          (target (read-string "Target: ")))
      (list target type)))
   (empv--cmd 'seek `(,target ,(string-join (or type '("relative")) "+"))))
@@ -657,9 +688,8 @@ that is defined in `empv-radio-log-format'."
        nil empv-radio-log-file 'append)
       (message "%s" title))))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Interactive - Playlist
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Interactive - Playlist
 
 ;;;###autoload
 (defun empv-enqueue (uri)
@@ -745,9 +775,8 @@ Example:
   (interactive "FSave playlist to: ")
   (empv--playlist-apply #'empv--playlist-save-to-file filename))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Interactive - Misc
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Interactive - Misc
 
 ;;;###autoload
 (defun empv-display-current (arg)
@@ -775,6 +804,7 @@ If ARG is non-nil, then also put the title to `kill-ring'."
      (split-string  "-")
      (seq-subseq 0 2))))
 
+(declare-function versuri-display "versuri")
 (defun empv-display-lyrics ()
   "Display the lyrics for the currently playing (or paused) song.
 This works best if the media has proper tags set but it also
@@ -793,9 +823,8 @@ etc."
           (versuri-display artist song)))
     (user-error "Please install `versuri' first to use this feature.  Do `M-x' `package-install', type `versuri' and hit `Enter' (or use your prefered method of installing a package)")))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Radio
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Radio
 
 (defun empv--play-radio-channel (channel &optional ask)
   (setq empv-current-radio-channel channel)
@@ -821,16 +850,16 @@ etc."
 (defun empv-play-random-channel ()
   "Play a random radio channel."
   (interactive)
-  (let ((channel (thread-last empv-radio-channels
+  (let ((channel (thread-last
+                   empv-radio-channels
                    (length)
                    (random)
                    (empv-flipcall #'nth empv-radio-channels))))
     (empv--display-event "Playing %s" (car channel))
     (empv--play-radio-channel channel)))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; YouTube/Invidious
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; YouTube/Invidious
 
 (defun empv--format-yt-item (it)
   "Format IT into `(\"formatted video title\" . it)'."
@@ -896,6 +925,7 @@ finishes."
             (alist-get (if is-video 'videoId 'playlistId) info)
 	          (alist-get 'title info))))
 
+(declare-function consult--read "consult")
 (cl-defun empv--completing-read (prompt candidates &key category sort)
   "`completing-read' wrapper.
 
@@ -903,8 +933,13 @@ It uses `consult--read' if it's available or fallsback to
 `completing-read'.  Using `consult--read' enables the use of
 embark actions through the CATEGORY.  CANDIDATES and PROMPT are
 required."
+  ;; TODO Instead of using `selectrum-should-sort' and
+  ;; `vertico-sort-function', use completing-read to return metadata
+  ;; indicating that list is already sorted and also drop
+  ;; consult--read usage
   (let ((selectrum-should-sort sort)
         (vertico-sort-function (when (and sort (boundp 'vertico-sort-function)) vertico-sort-function)))
+    (ignore selectrum-should-sort vertico-sort-function)
     (setq empv--last-candidates candidates)
     (if (require 'consult nil 'noerror)
         (consult--read
@@ -993,15 +1028,15 @@ buffer."
                               .author .likeCount (if .creatorHeart " ❤️" "") .content))))
           (alist-get 'comments result)))))))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Videos and music
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; Videos and music
 
 (defun empv--find-files (path extensions &optional depth)
   "Find files with given EXTENSIONS under given PATH.
 PROMPT is shown when `completing-read' is called."
   (let ((default-directory path))
-    (thread-last extensions
+    (thread-last
+      extensions
       (mapcar (lambda (ext) (format "-e '%s' " ext)))
       (string-join)
       (concat (format "fd . -d %s " (or depth empv-max-directory-search-depth)))
@@ -1061,26 +1096,32 @@ Limit directory treversal at most DEPTH levels.  By default it's
   (empv--play-or-enqueue
    (empv--select-files "Select an audio file: " empv-audio-dir empv-audio-file-extensions)))
 
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; empv-youtube-results-mode
-;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; empv-youtube-results-mode
 
 (defvar empv-youtube-results-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "p") #'empv-youtube-results-play-current)
+    (define-key map (kbd "j") #'next-line)
+    (define-key map (kbd "k") #'previous-line)
+    (define-key map (kbd "P") #'empv-youtube-results-play-current)
     (define-key map (kbd "a") #'empv-youtube-results-enqueue-current)
     (define-key map (kbd "Y") #'empv-youtube-results-copy-current)
+    (define-key map (kbd "c") #'empv-youtube-results-show-comments)
     (define-key map (kbd "RET") #'empv-youtube-results-play-or-enqueue-current)
+    ;; TODO: add quick help for ? binding
     map)
   "Keymap for `empv-youtube-results-mode'.")
 
+(declare-function evil-set-initial-state "evil-core")
 (define-derived-mode empv-youtube-results-mode tabulated-list-mode "empv-youtube-results-mode"
   "Major mode for interacting with YouTube results with thumbnails."
   (setq tabulated-list-padding 3)
   (setq tabulated-list-format [("Thumbnail" 20 nil)
                                ("Title" 60 t)
                                ("Length"  10 t)
-                               ("Views" 10 t)]))
+                               ("Views" 10 t)])
+  (when (require 'evil nil t)
+    (evil-set-initial-state 'empv-youtube-results-mode 'emacs)))
 
 (defadvice tabulated-list-sort (after empv-tabulated-list-sort-after activate)
   (when (derived-mode-p 'empv-youtube-results-mode)
@@ -1135,7 +1176,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
                  (format "empv-download-process-%s" video-id)
                  "*empv-thumbnail-downloads*"
                  args)
-          (lambda (p e)
+          (lambda (_ _)
             (empv--dbg "Download finished for image index=%s, url=%s, path=%s" index thumb-url filename)
             (with-current-buffer buffer
               (setf
@@ -1172,6 +1213,10 @@ Limit directory treversal at most DEPTH levels.  By default it's
   (let ((it (empv-youtube-results--current-video-url)))
     (kill-new it)
     (message "Copied %s!" it)))
+
+(defun empv-youtube-results-show-comments ()
+  (interactive)
+  (empv-youtube-show-comments (empv-youtube-results--current-video-url)))
 
 (defun empv-youtube-tabulated-last-results ()
   "Show last search results in tabulated mode with thumbnails."
