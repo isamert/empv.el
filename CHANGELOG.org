@@ -1,0 +1,10 @@
+* 1.0
+
+- ~read-multiple-choice~ is the default action selector, instead of ~completing-read~. See the ~empv-action-handler~ variable, if you want to use old behavior.
+- YouTube tabulated mode changes:
+  - It uses =P= instead of =p= to start playing current result. =p= is bound to ~previous-line~ and =n= is bound to next line. Also =j= and =k= are bound to ~next-line~ and ~previous-line~ respectively.
+  - New binding: =c=. Shows comments of current result in a nicely formatted org buffer.
+
+* 0.1
+
+- Initial release
