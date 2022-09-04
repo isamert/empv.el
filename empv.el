@@ -3,7 +3,7 @@
 ;; Copyright (C) 2021  Isa Mert Gurbuz
 
 ;; Author: Isa Mert Gurbuz <isamert@protonmail.com>
-;; Version: 1.0
+;; Version: 1.0.1
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
 ;; Package-Requires: ((emacs "27.1"))
@@ -167,6 +167,12 @@ some invidious instances."
 listing possible actions on a selection."
   :type '(choice (const :tag "completing-read" completing-read)
                  (const :tag "read-multiple-choice" read-multiple-choice))
+  :group 'empv)
+
+(defcustom empv-init-hook
+  '()
+  "Functions to run after mpv process is started."
+  :type 'hook
   :group 'empv)
 
 
@@ -455,7 +461,10 @@ URI might be a string or a list of strings."
     ;; TODO: remove sleep
     (sleep-for 1.5)
     (empv--make-network-process)
-    (empv--observe metadata (empv--handle-metadata-change it))))
+    (empv--observe metadata (empv--handle-metadata-change it))
+    (seq-each
+     (lambda (it) (funcall it))
+     empv-init-hook)))
 
 (defun empv--format-playlist-item (item index)
   "Format given ITEM into a readable item.
@@ -1232,6 +1241,24 @@ Limit directory treversal at most DEPTH levels.  By default it's
                 :category 'empv-youtube)
     (empv--youtube-process-result empv--last-candidates empv--youtube-last-type)
     (empv--play-or-enqueue)))
+
+
+;;; empv utility
+
+(defun empv-override-quit-key ()
+  "This function overrides the `q' key so that you dont accidentaly
+quit mpv, resulting in a loss of your current playlist.
+
+Instead of quitting mpv, it hides the video view (just like the
+`_' binding) and pauses the playback. If you want to hide the
+video view, without pausing you can still use `_' key binding. To
+really exit, you can still use `empv-exit' function.
+
+To make this behavior permanant, add the following to your init file:
+
+    (add-hook 'empv-init-hook #'empv-override-quit-key)"
+  (empv--cmd
+   'keybind '("q" "set pause yes; cycle video")))
 
 (provide 'empv)
 ;;; empv.el ends here
