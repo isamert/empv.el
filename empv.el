@@ -28,6 +28,7 @@
 ;;; Code:
 
 (eval-when-compile (require 'subr-x))
+(require 'pp)
 (require 'seq)
 (require 'map)
 (require 'json)
@@ -198,6 +199,8 @@ Mainly used by embark actions defined in this package.")
 (defvar empv--youtube-last-type nil)
 (defvar empv--action-selection-default-title "Action"
   "The text displayed on action selection menus.")
+(defvar empv--inspect-buffer-name "*empv inspect*"
+  "Buffer name for showing pretty printed results.")
 
 
 ;;; Utility
@@ -273,6 +276,15 @@ Mainly used by embark actions defined in this package.")
             'result
           `(pcase (downcase result)
              ,@(mapcar (lambda (it) (list (downcase (seq-find #'stringp it)) (car (last it)))) actions))))))
+
+(defun empv--inspect-obj (obj)
+  "Inspect the given elisp OBJ."
+  (get-buffer-create empv--inspect-buffer-name)
+  (let ((print-length nil)
+        (print-level nil))
+    (pp-display-expression obj empv--inspect-buffer-name))
+  (unless (get-buffer-window empv--inspect-buffer-name)
+    (switch-to-buffer-other-window empv--inspect-buffer-name)))
 
 
 ;;; Handlers
@@ -1014,6 +1026,7 @@ video."
   (empv--let-properties '(path)
     (empv-youtube-show-comments .path)))
 
+(declare-function emojify-mode "emojify")
 (defun empv-youtube-show-comments (video-id)
   "Show comments of a YouTube video in a nicely formatted org
 buffer."
@@ -1116,6 +1129,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
     (define-key map (kbd "a") #'empv-youtube-results-enqueue-current)
     (define-key map (kbd "Y") #'empv-youtube-results-copy-current)
     (define-key map (kbd "c") #'empv-youtube-results-show-comments)
+    (define-key map (kbd "i") #'empv-youtube-results-inspect)
     (define-key map (kbd "RET") #'empv-youtube-results-play-or-enqueue-current)
     ;; TODO: add quick help for ? binding
     map)
@@ -1226,6 +1240,11 @@ Limit directory treversal at most DEPTH levels.  By default it's
 (defun empv-youtube-results-show-comments ()
   (interactive)
   (empv-youtube-show-comments (empv-youtube-results--current-video-url)))
+
+(defun empv-youtube-results-inspect ()
+  (interactive)
+  (let ((info (cdr (assoc-string (car (nth (tabulated-list-get-id) empv--last-candidates)) empv--last-candidates))))
+    (empv--inspect-obj info)))
 
 (defun empv-youtube-tabulated-last-results ()
   "Show last search results in tabulated mode with thumbnails."
