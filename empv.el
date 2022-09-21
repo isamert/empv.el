@@ -543,7 +543,7 @@ See this[1] for more information.
 
 [1]: https://mpv.io/manual/master/#command-interface-seek-%3Ctarget%3E-[%3Cflags%3E]"
   (interactive
-   (let ((type (empv--select-action "How? " ("relative" "absolute" "relative-percent" "absolute-percent" "keyframes" "exact")))
+   (let ((type (list (empv--select-action "How? " ("relative" "absolute" "relative-percent" "absolute-percent" "keyframes" "exact"))))
          (target (read-string "Target: ")))
      (list target type)))
   (empv--cmd 'seek `(,target ,(string-join (or type '("relative")) "+"))))
