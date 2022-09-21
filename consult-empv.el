@@ -102,20 +102,5 @@ Show results in a tabulated buffers with thumbnails."
   (interactive)
   (empv--youtube-multiple (consult-empv--get-input-with-suggestions) 'playlist))
 
-(defun empv-embark-copy-youtube-link (key)
-  (let ((link (empv--youtube-process-result empv--last-candidates empv--youtube-last-type key)))
-    (kill-new link)
-    (empv--display-event "Youtube link copied into your kill-ring: %s" link)))
-
-(defun empv-embark-enqueue-youtube (key)
-  (empv-enqueue (empv--youtube-process-result empv--last-candidates empv--youtube-last-type key)))
-
-(embark-define-keymap empv-embark-youtube-result-actions
-  "Actions for empv YouTube results."
-  ("y" empv-embark-copy-youtube-link)
-  ("a" empv-embark-enqueue-youtube))
-
-(add-to-list 'embark-keymap-alist '(empv-youtube . empv-embark-youtube-result-actions))
-
 (provide 'consult-empv)
 ;;; consult-empv.el ends here

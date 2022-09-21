@@ -34,6 +34,13 @@
 (require 'json)
 (require 'url)
 
+
+;;; Some helpful resources
+;; - https://github.com/mpv-player/mpv/blob/master/DOCS/man/input.rst
+
+
+;;; Customization
+
 (defgroup empv nil
   "A media player for Emacs"
   :group 'multimedia)
@@ -193,10 +200,9 @@ is playing but this variable is still holds some channel.")
 (defvar empv--network-process nil)
 (defvar empv--callback-table (make-hash-table :test 'equal))
 (defvar empv--dbg nil)
-(defvar empv--last-candidates '()
+(defvar empv--last-youtube-candidates '()
   "Latest candidates that are shown in a `completing-read' by empv.
 Mainly used by embark actions defined in this package.")
-(defvar empv--youtube-last-type nil)
 (defvar empv--action-selection-default-title "Action"
   "The text displayed on action selection menus.")
 (defvar empv--inspect-buffer-name "*empv inspect*"
@@ -478,23 +484,27 @@ URI might be a string or a list of strings."
      (lambda (it) (funcall it))
      empv-init-hook)))
 
-(defun empv--format-playlist-item (item index)
+(defun empv--format-playlist-item (item)
   "Format given ITEM into a readable item.
 INDEX is the place where the item appears in the playlist."
   (format
-   "%s - %s%s"
-   index
-   (cdr (or (assoc 'title item) (assoc 'filename item)))
-   (or (and (cdr (assoc 'current item)) " [CURRENT]") "")))
+   "%s%s"
+   (or (alist-get 'title item)
+       (abbreviate-file-name (alist-get 'filename item)))
+   (or (and (alist-get 'current item)
+            (propertize " [CURRENT]" 'face '(:foreground "green"))) "")))
 
 (defmacro empv--playlist-select-item-and (&rest forms)
   "Select a playlist item and then run FORMS with the input.
 This function also tries to disable sorting in `completing-read' function."
   `(empv--run
     (empv--let-properties '(playlist)
-      (let ((item (empv--completing-read
+      (let ((item (empv--completing-read-object
                    "Select track: "
-                   (seq-map-indexed #'empv--format-playlist-item .playlist))))
+                   (seq-map-indexed (lambda (item index) (map-insert item 'index index)) .playlist)
+                   :formatter #'empv--format-playlist-item
+                   :category 'empv-playlist-item
+                   :sort? nil)))
         (ignore item)
         ,@forms))))
 
@@ -506,6 +516,8 @@ This function also tries to disable sorting in `completing-read' function."
   "Play given URI. Add given URI to end of the current playlist and
 immediately switch to it"
   (interactive "sEnter an URI to play: ")
+  (when (string-prefix-p "~/" uri)
+    (setq uri (expand-file-name uri)))
   (if (empv--running?)
       (empv--cmd-seq
        ('loadfile (list uri 'append))
@@ -716,6 +728,8 @@ that is defined in `empv-radio-log-format'."
 (defun empv-enqueue (uri)
   "Like `empv-play' but add the given URI to end of the playlist."
   (interactive "sEnter an URI to play: ")
+  (when (string-prefix-p "~/" uri)
+    (setq uri (expand-file-name uri)))
   (empv--run
    (empv--cmd 'loadfile `(,uri append-play))
    (empv--display-event "Enqueued %s" uri)))
@@ -754,7 +768,7 @@ that is defined in `empv-radio-log-format'."
   (interactive)
   (empv--playlist-select-item-and
    (empv--cmd-seq
-    ('playlist-play-index (car (split-string item " ")))
+    ('playlist-play-index (alist-get 'index item))
     ('set_property '(pause :json-false)))))
 
 ;;;###autoload
@@ -855,17 +869,17 @@ etc."
         (empv--play-or-enqueue url)
       (empv-play url))))
 
-(defun empv--get-radio-url ()
-  "Get a radio channel URL from the user."
-  (assoc-string
-   (empv--completing-read "Channel: " empv-radio-channels :sort t)
-   empv-radio-channels))
-
 ;;;###autoload
 (defun empv-play-radio ()
   "Play radio channels."
   (interactive)
-  (empv--play-radio-channel (empv--get-radio-url) t))
+  (empv--play-radio-channel
+   (empv--completing-read-object
+    "Channel"
+    empv-radio-channels
+    :formatter #'car
+    :category 'empv-radio-item)
+   t))
 
 ;;;###autoload
 (defun empv-play-random-channel ()
@@ -885,23 +899,21 @@ etc."
 (defun empv--format-yt-item (it)
   "Format IT into `(\"formatted video title\" . it)'."
   (let-alist it
-    (cons
-     (pcase (alist-get 'type it)
-       ("video" (format "[%s] %s"
-                        (propertize (format "%.2sK views, %.2s mins"
-                                            (/ .viewCount 1000.0)
-                                            (/ .lengthSeconds 60.0))
-                                    'face
-                                    'italic)
-                        .title))
-       ("playlist" (format "[%s] %s"
-                           (propertize (format "%s videos by %s"
-                                               .videoCount
-                                               .author)
-                                       'face
-                                       'italic)
-                           .title)))
-     it)))
+    (pcase (alist-get 'type it)
+      ("video" (format "[%s] %s"
+                       (propertize (format "%.2sK views, %.2s mins"
+                                           (/ .viewCount 1000.0)
+                                           (/ .lengthSeconds 60.0))
+                                   'face
+                                   'italic)
+                       .title))
+      ("playlist" (format "[%s] %s"
+                          (propertize (format "%s videos by %s"
+                                              .videoCount
+                                              .author)
+                                      'face
+                                      'italic)
+                          .title)))))
 
 (defun empv--request-format-param (pair)
   "Format given PAIR into a URL parameter."
@@ -931,65 +943,67 @@ finishes."
    (format "%s/search" empv-invidious-instance)
    `(("q" . ,term)
      ("type" . ,type))
-   (lambda (request-result)
-     (funcall
-      callback
-      (seq-map #'empv--format-yt-item request-result)))))
+   callback))
 
-(defun empv--youtube-process-result (results type selected)
-  "Find and return youtube url for SELECTED item of TYPE in RESULTS."
-  (let ((is-video (eq type 'video))
-        (info (cdr (assoc-string selected results))))
-    ;; See #6
+(defun empv--youtube-item-extract-link (item)
+  "Find and return YouTube url for ITEM."
+  (let ((video-id (alist-get 'videoId item))
+        (playlist-id (alist-get 'playlistId item)))
     (format "https://youtu.be/%s=%s# %s"
-	          (if is-video "watch?v" "playlist?list")
-            (alist-get (if is-video 'videoId 'playlistId) info)
-	          (alist-get 'title info))))
+	          (if video-id "watch?v" "playlist?list")
+            (or video-id playlist-id)
+	          (alist-get 'title item))))
 
-(declare-function consult--read "consult")
-(cl-defun empv--completing-read (prompt candidates &key category sort)
-  "`completing-read' wrapper.
-
-It uses `consult--read' if it's available or fallsback to
-`completing-read'.  Using `consult--read' enables the use of
-embark actions through the CATEGORY.  CANDIDATES and PROMPT are
-required."
-  ;; TODO Instead of using `selectrum-should-sort' and
-  ;; `vertico-sort-function', use completing-read to return metadata
-  ;; indicating that list is already sorted and also drop
-  ;; consult--read usage
-  (let ((selectrum-should-sort sort)
-        (vertico-sort-function (when (and sort (boundp 'vertico-sort-function)) vertico-sort-function)))
-    (ignore selectrum-should-sort vertico-sort-function)
-    (setq empv--last-candidates candidates)
-    (if (require 'consult nil 'noerror)
-        (consult--read
-         candidates
-         :prompt prompt
-         :category category
-         :sort sort)
-      (completing-read prompt candidates))))
+(cl-defun empv--completing-read-object (prompt objects &key (formatter #'identity) category predicate require-match initial-input hist def inherit-input-method (sort? t))
+  "Same as `completing-read' but applies FORMATTER to every object
+and propertizes candidates with the actual object so that they
+can be retrieved later by embark actions. Also adds category
+metadata to each candidate, if given."
+  (let* ((object-table
+          (make-hash-table :test 'equal :size (length objects)))
+         (object-strings
+          (mapcar
+           (lambda (object)
+             (let ((formatted-object (funcall formatter object)))
+               (puthash formatted-object object object-table)
+               (propertize formatted-object 'empv-item object)))
+           objects))
+         (selected
+          (completing-read
+           (format "%s: " prompt)
+           (lambda (string predicate action)
+             (if (eq action 'metadata)
+                 `(metadata
+                   ,(when category (cons 'category category))
+                   ,@(unless sort?
+                       '((display-sort-function . identity)
+                         (cycle-sort-function . identity))))
+               (complete-with-action
+                action object-strings string predicate)))
+           predicate require-match initial-input hist def inherit-input-method)))
+    (gethash selected object-table selected)))
 
 (defun empv--youtube (term type)
   "Search TERM in YouTube.
 See `empv--youtube-search' for TYPE."
   (let ((use-tabulated empv-youtube-use-tabulated-results))
-    (setq empv--youtube-last-type type)
     (empv--youtube-search
      term type
      (lambda (results)
-       (setq empv--last-candidates results)
+       (setq empv--last-youtube-candidates results)
        (if use-tabulated
            (empv-youtube-tabulated-last-results)
          (empv-youtube-last-results))))))
 
+;; FIXME totally broken
 (defun empv--youtube-multiple (term type)
   "Like `empv--youtube' but use `completing-read-multiple'.
 See `empv--youtube' for TERM and TYPE."
   (empv--youtube-search
    term type
    (lambda (results)
-     (thread-last (completing-read-multiple (format "YouTube results for '%s': " term) results)
+     (thread-last
+       (completing-read-multiple (format "YouTube results for '%s': " term) results)
        (seq-map (lambda (it) (empv--youtube-process-result results type it)))
        (empv--play-or-enqueue)))))
 
@@ -1048,7 +1062,8 @@ buffer."
             (let-alist comment
               (insert (format "* %s (👍 %s)%s\n%s\n"
                               .author .likeCount (if .creatorHeart " ❤️" "") .content))))
-          (alist-get 'comments result)))))))
+          (alist-get 'comments result))
+         (goto-char (point-min)))))))
 
 
 ;;; Videos and music
@@ -1061,7 +1076,7 @@ PROMPT is shown when `completing-read' is called."
       extensions
       (mapcar (lambda (ext) (format "-e '%s' " ext)))
       (string-join)
-      (concat (format "fd . -d %s " (or depth empv-max-directory-search-depth)))
+      (concat (format "fd . --absolute-path --max-depth %s " (or depth empv-max-directory-search-depth)))
       (shell-command-to-string)
       (empv-flipcall #'split-string "\n")
       (empv-seq-init))))
@@ -1071,11 +1086,14 @@ PROMPT is shown when `completing-read' is called."
 
 Only searches for files with given EXTENSIONS.
 PROMPT is shown to user while selecting.
-Limit directory treversal at most DEPTH levels.  By default it's
+Limit directory traversal at most DEPTH levels.  By default it's
 `empv-max-directory-search-depth'"
-  (thread-last (empv--find-files path extensions depth)
-    (empv--completing-read prompt)
-    (empv-flipcall #'expand-file-name path)))
+  (expand-file-name
+   (empv--completing-read-object
+    prompt
+    (empv--find-files path extensions depth)
+    :formatter #'abbreviate-file-name
+    :category 'file)))
 
 (defun empv--select-files (prompt path extensions &optional depth)
   "Select files interactively under given PATH.
@@ -1085,8 +1103,8 @@ PROMPT is shown to user while selecting.
 Limit directory treversal at most DEPTH levels.  By default it's
 `empv-max-directory-search-depth'"
   (thread-last (empv--find-files path extensions depth)
-    (completing-read-multiple prompt)
-    (seq-map (lambda (it) (expand-file-name it path)))))
+               (completing-read-multiple prompt)
+               (seq-map (lambda (it) (expand-file-name it path)))))
 
 ;;;###autoload
 (defun empv-play-video ()
@@ -1160,7 +1178,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
             (seq-map-indexed
              (lambda (it index)
                (let* ((video-info (cdr it))
-                      (video-title (alist-get 'title video-info))
+                      (video-title (propertize (alist-get 'title video-info) 'empv-youtube-item it))
                       (video-view (format "%0.2fk views" (/ (alist-get 'viewCount video-info) 1000.0)))
                       (video-length (format "%0.2f mins" (/ (alist-get 'lengthSeconds video-info) 60.0))))
                  (list index (vector "<THUMBNAIL>" video-title video-length video-view))))
@@ -1213,11 +1231,15 @@ Limit directory treversal at most DEPTH levels.  By default it's
      candidates)
     (pop-to-buffer-same-window buffer)))
 
+(defun empv-youtube-results--current-item ()
+  (save-excursion
+    (beginning-of-line)
+    (tabulated-list-next-column)
+    (tabulated-list-next-column)
+    (get-text-property (point) 'empv-youtube-item)))
+
 (defun empv-youtube-results--current-video-url ()
-  (empv--youtube-process-result
-   empv--last-candidates
-   'video
-   (car (nth (tabulated-list-get-id) empv--last-candidates))))
+  (empv--youtube-item-extract-link (empv-youtube-results--current-item)))
 
 (defun empv-youtube-results-play-current ()
   (interactive)
@@ -1233,9 +1255,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
 
 (defun empv-youtube-results-copy-current ()
   (interactive)
-  (let ((it (empv-youtube-results--current-video-url)))
-    (kill-new it)
-    (message "Copied %s!" it)))
+  (empv--display-event "Copied %s!" (kill-new (empv-youtube-results--current-video-url))))
 
 (defun empv-youtube-results-show-comments ()
   (interactive)
@@ -1243,22 +1263,24 @@ Limit directory treversal at most DEPTH levels.  By default it's
 
 (defun empv-youtube-results-inspect ()
   (interactive)
-  (let ((info (cdr (assoc-string (car (nth (tabulated-list-get-id) empv--last-candidates)) empv--last-candidates))))
-    (empv--inspect-obj info)))
+  (empv--inspect-obj (empv-youtube-results--current-item)))
 
 (defun empv-youtube-tabulated-last-results ()
   "Show last search results in tabulated mode with thumbnails."
   (interactive)
-  (empv--youtube-show-tabulated-results empv--last-candidates))
+  (empv--youtube-show-tabulated-results empv--last-youtube-candidates))
 
 (defun empv-youtube-last-results ()
-  "Show last search results."
+  "Show and act on last search results."
   (interactive)
-  (thread-last (empv--completing-read
-                (format "YouTube results: ")
-                empv--last-candidates
-                :category 'empv-youtube)
-    (empv--youtube-process-result empv--last-candidates empv--youtube-last-type)
+  (thread-last
+    (empv--completing-read-object
+     "YouTube results"
+     empv--last-youtube-candidates
+     :formatter #'empv--format-yt-item
+     :category 'empv-youtube-item
+     :sort? nil)
+    (empv--youtube-item-extract-link)
     (empv--play-or-enqueue)))
 
 
@@ -1278,6 +1300,65 @@ To make this behavior permanant, add the following to your init file:
     (add-hook 'empv-init-hook #'empv-override-quit-key)"
   (empv--cmd
    'keybind '("q" "set pause yes; cycle video")))
+
+
+;;; embark integration
+
+(defun empv-embark-copy-youtube-link (link)
+  (empv--display-event "Youtube link copied into your kill-ring: %s" (kill-new link)))
+
+(defun empv--embark-youtube-transformer (type target)
+  "Extract the YouTube url from TARGET."
+  (cons type (or (empv--youtube-item-extract-link (get-text-property 0 'empv-item target))
+                 target)))
+
+(defun empv--embark-radio-transformer (type target)
+  "Extract the YouTube url from TARGET."
+  (cons type (or (cdr (get-text-property 0 'empv-item target))
+                 target)))
+
+;; TODO warnings?
+(defun empv-initialize-embark ()
+  (require 'embark)
+
+  (embark-define-keymap empv-embark-youtube-item-actions
+    "Actions for YouTube results."
+    ("y" empv-embark-copy-youtube-link)
+    ("e" empv-enqueue)
+    ("p" empv-play)
+    ("c" empv-youtube-show-comments))
+  (add-to-list 'embark-keymap-alist '(empv-youtube-item . empv-embark-youtube-item-actions))
+  (setf (alist-get 'empv-youtube-item embark-transformer-alist) #'empv--embark-youtube-transformer)
+
+  (embark-define-keymap empv-embark-radio-item-actions
+    "Actions for radio channels."
+    ("e" empv-enqueue)
+    ("p" empv-play))
+  (add-to-list 'embark-keymap-alist '(empv-radio-item . empv-embark-radio-item-actions))
+  (setf (alist-get 'empv-radio-item embark-transformer-alist) #'empv--embark-radio-transformer)
+
+  (embark-define-keymap empv-embark-radio-item-actions
+    "Actions for playlist items."
+    ("e" empv-enqueue)
+    ("p" empv-play))
+  (add-to-list 'embark-keymap-alist '(empv-radio-item . empv-embark-radio-item-actions))
+  (setf (alist-get 'empv-radio-item embark-transformer-alist) #'empv--embark-radio-transformer)
+
+  ;; TODO empv-playlist-item
+  ;;   - play
+  ;;   - delete
+  ;;   - move
+  ;;     - to end
+  ;;     - to beginning
+  ;;   - remove others
+
+  ;; Basic file and url actions
+  (define-key embark-file-map "p" 'empv-play)
+  (define-key embark-file-map "e" 'empv-enqueue)
+  (define-key embark-url-map "p" 'empv-play)
+  (define-key embark-url-map "e" 'empv-enqueue))
+
+
 
 (provide 'empv)
 ;;; empv.el ends here
