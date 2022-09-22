@@ -185,6 +185,12 @@ listing possible actions on a selection."
   :type 'hook
   :group 'empv)
 
+(defcustom empv-volume-step
+  5
+  "Step percentage used in empv-volume-{up,down}."
+  :type 'number
+  :group 'empv)
+
 
 ;;; Public variables
 
@@ -431,7 +437,6 @@ happens."
 (defun empv--play-or-enqueue (uri)
   "Play or enqueue the URI based on user input.
 URI might be a string or a list of strings."
-  (interactive)
   (empv--select-action _
     "Play" → (cond
               ((stringp uri) (empv-play uri))
@@ -594,11 +599,6 @@ See this[1] for more information.
      (list target type)))
   (empv--cmd 'seek `(,target ,(string-join (or type '("relative")) "+"))))
 
-(defun empv-resume ()
-  "Resume the playback."
-  (interactive)
-  (empv--cmd 'set_property '(pause :json-false)))
-
 ;;;###autoload
 (defun empv-play-file (path)
   "Play given PATH.
@@ -620,6 +620,12 @@ see `empv-base-directory'."
     (empv--find-files path (append empv-audio-file-extensions empv-video-file-extensions) 1)
     (mapcar (lambda (it) (expand-file-name it path)))
     (empv--play-or-enqueue)))
+
+;;;###autoload
+(defun empv-resume ()
+  "Resume the playback."
+  (interactive)
+  (empv--cmd 'set_property '(pause :json-false)))
 
 ;;;###autoload
 (defun empv-pause ()
@@ -650,17 +656,17 @@ see `empv-base-directory'."
 (defun empv-volume-up ()
   "Up the volume to a max of 100%"
   (interactive)
-  (empv--cmd-seq
-   ('get_property 'volume)
-   ('set_property `(volume ,(min (+ it 5) 100)))))
+  (empv--let-properties '(volume)
+    (empv--cmd 'set_property `(volume ,(min (+ .volume empv-volume-step) 100)))
+    (empv--display-event "Volume is %s%%" (floor .volume))))
 
 ;;;###autoload
 (defun empv-volume-down ()
   "Down the volume to a min of 0%"
   (interactive)
-  (empv--cmd-seq
-   ('get_property 'volume)
-   ('set_property `(volume ,(max (- it 5) 0)))))
+  (empv--let-properties '(volume)
+    (empv--cmd 'set_property `(volume ,(max (- .volume empv-volume-step) 0)))
+    (empv--display-event "Volume is %s%%" (floor .volume))))
 
 ;;;###autoload
 (defun empv-set-volume ()
@@ -668,8 +674,9 @@ see `empv-base-directory'."
   (interactive)
   (empv--let-properties '(volume)
     (let* ((current (string-trim-right (number-to-string .volume) ".0"))
-           (in (read-string (format "Volume (0-100, current %s): " current))))
-      (empv--cmd 'set_property `(volume ,in)))))
+           (in (max 0 (min 100 (read-number (format "Volume (0-100, current %s): " current))))))
+      (empv--cmd 'set_property `(volume ,in))
+      (empv--display-event "Volume is %s%%" (floor in)))))
 
 ;;;###autoload
 (defun empv-set-playback-speed ()
@@ -802,9 +809,7 @@ that is defined in `empv-radio-log-format'."
   "Select a playlist entry and play it."
   (interactive)
   (empv--playlist-select-item-and
-   (empv--cmd-seq
-    ('playlist-play-index (alist-get 'index item))
-    ('set_property '(pause :json-false)))))
+   (empv-playlist-play item)))
 
 ;;;###autoload
 (defun empv-playlist-loop-on ()
@@ -848,18 +853,28 @@ Example:
 
 ;;; Interactive - Misc
 
+(defun empv--format-clock (it)
+  (format "%02d:%02d" (floor (/ it 60)) (% (floor it) 60)))
+
 ;;;###autoload
 (defun empv-display-current (arg)
   "Display currently playing item's title and media player state.
 If ARG is non-nil, then also put the title to `kill-ring'."
   (interactive "P")
-  (empv--let-properties '(playlist-pos-1 playlist-count percent-pos metadata media-title pause paused-for-cache)
-    (let ((title (or (empv--create-media-summary-for-notification .metadata) .media-title))
+  (empv--let-properties '(playlist-pos-1 playlist-count time-pos percent-pos duration metadata media-title pause paused-for-cache)
+    (let ((title (string-trim (or (empv--create-media-summary-for-notification .metadata) .media-title)))
           (state (cond
-                  ((eq .paused-for-cache t) "Buffering...")
-                  ((eq .pause t) "Paused")
-                  (t "Playing"))))
-      (empv--display-event "[%s] %s (%d%%, %s/%s)" state title (or .percent-pos 0) .playlist-pos-1 .playlist-count)
+                  ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "yellow")))
+                  ((eq .pause t) (propertize "Paused" 'face '(:foreground "grey")))
+                  (t (propertize "Playing" 'face '(:foreground "green"))))))
+      (empv--display-event
+       "[%s, %s of %s (%d%%), %s/%s] %s " state
+       (empv--format-clock (or .time-pos 0))
+       (empv--format-clock (or .duration 0))
+       (or .percent-pos 0)
+       .playlist-pos-1
+       .playlist-count
+       (propertize title 'face 'bold))
       (when arg
         (kill-new title)))))
 
@@ -1320,7 +1335,9 @@ To make this behavior permanant, add the following to your init file:
 ;;; embark integration
 
 (defun empv-playlist-play (item)
-  (empv--cmd 'playlist-play-index (alist-get 'index item)))
+  (empv--cmd-seq
+   ('playlist-play-index (alist-get 'index item))
+   ('set_property '(pause :json-false))))
 
 (defun empv-playlist-remove (item)
   (empv--cmd 'playlist-remove (alist-get 'index item)))
@@ -1331,19 +1348,20 @@ To make this behavior permanant, add the following to your init file:
 (defun empv-playlist-move (item)
   (let ((index (alist-get 'index item)))
     (empv--select-action "Move to"
-      "top"    → (empv--cmd 'playlist-move (list index 0))
-      "bottom" → (empv--cmd 'playlist-move (list index 1000))
-      "next"   → (empv--let-properties '(playlist-pos)
+      "Top"    → (empv--cmd 'playlist-move (list index 0))
+      "Bottom" → (empv--cmd 'playlist-move (list index 1000))
+      "Next"   → (empv--let-properties '(playlist-pos)
                    (empv--cmd 'playlist-move (list index (1+ .playlist-pos))))
-      "index"  → (let ((i (read-number "index: ")))
-                   (empv--cmd 'playlist-move (list index i))))))
+      "Index"  → (let ((i (read-number "Index: ")))
+                   (empv--cmd 'playlist-move (list index i))))
+    (empv--display-event "Moved %s." (abbreviate-file-name (alist-get 'filename item)))))
 
 (defun empv-embark-copy-youtube-link (link)
   (empv--display-event "Youtube link copied into your kill-ring: %s" (kill-new link)))
 
 ;; embark transformers
 
-(defun empv--embark-youtube-transformer (type target)
+(defun empv--embark-youtube-item-transformer (type target)
   "Extract the YouTube url from TARGET."
   (cons type (empv--youtube-item-extract-link (get-text-property 0 'empv-item target))))
 
@@ -1365,7 +1383,7 @@ To make this behavior permanant, add the following to your init file:
     ("p" empv-play)
     ("c" empv-youtube-show-comments))
   (add-to-list 'embark-keymap-alist '(empv-youtube-item . empv-embark-youtube-item-actions))
-  (setf (alist-get 'empv-youtube-item embark-transformer-alist) #'empv--embark-youtube-transformer)
+  (setf (alist-get 'empv-youtube-item embark-transformer-alist) #'empv--embark-youtube-item-transformer)
 
   (embark-define-keymap empv-embark-radio-item-actions
     "Actions for radio channels."
