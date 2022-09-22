@@ -1333,6 +1333,8 @@ To make this behavior permanant, add the following to your init file:
     (empv--select-action "Move to"
       "top"    → (empv--cmd 'playlist-move (list index 0))
       "bottom" → (empv--cmd 'playlist-move (list index 1000))
+      "next"   → (empv--let-properties '(playlist-pos)
+                   (empv--cmd 'playlist-move (list index (1+ .playlist-pos))))
       "index"  → (let ((i (read-number "index: ")))
                    (empv--cmd 'playlist-move (list index i))))))
 
@@ -1352,6 +1354,8 @@ To make this behavior permanant, add the following to your init file:
 (defun empv--embark-playlist-item-transformer (type target)
   "Extract the item object from TARGET."
   (cons type (get-text-property 0 'empv-item target)))
+
+;; initialize embark
 
 (defun empv-initialize-embark ()
   (embark-define-keymap empv-embark-youtube-item-actions
