@@ -533,12 +533,18 @@ URI might be a string or a list of strings."
 (defun empv--extract-title-from-filename (fname)
   "Find the media title for FNAME. Try to gather it from internal
 cache or extract it from FNAME directly if FNAME is a URL. Also
-see `empv--title-sep' documentation."
-  (gethash
-   fname empv--media-title-cache
-   (let ((s (split-string fname empv--title-sep)))
-     (or (nth 1 s)
-         (abbreviate-file-name (car s))))))
+see `empv--title-sep' and `empv--media-title-cache'
+documentation."
+  ;; First try the URL encoded title and then check for the
+  ;; media-title cache.  Cache may contain last playing media's title
+  ;; for a stream, not the name for the stream itself. URL encoded
+  ;; title probably has the stream's title. (At least this is the case
+  ;; for radio streams, see `empv-radio-channels' and
+  ;; `empv--play-radio-channel')
+  (let ((s (split-string fname empv--title-sep)))
+    (or (nth 1 s)
+        (gethash
+         fname empv--media-title-cache (abbreviate-file-name (car s))))))
 
 (defun empv--format-playlist-item (item)
   "Format given ITEM into a readable item.
