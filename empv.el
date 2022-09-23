@@ -204,6 +204,44 @@ is playing but this variable is still holds some channel.")
 
 ;;; Internal variables
 
+(defconst empv--title-sep "##"
+  "MPV does not provide a way to get media-title for a given item
+in the playlist. This makes sense, because the item might be a
+YouTube link and a network request is required to fetch it's
+title. MPV gathers the media-title while playing the media but it
+does not persist it. So it's not possible to display media's
+title even if it's already played before.
+
+empv tries to append media's title at the end of it's URL. Assume
+the following media:
+
+    https://youtu.be/watch?v=X4bgXH3sJ2Q
+
+empv appends `empv--title-sep' and the media's title to end of
+the URL.
+
+    https://youtu.be/watch?v=X4bgXH3sJ2Q#~Iron Maiden - The Trooper (Official Video)
+
+Stuff that starts with # is discarded in the URL while fetching,
+so it's a hackish way to store extra information in the
+filename. This only works for URLs, not on local files. Anyway,
+this makes it possible to show media titles instead of plain URLs
+whenever we have the title information a priori.
+
+Also see #6 for extra information.")
+
+(defvar empv--media-title-cache
+  (make-hash-table :test #'equal)
+  "Media title cache. It's a mapping from a path/uri to media
+title. MPV reads the media-title/metadata of given path only when
+it starts playing it. Whenever this information is read, we put
+it into cache so that we can retrieve later to show user the
+media-title instead of a raw path whenever possible. This cache
+is required because MPV does not attach media-title information
+to playlist items. See [1] for more information on this.
+
+[1]: https://github.com/mpv-player/mpv/pull/10453")
+
 (defvar empv--process nil)
 (defvar empv--network-process nil)
 (defvar empv--callback-table (make-hash-table :test 'equal))
@@ -472,10 +510,11 @@ URI might be a string or a list of strings."
 (defun empv--handle-metadata-change (data)
   "Display info about the current track using DATA."
   (empv--dbg "handle-metadata-change <> %s" data)
-  (if-let ((media-title (empv--create-media-summary-for-notification data)))
-      (empv--display-event "%s" media-title)
-    (empv--let-properties '(media-title)
-      (empv--display-event "%s" .media-title))))
+  (empv--let-properties '(media-title path)
+    (let ((title (or (empv--create-media-summary-for-notification data)
+                     .media-title)))
+      (empv--display-event "%s" title)
+      (puthash .path title empv--media-title-cache))))
 
 (defun empv-start (&optional uri)
   "Start mpv using `empv-mpv-command' with given URI."
@@ -491,15 +530,26 @@ URI might be a string or a list of strings."
      (lambda (it) (funcall it))
      empv-init-hook)))
 
+(defun empv--extract-title-from-filename (fname)
+  "Find the media title for FNAME. Try to gather it from internal
+cache or extract it from FNAME directly if FNAME is a URL. Also
+see `empv--title-sep' documentation."
+  (gethash
+   fname empv--media-title-cache
+   (let ((s (split-string fname empv--title-sep)))
+     (or (nth 1 s)
+         (abbreviate-file-name (car s))))))
+
 (defun empv--format-playlist-item (item)
   "Format given ITEM into a readable item.
 INDEX is the place where the item appears in the playlist."
   (format
    "%s%s"
-   (or (alist-get 'title item)
-       (abbreviate-file-name (alist-get 'filename item)))
    (or (and (alist-get 'current item)
-            (propertize " [CURRENT]" 'face '(:foreground "green"))) "")))
+            (propertize "[CURRENT] " 'face '(:foreground "green"))) "")
+   (string-trim
+    (or (alist-get 'title item)
+        (empv--extract-title-from-filename (alist-get 'filename item))))))
 
 (defmacro empv--playlist-select-item-and (&rest forms)
   "Select a playlist item and then run FORMS with the input.
@@ -720,7 +770,8 @@ MPV."
     (setq empv--process (delete-process empv--process)))
   (when empv--network-process
     (setq empv--network-process (delete-process empv--network-process)))
-  (setq empv--callback-table (make-hash-table :test 'equal)))
+  (setq empv--callback-table (make-hash-table :test 'equal))
+  (setq empv--media-title-cache (make-hash-table :test 'equal)))
 
 ;;;###autoload
 (defun empv-save-and-exit ()
@@ -913,8 +964,7 @@ etc."
 
 (defun empv--play-radio-channel (channel &optional ask)
   (setq empv-current-radio-channel channel)
-  ;; See #6
-  (let ((url (format "%s# %s" (cdr channel) (car channel))))
+  (let ((url (format "%s%s%s" (cdr channel) empv--title-sep (car channel))))
     (if ask
         (empv--play-or-enqueue url)
       (empv-play url))))
@@ -999,9 +1049,10 @@ finishes."
   "Find and return YouTube url for ITEM."
   (let ((video-id (alist-get 'videoId item))
         (playlist-id (alist-get 'playlistId item)))
-    (format "https://youtu.be/%s=%s# %s"
+    (format "https://youtu.be/%s=%s%s%s"
             (if video-id "watch?v" "playlist?list")
             (or video-id playlist-id)
+            empv--title-sep
             (alist-get 'title item))))
 
 (defun empv--youtube (term type)
