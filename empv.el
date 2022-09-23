@@ -526,9 +526,7 @@ URI might be a string or a list of strings."
     (sleep-for 1.5)
     (empv--make-network-process)
     (empv--observe metadata (empv--handle-metadata-change it))
-    (seq-each
-     (lambda (it) (funcall it))
-     empv-init-hook)))
+    (run-hooks 'empv-init-hook)))
 
 (defun empv--extract-title-from-filename (fname)
   "Find the media title for FNAME. Try to gather it from internal
