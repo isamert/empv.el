@@ -834,7 +834,7 @@ etc."
   (interactive)
   (if (require 'versuri nil t)
       (empv--let-properties '(metadata media-title)
-        (let* ((extracted (empv--extract-metadata-from-title .media-title))
+        (let* ((extracted (ignore-errors (empv--extract-metadata-from-title .media-title)))
                (artist (or (empv--metadata-get .metadata 'artist 'icy-artist) (car extracted)))
                (song (or (empv--metadata-get .metadata 'title 'icy-title) (cadr extracted))))
           ;; Sometimes artist name gets into the song title, lets try to remove that
