@@ -1340,7 +1340,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
 
 (defun empv-youtube-results-copy-current ()
   (interactive)
-  (empv--display-event "Copied %s!" (kill-new (empv-youtube-results--current-video-url))))
+  (empv-copy-youtube-link (empv-youtube-results--current-video-url)))
 
 (defun empv-youtube-results-show-comments ()
   (interactive)
@@ -1411,8 +1411,10 @@ To make this behavior permanant, add the following to your init file:
                    (empv--cmd 'playlist-move (list index i))))
     (empv--display-event "Moved %s." (abbreviate-file-name (alist-get 'filename item)))))
 
-(defun empv-embark-copy-youtube-link (link)
-  (empv--display-event "Youtube link copied into your kill-ring: %s" (kill-new link)))
+(defun empv-copy-youtube-link (link)
+  (empv--display-event
+   "Youtube link copied into your kill-ring: %s"
+   (car (split-string (kill-new link) empv--title-sep))))
 
 ;; embark transformers
 
@@ -1433,7 +1435,7 @@ To make this behavior permanant, add the following to your init file:
 (defun empv-initialize-embark ()
   (embark-define-keymap empv-embark-youtube-item-actions
     "Actions for YouTube results."
-    ("y" empv-embark-copy-youtube-link)
+    ("y" empv-copy-youtube-link)
     ("e" empv-enqueue)
     ("p" empv-play)
     ("c" empv-youtube-show-comments))
