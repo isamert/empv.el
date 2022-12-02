@@ -33,6 +33,7 @@
 (require 'json)
 (require 'url)
 (require 'embark nil t)
+(require 'consult nil t)
 (eval-when-compile
   (require 'subr-x))
 
@@ -1107,28 +1108,34 @@ See `empv--youtube' for TERM and TYPE."
 ;;;###autoload
 (defun empv-youtube (term)
   "Search TERM in YouTube videos."
-  (interactive "sSearch in YouTube videos: ")
+  (interactive (list (empv--yt-suggest "Search in YouTube videos: ")))
   (empv--youtube term 'video))
 
 ;;;###autoload
 (defun empv-youtube-tabulated (term)
   "Search TERM in YouTube videos.
 Show results in a tabulated buffers with thumbnails."
-  (interactive "sSearch in YouTube videos: ")
+  (interactive (list (empv--yt-suggest "Search in YouTube videos: ")))
   (let ((empv-youtube-use-tabulated-results t))
     (empv--youtube term 'video)))
 
 ;;;###autoload
 (defun empv-youtube-multiple (term)
   "Search TERM in YouTube videos."
-  (interactive "sSearch in YouTube videos: ")
+  (interactive (list (empv--yt-suggest "Search in YouTube videos: ")))
   (empv--youtube-multiple term 'video))
 
 ;;;###autoload
 (defun empv-youtube-playlist (term)
   "Search TERM in YouTube playlists."
-  (interactive "sSearch in YouTube playlists: ")
+  (interactive (list (empv--yt-suggest "Search in YouTube videos: ")))
   (empv--youtube term 'playlist))
+
+;;;###autoload
+(defun empv-youtube-playlist-multiple (term)
+  "Search TERM in YouTube playlists with."
+  (interactive (list (empv--yt-suggest "Search in YouTube videos: ")))
+  (empv--youtube-multiple term 'playlist))
 
 (defun empv-youtube-show-current-comments ()
   "Show YouTube comments for currently playing (or paused) YouTube
@@ -1480,6 +1487,53 @@ To make this behavior permanant, add the following to your init file:
   (define-key embark-file-map "e" 'empv-enqueue)
   (define-key embark-url-map "p" 'empv-play)
   (define-key embark-url-map "e" 'empv-enqueue))
+
+
+;; Consult integration
+
+;; FIXME: This does not return the selected item
+(defun empv--consult-get-input-with-suggestions (prompt)
+  "Get an input from user, using YouTube search suggestions."
+  (consult--read
+   (empv--consult-yt-search-generator)
+   :prompt prompt
+   :category 'empv-youtube
+   :lookup (lambda (_ candidates cand &rest _)
+             (or (consult--lookup-member nil candidates cand)
+                 (string-trim-left cand (consult--async-split-initial ""))))
+   :initial (consult--async-split-initial "")
+   :sort nil
+   :require-match nil))
+
+(defun empv--consult-yt-search-generator ()
+  (thread-first
+    (consult--async-sink)
+    (consult--async-refresh-immediate)
+    (empv--consult-async-search)
+    (consult--async-throttle)
+    (consult--async-split)))
+
+(defun empv--consult-async-search (next)
+  "Async search provider for `consult-empv'.
+This gets the suggestions based on the current action and returns
+results to consult using NEXT."
+  (lambda (action)
+    (pcase action
+      ((pred stringp)
+       (when (not (string-empty-p (string-trim action)))
+         (empv--request
+          (format "%s/search/suggestions" empv-invidious-instance)
+          `(("q" . ,action))
+          (lambda (result)
+            (funcall next 'flush)
+            (when result
+              (funcall next (alist-get 'suggestions result)))))))
+      (_ (funcall next action)))))
+
+(defun empv--yt-suggest (prompt)
+  (if (require 'consult nil t)
+      (empv--consult-get-input-with-suggestions prompt)
+    (read-string prompt)))
 
 
 
