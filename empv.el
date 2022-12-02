@@ -698,13 +698,19 @@ see `empv-base-directory'."
 (defun empv-current-loop-on ()
   "Turn on loop for current file"
   (interactive)
-  (empv--cmd 'set_property '(loop-file inf)))
+  (empv--cmd 'set_property '(loop-file inf))
+  (empv--display-event "↻ File loop on."))
+
+(defalias 'empv-file-loop-on #'empv-current-loop-on)
 
 ;;;###autoload
 (defun empv-current-loop-off ()
   "Turn off loop for current file"
   (interactive)
-  (empv--cmd 'set_property '(loop-file no)))
+  (empv--cmd 'set_property '(loop-file no))
+  (empv--display-event "File loop off."))
+
+(defalias 'empv-file-loop-off #'empv-current-loop-off)
 
 ;;;###autoload
 (defun empv-volume-up ()
@@ -850,14 +856,16 @@ that is defined in `empv-radio-log-format'."
   "Clear the current playlist."
   (interactive)
   (empv--run
-   (empv--cmd 'playlist-clear)))
+   (empv--cmd 'playlist-clear)
+   (empv--display-event "Playlist cleared.")))
 
 ;;;###autoload
 (defun empv-playlist-shuffle ()
   "Shuffle the current playlist."
   (interactive)
   (empv--run
-   (empv--cmd 'playlist-shuffle)))
+   (empv--cmd 'playlist-shuffle)
+   (empv--display-event "Playlist shuffled.")))
 
 ;;;###autoload
 (defun empv-playlist-select ()
@@ -870,13 +878,15 @@ that is defined in `empv-radio-log-format'."
 (defun empv-playlist-loop-on ()
   "Turn on loop for playlist"
   (interactive)
-  (empv--cmd 'set_property '(loop-playlist inf)))
+  (empv--cmd 'set_property '(loop-playlist inf))
+  (empv--display-event "↻ Playlist loop on."))
 
 ;;;###autoload
 (defun empv-playlist-loop-off ()
   "Turn off loop for playlist"
   (interactive)
-  (empv--cmd 'set_property '(loop-playlist no)))
+  (empv--cmd 'set_property '(loop-playlist no))
+  (empv--display-event "Playlist loop off."))
 
 (defun empv--playlist-apply (fn &rest args)
   "Call FN with the current playlist, and the extra ARGS.
@@ -916,19 +926,26 @@ Example:
   "Display currently playing item's title and media player state.
 If ARG is non-nil, then also put the title to `kill-ring'."
   (interactive "P")
-  (empv--let-properties '(playlist-pos-1 playlist-count time-pos percent-pos duration metadata media-title pause paused-for-cache)
+  (empv--let-properties '(playlist-pos-1 playlist-count time-pos percent-pos duration metadata media-title pause paused-for-cache loop-file loop-playlist)
     (let ((title (string-trim (or (empv--create-media-summary-for-notification .metadata) .media-title)))
           (state (cond
                   ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "yellow")))
                   ((eq .pause t) (propertize "Paused" 'face '(:foreground "grey")))
                   (t (propertize "Playing" 'face '(:foreground "green"))))))
       (empv--display-event
-       "[%s, %s of %s (%d%%), %s/%s] %s " state
+       "[%s%s, %s of %s (%d%%), %s/%s%s] %s"
+       state
+       ;; Show a spinning icon near state, indicating that current
+       ;; playlist item is in loop.
+       (if (eq :json-false .loop-file) "" " ↻")
        (empv--format-clock (or .time-pos 0))
        (empv--format-clock (or .duration 0))
        (or .percent-pos 0)
        .playlist-pos-1
        .playlist-count
+       ;; Show a spinning icon near playlist count, indicating that
+       ;; current playlist itself is on loop.
+       (if (eq :json-false .loop-playlist) "" " ↻")
        (propertize title 'face 'bold))
       (when arg
         (kill-new title)))))
