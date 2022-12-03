@@ -266,6 +266,10 @@ Mainly used by embark actions defined in this package.")
   "Return the SEQ without the last element."
   (seq-subseq seq 0 (1- (seq-length seq))))
 
+(defun empv-seq-find-index (fn seq)
+  "Return the first index in SEQ for which FN evals to non-nil."
+  (seq-position seq 'empv-dummy-item (lambda (it _) (funcall fn it))))
+
 (defun empv--running? ()
   "Return if there is an mpv instance running or not."
   empv--process)
@@ -837,6 +841,19 @@ that is defined in `empv-radio-log-format'."
   (empv--run
    (empv--cmd 'loadfile `(,uri append-play))
    (empv--display-event "Enqueued %s" uri)))
+
+(defalias 'empv-enqueue-last #'empv-enqueue)
+
+(defun empv-enqueue-next (uri)
+  "Like `empv-enqueue' but instead of appending end of the
+playlist, append right after current item."
+  (interactive "sEnter an URI to play: ")
+  (empv--run
+   (empv--let-properties '(playlist)
+     (let ((len (length .playlist))
+           (idx (empv-seq-find-index (lambda (it) (alist-get 'current it)) .playlist)))
+       (empv-enqueue uri)
+       (empv--cmd 'playlist-move `(,len ,(1+ idx)))))))
 
 ;;;###autoload
 (defun empv-playlist-next ()
@@ -1461,6 +1478,7 @@ To make this behavior permanant, add the following to your init file:
     "Actions for YouTube results."
     ("y" empv-copy-youtube-link)
     ("e" empv-enqueue)
+    ("n" empv-enqueue-next)
     ("p" empv-play)
     ("c" empv-youtube-show-comments))
   (add-to-list 'embark-keymap-alist '(empv-youtube-item . empv-embark-youtube-item-actions))
@@ -1469,6 +1487,7 @@ To make this behavior permanant, add the following to your init file:
   (embark-define-keymap empv-embark-radio-item-actions
     "Actions for radio channels."
     ("e" empv-enqueue)
+    ("n" empv-enqueue-next)
     ("p" empv-play))
   (add-to-list 'embark-keymap-alist '(empv-radio-item . empv-embark-radio-item-actions))
   (setf (alist-get 'empv-radio-item embark-transformer-alist) #'empv--embark-radio-item-transformer)
