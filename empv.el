@@ -474,6 +474,15 @@ happens."
         (empv-toggle-video)))
      result))
 
+(defmacro empv--transform-property (property fn)
+  (declare (indent 1))
+  `(empv--send-command
+    (list "get_property" ,property)
+    (lambda (result)
+      (let ((new-val (funcall ,fn result)))
+        (empv--send-command (list "set_property" ,property new-val) #'ignore)
+        (empv--display-event "%s is set to %s" (symbol-name ,property) new-val)))))
+
 
 ;;; Essential functions
 
@@ -721,53 +730,41 @@ see `empv-base-directory'."
 (defun empv-volume-up ()
   "Up the volume to a max of 100%"
   (interactive)
-  (empv--let-properties '(volume)
-    (empv--cmd 'set_property `(volume ,(min (+ .volume empv-volume-step) 100)))
-    (empv--display-event "Volume is %s%%" (floor .volume))))
+  (empv--transform-property 'volume (lambda (current) (min (floor (+ current empv-volume-step)) 100))))
 
 ;;;###autoload
 (defun empv-volume-down ()
   "Down the volume to a min of 0%"
   (interactive)
-  (empv--let-properties '(volume)
-    (empv--cmd 'set_property `(volume ,(max (- .volume empv-volume-step) 0)))
-    (empv--display-event "Volume is %s%%" (floor .volume))))
+  (empv--transform-property 'volume (lambda (current) (max (floor (- current empv-volume-step)) 0))))
 
 ;;;###autoload
 (defun empv-set-volume ()
   "Set the exact volume."
   (interactive)
-  (empv--let-properties '(volume)
-    (let* ((current (string-trim-right (number-to-string .volume) ".0"))
-           (in (max 0 (min 100 (read-number (format "Volume (0-100, current %s): " current))))))
-      (empv--cmd 'set_property `(volume ,in))
-      (empv--display-event "Volume is %s%%" (floor in)))))
-
-(defun empv--set-playback-speed (fn)
-  (empv--let-properties '(speed)
-    (let ((new-speed (funcall fn .speed)))
-      (empv--cmd 'set_property `(speed ,new-speed))
-      (empv--display-event "Speed is set to %s" new-speed))))
+  (empv--transform-property 'volume
+    (lambda (current)
+      (max 0 (min 100 (floor (read-number (format "Volume (0-100, current %s): " (floor current)))))))))
 
 ;;;###autoload
 (defun empv-set-playback-speed ()
   "Set the exact playback speed."
   (interactive)
-  (empv--set-playback-speed
-   (lambda (speed)
-     (read-string (format "Speed (current %s): " speed)))))
+  (empv--transform-property 'speed
+    (lambda (speed)
+      (read-string (format "Speed (current %s): " speed)))))
 
 ;;;###autoload
 (defun empv-playback-speed-down ()
   "Lower the playback speed by `0.25'."
   (interactive)
-  (empv--set-playback-speed (apply-partially #'+ -0.25)))
+  (empv--transform-property 'speed (apply-partially #'+ -0.25)))
 
 ;;;###autoload
 (defun empv-playback-speed-up ()
   "Increase the playback speed by `0.25'."
   (interactive)
-  (empv--set-playback-speed (apply-partially #'+ 0.25)))
+  (empv--transform-property 'speed (apply-partially #'+ 0.25)))
 
 ;;;###autoload
 (defun empv-toggle-video ()
