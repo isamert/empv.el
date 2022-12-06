@@ -743,30 +743,31 @@ see `empv-base-directory'."
       (empv--cmd 'set_property `(volume ,in))
       (empv--display-event "Volume is %s%%" (floor in)))))
 
+(defun empv--set-playback-speed (fn)
+  (empv--let-properties '(speed)
+    (let ((new-speed (funcall fn .speed)))
+      (empv--cmd 'set_property `(speed ,new-speed))
+      (empv--display-event "Speed is set to %s" new-speed))))
+
 ;;;###autoload
 (defun empv-set-playback-speed ()
   "Set the exact playback speed."
   (interactive)
-  (empv--let-properties '(speed)
-    (let* ((current (format "%.2f" .speed))
-           (in (read-string (format "Speed (current %s): " current))))
-      (empv--cmd 'set_property `(speed ,in)))))
+  (empv--set-playback-speed
+   (lambda (speed)
+     (read-string (format "Speed (current %s): " speed)))))
 
 ;;;###autoload
 (defun empv-playback-speed-down ()
   "Lower the playback speed by `0.25'."
   (interactive)
-  (empv--cmd-seq
-   ('get_property 'speed)
-   ('set_property `(speed ,(max (- it 0.25) 0)))))
+  (empv--set-playback-speed (apply-partially #'+ -0.25)))
 
 ;;;###autoload
 (defun empv-playback-speed-up ()
   "Increase the playback speed by `0.25'."
   (interactive)
-  (empv--cmd-seq
-   ('get_property 'speed)
-   ('set_property `(speed ,(+ it 0.25)))))
+  (empv--set-playback-speed (apply-partially #'+ 0.25)))
 
 ;;;###autoload
 (defun empv-toggle-video ()
