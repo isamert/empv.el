@@ -501,9 +501,12 @@ URI might be a string or a list of strings."
                              'stop nil
                              (seq-do #'empv-enqueue uri)
                              (empv-resume)))))
-    "Enqueue" → (cond
-                 ((stringp uri) (empv-enqueue uri))
-                 ((listp uri) (seq-do #'empv-enqueue uri)))))
+    "Enqueue last" → (cond
+                      ((stringp uri) (empv-enqueue uri))
+                      ((listp uri) (seq-do #'empv-enqueue uri)))
+    "Enqueue next" → (cond
+                      ((stringp uri) (empv-enqueue-next uri))
+                      ((listp uri) (seq-do #'empv-enqueue-next uri)))))
 
 (defun empv--metadata-get (alist main fallback)
   "Get MAIN from ALIST, if it's nill get FALLBACK from ALIST."
