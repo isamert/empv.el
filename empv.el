@@ -485,7 +485,7 @@ happens."
     (lambda (result)
       (let ((new-val (funcall ,fn result)))
         (empv--send-command (list "set_property" ,property new-val) #'ignore)
-        (empv--display-event "%s is set to %s" (symbol-name ,property) new-val)))))
+        (empv--display-event "%s is set to %s" (capitalize (symbol-name ,property)) new-val)))))
 
 
 ;;; Essential functions
