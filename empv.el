@@ -1,4 +1,4 @@
-;;; empv.el --- An Emacs interface for MPV -*- lexical-binding: t; -*-
+;;; empv.el --- An interface for MPV -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2021  Isa Mert Gurbuz
 
@@ -6,7 +6,7 @@
 ;; Version: 2.0.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
-;; Package-Requires: ((emacs "27.1"))
+;; Package-Requires: ((emacs "28.1"))
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -192,6 +192,10 @@ listing possible actions on a selection."
   :type 'number
   :group 'empv)
 
+(defcustom empv-log-prefix
+  "empv :: "
+  "Prefix that is shown in the logs.")
+
 
 ;;; Public variables
 
@@ -281,7 +285,7 @@ Mainly used by embark actions defined in this package.")
 
 (defun empv--display-event (msg &rest rest)
   "Print MSG with REST if `empv-display-events' is non-nil."
-  (let ((formatted-msg `(,(format "empv :: %s" msg) ,@rest)))
+  (let ((formatted-msg `(,(format "%s%s" empv-log-prefix msg) ,@rest)))
     (when empv-log-events-to-file
       (write-region
        (concat
