@@ -347,6 +347,9 @@ Mainly used by embark actions defined in this package.")
   (unless (get-buffer-window empv--inspect-buffer-name)
     (switch-to-buffer-other-window empv--inspect-buffer-name)))
 
+(defun empv--clean-uri (it)
+  (car (split-string it empv--title-sep)))
+
 
 ;;; Handlers
 
@@ -1003,6 +1006,13 @@ etc."
           (versuri-display artist song)))
     (user-error "Please install `versuri' first to use this feature.  Do `M-x' `package-install', type `versuri' and hit `Enter' (or use your prefered method of installing a package)")))
 
+(defun empv-copy-path ()
+  "Copy the path of currently playing item."
+  (interactive)
+  (empv--let-properties '(path)
+    (empv--display-event "URI copied: %s" (empv--clean-uri .path))
+    (kill-new (empv--clean-uri .path))))
+
 
 ;;; Radio
 
@@ -1343,7 +1353,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
 
 (defun empv-youtube-results-copy-current ()
   (interactive)
-  (empv-copy-youtube-link (empv-youtube-results--current-video-url)))
+  (empv-youtube-copy-link (empv-youtube-results--current-video-url)))
 
 (defun empv-youtube-results-show-comments ()
   (interactive)
@@ -1414,10 +1424,14 @@ To make this behavior permanant, add the following to your init file:
                    (empv--cmd 'playlist-move (list index i))))
     (empv--display-event "Moved %s." (abbreviate-file-name (alist-get 'filename item)))))
 
-(defun empv-copy-youtube-link (link)
-  (empv--display-event
-   "Youtube link copied into your kill-ring: %s"
-   (car (split-string (kill-new link) empv--title-sep))))
+(defun empv-youtube-copy-link (link)
+  (empv--display-event "URI copied: %s" (empv--clean-uri link))
+  (kill-new (empv--clean-uri link)))
+
+(defun empv-playlist-copy-path (item)
+  (let ((path (alist-get 'filename item)))
+    (empv--display-event "URI copied: %s" (empv--clean-uri path))
+    (kill-new (empv--clean-uri path))))
 
 ;; embark transformers
 
@@ -1438,7 +1452,7 @@ To make this behavior permanant, add the following to your init file:
 (defun empv-initialize-embark ()
   (embark-define-keymap empv-embark-youtube-item-actions
     "Actions for YouTube results."
-    ("y" empv-copy-youtube-link)
+    ("y" empv-youtube-copy-link)
     ("e" empv-enqueue)
     ("n" empv-enqueue-next)
     ("p" empv-play)
@@ -1457,6 +1471,7 @@ To make this behavior permanant, add the following to your init file:
   (embark-define-keymap empv-embark-playlist-item-actions
     "Actions for playlist items."
     ("p" empv-playlist-play)
+    ("y" empv-playlist-copy-path)
     ("m" empv-playlist-move)
     ("r" empv-playlist-remove)
     ("R" empv-playlist-remove-others))
