@@ -1111,22 +1111,6 @@ See `empv--youtube-search' for TYPE."
            (empv-youtube-tabulated-last-results)
          (empv-youtube-last-results))))))
 
-(defun empv--youtube-multiple (term type)
-  "Like `empv--youtube' but use `completing-read-multiple'.
-See `empv--youtube' for TERM and TYPE."
-  (empv--youtube-search
-   term type
-   (lambda (results)
-     (thread-last
-       (empv--completing-read-object
-        (format "YouTube results for '%s': " term)
-        results
-        ;; TODO replace crm-seperator?
-        :formatter (lambda (it) (string-replace "," "" (empv--format-yt-item it)))
-        :multiple? t)
-       (mapcar #'empv--youtube-item-extract-link)
-       (empv-enqueue)))))
-
 ;;;###autoload
 (defun empv-youtube (term)
   "Search TERM in YouTube videos."
@@ -1142,22 +1126,10 @@ Show results in a tabulated buffers with thumbnails."
     (empv--youtube term 'video)))
 
 ;;;###autoload
-(defun empv-youtube-multiple (term)
-  "Search TERM in YouTube videos."
-  (interactive (list (empv--yt-suggest "Search in YouTube videos: ")))
-  (empv--youtube-multiple term 'video))
-
-;;;###autoload
 (defun empv-youtube-playlist (term)
   "Search TERM in YouTube playlists."
   (interactive (list (empv--yt-suggest "Search in YouTube videos: ")))
   (empv--youtube term 'playlist))
-
-;;;###autoload
-(defun empv-youtube-playlist-multiple (term)
-  "Search TERM in YouTube playlists with."
-  (interactive (list (empv--yt-suggest "Search in YouTube videos: ")))
-  (empv--youtube-multiple term 'playlist))
 
 (defun empv-youtube-show-current-comments ()
   "Show YouTube comments for currently playing (or paused) YouTube
@@ -1246,26 +1218,11 @@ Limit directory treversal at most DEPTH levels.  By default it's
     (empv--select-file "Select a video file" empv-video-dir empv-video-file-extensions))))
 
 ;;;###autoload
-(defun empv-play-video-multiple ()
-  "Interactively select and play video file(s) from `empv-video-dir'."
-  (interactive)
-  (empv--with-video-enabled
-   (empv--play-or-enqueue
-    (empv--select-files "Select a video file(s)" empv-video-dir empv-video-file-extensions))))
-
-;;;###autoload
 (defun empv-play-audio ()
   "Interactively select and play an audio file from `empv-audio-dir'."
   (interactive)
   (empv--play-or-enqueue
    (empv--select-file "Select an audio file:" empv-audio-dir empv-audio-file-extensions)))
-
-;;;###autoload
-(defun empv-play-audio-multiple ()
-  "Interactively select and play an audio file from `empv-audio-dir'."
-  (interactive)
-  (empv--play-or-enqueue
-   (empv--select-files "Select an audio file:" empv-audio-dir empv-audio-file-extensions)))
 
 
 ;;; empv-youtube-results-mode
