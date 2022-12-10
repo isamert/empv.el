@@ -209,6 +209,52 @@ The format is `(channel name . channel address)'.  This variable
 does not clean itself up, it's possible that currently no radio
 is playing but this variable is still holds some channel.")
 
+;;;###autoload
+(defvar empv-map
+  (let ((map (make-sparse-keymap)))
+    ;; TODO: Add loop on/off
+
+    (define-key map "o" 'empv-play)
+    (define-key map "f" 'empv-play-file)
+    (define-key map "d" 'empv-play-directory)
+    (define-key map "v" 'empv-play-video)
+    (define-key map "a" 'empv-play-audio)
+    (define-key map "i" 'empv-display-current)
+    (define-key map "c" 'empv-copy-path)
+
+    (define-key map "t" 'empv-toggle)
+    (define-key map "_" 'empv-toggle-video)
+
+    (define-key map "r" 'empv-play-radio)
+    (define-key map "R" 'empv-play-random-channel)
+    (define-key map "l" 'empv-log-current-radio-song-name)
+
+    (define-key map "[" 'empv-playback-speed-down)
+    (define-key map "]" 'empv-playback-speed-up)
+    (put 'empv-playback-speed-up 'repeat-map 'empv-map)
+    (put 'empv-playback-speed-down 'repeat-map 'empv-map)
+
+    (define-key map "9" 'empv-volume-up)
+    (define-key map "0" 'empv-volume-down)
+    (put 'empv-volume-up 'repeat-map 'empv-map)
+    (put 'empv-volume-down 'repeat-map 'empv-map)
+
+    (define-key map "s" 'empv-playlist-shuffle)
+    (define-key map "C" 'empv-playlist-clear)
+    (define-key map "n" 'empv-playlist-next)
+    (define-key map "N" 'empv-playlist-prev)
+    (put 'empv-playlist-next 'repeat-map 'empv-map)
+    (put 'empv-playlist-prev 'repeat-map 'empv-map)
+
+    (define-key map "y" 'empv-youtube)
+    (define-key map "Y" 'empv-youtube-last-results)
+
+    (define-key map "q" 'empv-exit)
+    map)
+  "Keymap for commonly used empv functions. It is not bound to any
+key by default. Some keys are loosely modelled after default keys
+of mpv.")
+
 
 ;;; Internal variables
 

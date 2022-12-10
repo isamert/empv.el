@@ -3,7 +3,7 @@ An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this pa
 
 /empv/ is mostly focused on audio but it also provides some means to manage videos. It also supports YouTube searches for consuming audios or videos.
 
-Workflow is generally =M-x empv-something= and =completing-read= based, no buffers or complex interfaces (except for the tabulated YouTube results with thumbnails). Scroll down to see available [[*Interactive functions and configuration][interactive functions]]. No default keybindings are provided.
+Workflow is generally =M-x empv-something= and =completing-read= based, no buffers or complex interfaces (except for the tabulated YouTube results with thumbnails). Scroll down to see available [[*Interactive functions and configuration][interactive functions]].
 
 * Installation
 First, you need to install [[https://mpv.io][mpv]], go check out it's installation instructions for your operating system/distribution. Easiest way to install =empv.el= would be using either [[https://github.com/radian-software/straight.el][straigt]] or [[https://github.com/quelpa/quelpa-use-package][quelpa]] package managers:
@@ -37,6 +37,17 @@ If you have [[https://github.com/minad/consult][consult]] and [[https://github.c
 * Functionality and configuration
 Do =M-x= and then search for =empv-= to list all available functions. Also check out all configuration options by doing =M-x customize-group empv RET=. I'll go over some extra configuration options that you may want to use:
 
+** Keybindings
+No default keybindings are provided but there is ~empv-map~ keymap which contains all the useful empv actions. You can bind this keymap to a key, like following:
+
+#+begin_src emacs-lisp
+  (bind-key "C-x m" empv-map)
+#+end_src
+
+...and now you can do ~C-x m t~ to toggle playback, for example. Do ~M-x describe-keymap empv-map~ to list all actions in this keymap.
+
+Some keys are repeatable in this keymap. Continuing with the example above, you can do ~C-x m n~ to switch to the next media item in the playlist and if you want to go to the next item again just hit ~n~ this time (or ~N~ to go back one item), as it's repeatable. Keys that control sound level, playback speed are also repeatable.
+
 ** General YouTube configuration
 /empv.el/ lets you search in YouTube videos/playlists and play them in background or just play the video itself. It also let's you view YouTube comments of a video in a nicely formatted org buffer. This is done through [[https://github.com/iv-org/invidious][invidious]] API. It's a privacy respecting frontend (and API) for YouTube. To be able to use these features, you need to set an invidious instance manually, like:
 
@@ -60,6 +71,7 @@ If you start playing a YouTube video, it'll start playing in background. You may
 #+end_src
 
 See [[https://github.com/ytdl-org/youtube-dl/blob/master/README.md#format-selection][this page]] for how you can use =--ytdl-format= option.
+
 ** Saving playback position
 =empv-save-and-exit= shuts down empv and saves the current playing position but you can also add ~--save-position-on-quit~ to ~empv-mpv-args~ to get the same effect by default so that every time you quit empv, it'll automatically save the playback position of the currently playing file and it'll seek to previous position on start.
 
