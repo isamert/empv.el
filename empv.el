@@ -174,8 +174,9 @@ some invidious instances."
 
 (defcustom empv-action-handler
   'read-multiple-choice
-  "Default action handler. `empv' uses the given function for
-listing possible actions on a selection."
+  "When you select a media to play, you're presented with some
+options like: \"Play\", \"Enqueue\" etc. This customization
+determines which function is used to show you these actions."
   :type '(choice (const :tag "completing-read" completing-read)
                  (const :tag "read-multiple-choice" read-multiple-choice))
   :group 'empv)
@@ -194,7 +195,9 @@ listing possible actions on a selection."
 
 (defcustom empv-log-prefix
   "empv :: "
-  "Prefix that is shown in the logs.")
+  "Prefix that is shown in the logs."
+  :type 'string
+  :group 'empv)
 
 
 ;;; Public variables

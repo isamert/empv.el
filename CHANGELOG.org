@@ -1,9 +1,31 @@
-* 1.0
+* 2.0.0
 
+- ~consult-empv.el~ is removed. Now ~empv.el~ integrates itself with ~consult~ automatically, if it's found on your system. Use default functions instead of ~consult-empv-*~ functions. (e.g. Use ~empv-youtube~ instead of ~consult-empv-youtube~).
+- Better ~embark~ support. (Add ~(empv-initialize-embark)~ to your init file to enable it.)
+  - Now you can do ~embark-act~ on a file or folder anywhere in Emacs and you'll get the following actions:
+    - ~empv-play~
+    - ~empv-enqueue~
+  - Playlist items have the following extra actions:
+    - ~empv-playlist-move~ → Move playlist item to selected place (~top~, ~bottom~, ~next~, ~index~).
+    - ~empv-playlist-remove~ → Remove item from the playlist.
+    - ~empv-playlist-remove-others~ → Remove all items from the playlist except the selected item.
+  - YouTube results have the following extra actions:
+    - ~empv-play~
+    - ~empv-enqueue~
+    - ~empv-youtube-copy-link~
+    - ~empv-youtube-show-comments~
+- New functions:
+  - ~empv-enqueue-next~ → Add item to playlist as next item to play.
+  - ~empv-copy-path~
 - ~read-multiple-choice~ is the default action selector, instead of ~completing-read~. See the ~empv-action-handler~ variable, if you want to use old behavior.
 - YouTube tabulated mode changes:
   - It uses =P= instead of =p= to start playing current result. =p= is bound to ~previous-line~ and =n= is bound to next line. Also =j= and =k= are bound to ~next-line~ and ~previous-line~ respectively.
   - New binding: =c=. Shows comments of current result in a nicely formatted org buffer.
+
+- Misc:
+  - More echo area messages to inform user about what's going on.
+  - Better playlist management.
+    - Instead of showing path/uri, show media title whenever it's possible. (This is generally only possible after the media is played, not before.)
 
 * 0.1
 

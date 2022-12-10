@@ -1,24 +1,26 @@
 * empv.el
-An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this package provides somewhat comprehensive interface to mpv with bunch of convenience functions.
+An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this package provides somewhat comprehensive interface to mpv with bunch of convenient functionality like an embedded radio manager, YouTube interface, local music/video library manager etc.
 
-/empv/ is mostly focused on audio but it also provides some means to manage videos. It also supports YouTube searches. If you are a [[https://github.com/minad/consult][consult]] user, then you can also install =consult-empv= package to get search suggestions while using empv's YouTube search capabilities.
+/empv/ is mostly focused on audio but it also provides some means to manage videos. It also supports YouTube searches for consuming audios or videos.
 
-Workflow is generally =M-x empv-something= and =completing-read= based, no buffers or complex interfaces (except for the tabulated YouTube results). Scroll down to see available [[*Interactive functions and configuration][interactive functions]]. No default keybindings are provided.
+Workflow is generally =M-x empv-something= and =completing-read= based, no buffers or complex interfaces (except for the tabulated YouTube results with thumbnails). Scroll down to see available [[*Interactive functions and configuration][interactive functions]]. No default keybindings are provided.
 
 * Installation
-First, you need to install [[https://mpv.io][mpv]], go check out it's installation instructions for your operating system/distribution. Then you can install /empv.el/ using:
+First, you need to install [[https://mpv.io][mpv]], go check out it's installation instructions for your operating system/distribution. Easiest way to install =empv.el= would be using either [[https://github.com/radian-software/straight.el][straigt]] or [[https://github.com/quelpa/quelpa-use-package][quelpa]] package managers:
 
 #+begin_src elisp
+  ;; Using straight:
+  (straight-use-package '(empv :type git :host github :repo "isamert/empv.el"))
+  (use-package empv
+    :ensure t
+    :straigt (:host github :repo "isamert/empv.el"))
+
+  ;; Using quelpa:
   (use-package empv
     :ensure t
     :quelpa (empv
              :fetcher github
              :repo "isamert/empv.el"))
-#+end_src
-
-Alternatively, you can use the [[https://github.com/raxod502/straight.el][straight]] package manager:
-#+begin_src elisp
-  (straight-use-package '(empv :type git :host github :repo "isamert/empv.el"))
 #+end_src
 
 Another option is just downloading =empv.el= file and putting into your =load-path=, afterwards you can simply do the following in your =init.el=:
@@ -27,62 +29,16 @@ Another option is just downloading =empv.el= file and putting into your =load-pa
   (require 'empv)
 #+end_src
 
+Some functionality may require the external program [[https://github.com/sharkdp/fd][fd]]. You are also advised to install it.
+
 * Embark and Consult integration
-If you have [[https://github.com/minad/consult][consult]] and [[https://github.com/oantolin/embark][embark]] installed on your system, =empv= will integrate itself with those packages and you'll get some embark actions that you can use on the displayed candidates.
+If you have [[https://github.com/minad/consult][consult]] and [[https://github.com/oantolin/embark][embark]] installed on your Emacs, ~empv.el~ will automatically integrate itself with them. If you have ~consult~ installed, you get search suggestions during YouTube searches (~empv-youtube~) and if you have embark installed you get embark actions for playing/enqueueing selected media. This makes it easy to enqueue bunch of media results using ~embark-act-all~, or you can call ~embark-act~ on a file inside a ~dired~ buffer and you'll see options to play or enqueue given file or folder.
 
-* Interactive functions and configuration
-This list is not complete. I only listed most important functions. Do =M-x= and then search for =empv-= to list all available functions. Here are some information about functions:
-- Most of the functions will ask you if you want to directly play your selection or if you want to enqueue it.
-- Some functions have =-multiple= variations which serves the same functionality but also let's you select more than one media to play/enqueue.
+* Functionality and configuration
+Do =M-x= and then search for =empv-= to list all available functions. Also check out all configuration options by doing =M-x customize-group empv RET=. I'll go over some extra configuration options that you may want to use:
 
-** Basic functions
-- =empv-play= :: Play given file/path/URL. It'll ask for an string input. Input can be any type of media file/url; videos, audios, playlists, media streams etc.
-- =empv-enqueue= :: Like =empv-play= but add the given URI to end of the playlist.
-- =empv-play-file= :: Like =empv-play= but let's you interactively select one of your local files.
-- =empv-pause= :: Pause.
-- =empv-toggle= :: Toggle the pause state.
-- =empv-seek= :: Change the playback position interactively.
-- =empv-exit= :: Shut down empv.
-- =empv-save-and-exit= :: Shut down empv save the current playing position. You can also add ~--save-position-on-quit~ to ~empv-mpv-args~ to get the same effect by default so that every time you quit empv, it'll automatically save the playback position of the currently playing file and it'll seek to previous position on start.
-  #+begin_src emacs-lisp
-    (add-to-list 'empv-mpv-args "--save-position-on-quit")
-  #+end_src
-
-** Playlist functions
-- =empv-playlist-next= :: Play the next media in the playlist.
-- =empv-playlist-prev= :: Play the previous media in the playlist.
-- =empv-playlist-select= :: List all playlist items and select one to play.
-- =empv-playlist-clear= :: Clear the playlist.
-- =empv-playlist-shuffle= :: Shuffle the playlist.
-
-** Directories
-Directory-related functions opens the selection menu starting from the =default-directory=. If you want to use a base directory to start the selection menu from, see =empv-base-directory= variable. This is mainly useful for starting your selection from your music collection (or any other collection) so that you can easily navigate to sub-folders (albums etc.) and play them.
-
-- =empv-play-directory= :: Start playing all media files in given interactively selected directory.
-
-** Collections
-Some convenience functions for quickly finding and playing files from your local collections.
-
-- =empv-play-audio= :: List and interactively select one of the files under =empv-audio-dir= (the directory is scanned recursively. Also see =empv-max-directory-search-depth=.)
-- =empv-play-audio-multiple= :: Multiple selection version of =empv-audio=.
-- =empv-play-video= :: Like =empv-play-audio= but for video files instead.
-- =empv-video-multiple= :: Multiple selection version of =empv-video=.
-
-See =empv-video-file-extensions= and =empv-auido-file-extensions= for more customization options. Also note that these functions require [[https://github.com/sharkdp/fd][fd]] to be installed.
-
-** Radio/Stream functions
-List of radio channels are configured through the =empv-radio-channels= variable.
-
-- =empv-play-radio= :: Interactively select one of the stations from =empv-radio-channels= and start playing it.
-- =empv-play-random-channel= :: Play a random channel from =empv-radio-channels=.
-
-** Misc
-- =empv-toggle-video= :: Toggle the visibility of video (if the currently playing media is a video file). TIP: You can press =_= in mpv to hide the video, or you can just call this function from Emacs again to hide it too.
-- =empv-toggle-event-display= :: Toggle the displaying of events in the echo area. (Like /track changed/, /playback stopped/ etc.)
-- =empv-display-current= :: Display the currently playing media info in the echo area.
-
-** YouTube
-/empv.el/ lets you search in YouTube videos/playlists and play them in background or just play the video itself. This is done through [[https://github.com/iv-org/invidious][invidious]] API. It's a privacy respecting frontend (and API) for YouTube. To be able to use these features, you need to set an invidious instance manually, like:
+** General YouTube configuration
+/empv.el/ lets you search in YouTube videos/playlists and play them in background or just play the video itself. It also let's you view YouTube comments of a video in a nicely formatted org buffer. This is done through [[https://github.com/iv-org/invidious][invidious]] API. It's a privacy respecting frontend (and API) for YouTube. To be able to use these features, you need to set an invidious instance manually, like:
 
 #+begin_src elisp
   (setq empv-invidious-instance "https://some-invidious-instance.com/api/v1")
@@ -90,30 +46,23 @@ List of radio channels are configured through the =empv-radio-channels= variable
 
 You can select an invidious instance from [[https://api.invidious.io/][here]].
 
-- =empv-youtube= :: Search given term in Youtube videos and then interactively select one of the results.
-- =empv-youtube-multiple= :: Multiple selection version of =empv-youtube=.
-- =empv-youtube-playlist= :: Search given term in Youtube playlists and then interactively select and start playing selected playlist.
-- =empv-youtube-last-results= :: Show last set of search results.
+The entrypoint function is ~empv-youtube~ which asks your input to search in YouTube videos. If you have ~consult~ installed, it'll also show you search suggestions while you are typing.
 
-Thumbnails greatly help to identify the right video in a search. Using ~completing-read~ falls short here, /empv.el/ offers some additional commands to address this issue:
-
-- =empv-youtube-tabulated= :: Search given term in YouTube and display them in a buffer with video thumbnails. This buffer has some default keybindings, like:
-  - ~p~ plays the current selection, ~a~ adds the current selection to the end of the queue, ~Y~ copies the video address, ~Return~ asks you to play or enqueue the current selection.
-- =empv-youtube-tabulated-last-results= :: Show last set of search results in a tabulated search result buffer with thumbnails. This command works even if the last search was done using the ~completing-read~ interface.
+Thumbnails greatly help to identify the right video in a search. Using ~completing-read~ may sometimes fall short here and for that you can use ~empv-youtube-tabulated~. This function searches given term in YouTube and display them in a buffer with video thumbnails.
 
 You can also set ~empv-youtube-use-tabulated-results~ to a non-nil value to make YouTube commands use the tabulated interface by default at all times.
 
-If you have installed =consult-empv.el=:
-- =consult-empv-youtube= :: Like =empv-youtube= but it also shows search suggestions while typing the query.
-- =consult-empv-youtube-multiple= :: Multiple selection version of =consult-empv-youtube=.
-- =consult-empv-youtube-playlist= :: Like =empv-youtube-playlist= but it also shows search suggestions while typing the query.
-- =consult-empv-youtube-playlist-multiple= :: Multiple selection version of =consult-empv-youtube=.
-
-** A note about =empv-toggle-video=
-If you start playing a YouTube video, it'll start playing in background. You may be tempted to call =empv-toggle-video= to start watching the video itself but it'll not work. /mpv/ tries to be smart when it's in background it only downloads the audio if it's possible. If you want to be able to watch YouTube videos whenever you want, you need to add something like this to your configuration to force-download videos:
+** Viewing YouTube videos
+If you start playing a YouTube video, it'll start playing in background. You may be tempted to call =empv-toggle-video= to start watching the video itself but it'll not work. /mpv/ tries to be smart when it's in background and it only downloads the audio if it's possible. If you want to be able to watch YouTube videos whenever you want, you need to add something like this to your configuration to force-download videos:
 
 #+begin_src elisp
   (add-to-list 'empv-mpv-args "--ytdl-format=best")
 #+end_src
 
 See [[https://github.com/ytdl-org/youtube-dl/blob/master/README.md#format-selection][this page]] for how you can use =--ytdl-format= option.
+** Saving playback position
+=empv-save-and-exit= shuts down empv and saves the current playing position but you can also add ~--save-position-on-quit~ to ~empv-mpv-args~ to get the same effect by default so that every time you quit empv, it'll automatically save the playback position of the currently playing file and it'll seek to previous position on start.
+
+#+begin_src emacs-lisp
+  (add-to-list 'empv-mpv-args "--save-position-on-quit")
+#+end_src
