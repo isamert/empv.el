@@ -1,9 +1,9 @@
 ;;; empv.el --- An interface for MPV -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2021  Isa Mert Gurbuz
+;; Copyright (C) 2022  Isa Mert Gurbuz
 
 ;; Author: Isa Mert Gurbuz <isamertgurbuz@gmail.com>
-;; Version: 2.0.0
+;; Version: 2.1.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
 ;; Package-Requires: ((emacs "28.1"))
