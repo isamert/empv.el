@@ -1531,8 +1531,10 @@ To make this behavior permanant, add the following to your init file:
   ;; Basic file and url actions
   (define-key embark-file-map "p" 'empv-play)
   (define-key embark-file-map "e" 'empv-enqueue)
+  (define-key embark-file-map "n" 'empv-enqueue-next)
   (define-key embark-url-map "p" 'empv-play)
-  (define-key embark-url-map "e" 'empv-enqueue))
+  (define-key embark-url-map "n" 'empv-enqueue)
+  (define-key embark-url-map "e" 'empv-enqueue-next))
 
 
 ;; Consult integration
