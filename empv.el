@@ -151,10 +151,12 @@ Supply a path to enable logging.  nil means no logging."
   :group 'empv)
 
 (defcustom empv-radio-log-format
-  "* #{timestamp} [#{channel-name}] #{track-title}\n"
+  "* #{timestamp} [#{channel-name}] #{track-title}\n#{capture}\n"
   "The format used when `empv-log-current-radio-song-name' is called.
 `#{channel-name}', `#{timestamp}' and `#{track-title}' are
-replaced with their current values at the time of calling."
+replaced with their current values at the time of calling.
+
+#{capture} is replaced with the user-supplied string at the moment."
   :type 'string
   :group 'empv)
 
@@ -871,19 +873,23 @@ window."
   (setq empv--dbg (not empv--dbg))
   (empv--display-event  "Debug mode is %s" empv--dbg))
 
-(defun empv-log-current-radio-song-name ()
+(defun empv-log-current-radio-song-name (&optional capture?)
   "Log current radio song name with the radio channel name.
 The song's are logged into `empv-radio-log-file' with the format
-that is defined in `empv-radio-log-format'."
-  (interactive)
+that is defined in `empv-radio-log-format'.
+
+When CAPTURE? is non-nil, also ask user for extra input to save
+along with the log."
+  (interactive "P")
   (empv--let-properties '(metadata)
     (when-let ((title (alist-get 'icy-title .metadata)))
       (write-region
        (thread-last
          empv-radio-log-format
-         (string-replace "#{timestamp}" (format "[%s]" (format-time-string "%Y-%m-%d %a %H:%M")))
+         (string-replace "#{timestamp}" (format "[%s]" (format-time-string "%F %a %R")))
          (string-replace "#{channel-name}" (car empv-current-radio-channel))
-         (string-replace "#{track-title}" title))
+         (string-replace "#{track-title}" title)
+         (string-replace "#{capture}" (if capture? (read-string "Extra notes: ") "")))
        nil empv-radio-log-file 'append)
       (message "%s" title))))
 
