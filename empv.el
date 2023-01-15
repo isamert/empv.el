@@ -45,10 +45,10 @@
 ;;; Customization
 
 (defgroup empv nil
-  "A media player for Emacs"
+  "A media player for Emacs."
   :group 'multimedia)
 
-(defcustom empv-socket-file "/tmp/empv-socket"
+(defcustom empv-socket-file (format "%sempv-socket" (temporary-file-directory))
   "Socket file path."
   :type 'string
   :group 'empv)
@@ -59,15 +59,15 @@
   :group 'empv)
 
 (defcustom empv-mpv-args `("--no-video" "--no-terminal" "--idle" ,(concat "--input-ipc-server=" empv-socket-file))
-  "Args used while starting mpv.  This should contain
-`--input-ipc-server=<empv-socket-file>', also --idle is recommended
-for keeping your state."
+  "Args used while starting mpv.
+This should contain --input-ipc-server=`empv-socket-file', also
+--idle is recommended for keeping your state."
   :type 'list
   :group 'empv)
 
 (defcustom empv-display-events t
-  "Wheter to show events (like track changed, stopped etc.) at
-the bottom of the screen."
+  "Wheter to show events at the bottom of the screen.
+Events may include track changes, volume changes etc."
   :type 'boolean
   :group 'empv)
 
@@ -85,9 +85,9 @@ https://invidious-example.com/api/v1"
 (defcustom empv-youtube-use-tabulated-results
   nil
   "Show YouTube results in a tabulated buffer with thumbnails if not nil.
-Otherwise simply use `completing-read'. You can still use
+Otherwise simply use `completing-read'.  You can still use
 `empv-youtube-tabulated' or `consult-empv-youtube-tabulated'
-commands if this variable is `nil'."
+commands if this variable is nil."
   :type 'boolean
   :group 'empv)
 
@@ -168,15 +168,16 @@ replaced with their current values at the time of calling.
 
 (defcustom empv-allow-insecure-connections
   nil
-  "Allow insecure connections (expired certificates etc.) while
-doing network calls. This could be useful for being able to use
-some invidious instances."
+  "Allow insecure connections while doing network calls.
+This could be useful for being able to use some invidious
+instances."
   :type 'boolean
   :group 'empv)
 
 (defcustom empv-action-handler
   'read-multiple-choice
-  "When you select a media to play, you're presented with some
+  "Action handler style.
+When you select a media to play, you're presented with some
 options like: \"Play\", \"Enqueue\" etc. This customization
 determines which function is used to show you these actions."
   :type '(choice (const :tag "completing-read" completing-read)
@@ -254,22 +255,23 @@ is playing but this variable is still holds some channel.")
 
     (define-key map "q" 'empv-exit)
     map)
-  "Keymap for commonly used empv functions. It is not bound to any
-key by default. Some keys are loosely modelled after default keys
-of mpv.")
+  "Keymap for commonly used empv functions.
+It is not bound to any key by default.  Some keys are loosely
+modelled after default keys of mpv.")
 
 
 ;;; Internal variables
 
 (defconst empv--title-sep "##"
-  "MPV does not provide a way to get media-title for a given item
-in the playlist. This makes sense, because the item might be a
+  "Seperator for seperating the URL and it's title.
+MPV does not provide a way to get media-title for a given item
+in the playlist.  This makes sense, because the item might be a
 YouTube link and a network request is required to fetch it's
-title. MPV gathers the media-title while playing the media but it
-does not persist it. So it's not possible to display media's
+title.  MPV gathers the media-title while playing the media but it
+does not persist it.  So it's not possible to display media's
 title even if it's already played before.
 
-empv tries to append media's title at the end of it's URL. Assume
+empv tries to append media's title at the end of it's URL.  Assume
 the following media:
 
     https://youtu.be/watch?v=X4bgXH3sJ2Q
@@ -277,11 +279,11 @@ the following media:
 empv appends `empv--title-sep' and the media's title to end of
 the URL.
 
-    https://youtu.be/watch?v=X4bgXH3sJ2Q#~Iron Maiden - The Trooper (Official Video)
+    https://youtu.be/watch?v=X4bgXH3sJ2Q#~Iron Maiden - The Trooper
 
 Stuff that starts with # is discarded in the URL while fetching,
 so it's a hackish way to store extra information in the
-filename. This only works for URLs, not on local files. Anyway,
+filename.  This only works for URLs, not on local files.  Anyway,
 this makes it possible to show media titles instead of plain URLs
 whenever we have the title information a priori.
 
@@ -289,13 +291,14 @@ Also see #6 for extra information.")
 
 (defvar empv--media-title-cache
   (make-hash-table :test #'equal)
-  "Media title cache. It's a mapping from a path/uri to media
-title. MPV reads the media-title/metadata of given path only when
-it starts playing it. Whenever this information is read, we put
-it into cache so that we can retrieve later to show user the
-media-title instead of a raw path whenever possible. This cache
-is required because MPV does not attach media-title information
-to playlist items. See [1] for more information on this.
+  "Media title cache.
+It's a mapping from a path/uri to media title.  MPV reads the
+media-title/metadata of given path only when it starts playing
+it.  Whenever this information is read, we put it into cache so
+that we can retrieve later to show user the media-title instead
+of a raw path whenever possible.  This cache is required because
+MPV does not attach media-title information to playlist
+items.  See [1] for more information on this.
 
 [1]: https://github.com/mpv-player/mpv/pull/10453")
 
@@ -323,7 +326,7 @@ Mainly used by embark actions defined in this package.")
   (seq-subseq seq 0 (1- (seq-length seq))))
 
 (defun empv-seq-find-index (fn seq)
-  "Return the first index in SEQ for which FN evals to non-nil."
+  "Return the first index in SEQ for which FN evaluate to non-nil."
   (seq-position seq 'empv-dummy-item (lambda (it _) (funcall fn it))))
 
 (defun empv--running? ()
@@ -331,9 +334,9 @@ Mainly used by embark actions defined in this package.")
   empv--process)
 
 (defun empv--dbg (msg &rest rest)
-  "Print MSG with REST if `empv--dbg' is non-nil."
+  "Print MSG with REST if variable `empv--dbg' is non-nil."
   (when empv--dbg
-    (apply 'message `(,(format "(empv) %s" msg) ,@rest))))
+    (apply #'message `(,(format "(empv) %s" msg) ,@rest))))
 
 (defun empv--display-event (msg &rest rest)
   "Print MSG with REST if `empv-display-events' is non-nil."
@@ -341,12 +344,12 @@ Mainly used by embark actions defined in this package.")
     (when empv-log-events-to-file
       (write-region
        (concat
-        (format-time-string "[%Y-%m-%d %H:%M:%S] ")
-        (apply 'format formatted-msg)
+        (format-time-string "[%F %T] ")
+        (apply #'format formatted-msg)
         "\n")
        nil empv-log-events-to-file 'append))
     (when empv-display-events
-      (apply 'message formatted-msg))))
+      (apply #'message formatted-msg))))
 
 (defun empv--read-result (result)
   "Read JSON RESULT into an elisp structre."
@@ -605,10 +608,10 @@ URI might be a string or a list of strings."
     (run-hooks 'empv-init-hook)))
 
 (defun empv--extract-title-from-filename (fname)
-  "Find the media title for FNAME. Try to gather it from internal
-cache or extract it from FNAME directly if FNAME is a URL. Also
-see `empv--title-sep' and `empv--media-title-cache'
-documentation."
+  "Find the media title for FNAME.
+Try to gather it from internal cache or extract it from FNAME
+directly if FNAME is a URL.  Also see `empv--title-sep' and
+`empv--media-title-cache' documentation."
   ;; First try the URL encoded title and then check for the
   ;; media-title cache.  Cache may contain last playing media's title
   ;; for a stream, not the name for the stream itself. URL encoded
@@ -647,10 +650,10 @@ This function also tries to disable sorting in `completing-read' function."
 
 (cl-defun empv--completing-read-object
     (prompt objects &key (formatter #'identity) category (sort? t) def multiple?)
-  "Same as `completing-read' but applies FORMATTER to every object
-and propertizes candidates with the actual object so that they
-can be retrieved later by embark actions. Also adds category
-metadata to each candidate, if given."
+  "`completing-read' with formatter and sort control.
+Applies FORMATTER to every object and propertizes candidates with
+the actual object so that they can be retrieved later by embark
+actions. Also adds category metadata to each candidate, if given."
   (let* ((object-table
           (make-hash-table :test 'equal :size (length objects)))
          (object-strings
@@ -682,8 +685,9 @@ metadata to each candidate, if given."
 
 ;;;###autoload
 (defun empv-play (uri)
-  "Play given URI. Add given URI to end of the current playlist and
-immediately switch to it"
+  "Play given URI.
+Add given URI to end of the current playlist and immediately
+switch to it"
   (interactive "sEnter an URI to play: ")
   (when (string-prefix-p "~/" uri)
     (setq uri (expand-file-name uri)))
@@ -772,7 +776,7 @@ see `empv-base-directory'."
 
 ;;;###autoload
 (defun empv-current-loop-on ()
-  "Turn on loop for current file"
+  "Turn on loop for current file."
   (interactive)
   (empv--cmd 'set_property '(loop-file inf))
   (empv--display-event "↻ File loop on."))
@@ -781,7 +785,7 @@ see `empv-base-directory'."
 
 ;;;###autoload
 (defun empv-current-loop-off ()
-  "Turn off loop for current file"
+  "Turn off loop for current file."
   (interactive)
   (empv--cmd 'set_property '(loop-file no))
   (empv--display-event "File loop off."))
@@ -790,13 +794,13 @@ see `empv-base-directory'."
 
 ;;;###autoload
 (defun empv-volume-up ()
-  "Up the volume to a max of 100%"
+  "Up the volume to a max of 100%."
   (interactive)
   (empv--transform-property 'volume (lambda (current) (min (floor (+ current empv-volume-step)) 100))))
 
 ;;;###autoload
 (defun empv-volume-down ()
-  "Down the volume to a min of 0%"
+  "Down the volume to a min of 0%."
   (interactive)
   (empv--transform-property 'volume (lambda (current) (max (floor (- current empv-volume-step)) 0))))
 
@@ -909,8 +913,7 @@ along with the log."
 (defalias 'empv-enqueue-last #'empv-enqueue)
 
 (defun empv-enqueue-next (uri)
-  "Like `empv-enqueue' but instead of appending end of the
-playlist, append right after current item."
+  "Like `empv-enqueue' but append URI right after current item."
   (interactive "sEnter an URI to play: ")
   (empv--run
    (empv--let-properties '(playlist)
@@ -958,14 +961,14 @@ playlist, append right after current item."
 
 ;;;###autoload
 (defun empv-playlist-loop-on ()
-  "Turn on loop for playlist"
+  "Turn on loop for playlist."
   (interactive)
   (empv--cmd 'set_property '(loop-playlist inf))
   (empv--display-event "↻ Playlist loop on."))
 
 ;;;###autoload
 (defun empv-playlist-loop-off ()
-  "Turn off loop for playlist"
+  "Turn off loop for playlist."
   (interactive)
   (empv--cmd 'set_property '(loop-playlist no))
   (empv--display-event "Playlist loop off."))
@@ -984,7 +987,7 @@ Example:
 (defun empv--playlist-save-to-file (playlist &optional filename)
   "Save the PLAYLIST content to FILENAME."
   (with-temp-buffer
-    (insert (mapconcat 'identity playlist "\n"))
+    (insert (mapconcat #'identity playlist "\n"))
     (let* ((pl-name-regex "empv-playlist-\\(?1:[[:digit:]]+\\)\\.m3u")
            (pl-last (file-name-sans-extension (car (last (directory-files empv-playlist-dir nil pl-name-regex)))))
            (num (if (null pl-last) 0 (1+ (string-to-number (if (string-match pl-name-regex pl-last) (match-string 1 pl-last) "0")))))
@@ -1031,36 +1034,6 @@ If ARG is non-nil, then also put the title to `kill-ring'."
        (propertize title 'face 'bold))
       (when arg
         (kill-new title)))))
-
-(defun empv--extract-metadata-from-title (title)
-  (mapcar
-   #'string-trim
-   (thread-first
-     ;; Remove stuff inside parenthesis so that it removes stuff like "(Offical video)", "(HQ)" etc.
-     (replace-regexp-in-string "\\((.*)\\|\\[.*\\]\\)" "" title)
-     ;; Split it, assuming that it's named like "Artist - Song title"
-     ;; TODO: split by ":" if no "-" is found?
-     (split-string  "-")
-     (seq-subseq 0 2))))
-
-(declare-function versuri-display "versuri")
-(defun empv-display-lyrics ()
-  "Display the lyrics for the currently playing (or paused) song.
-This works best if the media has proper tags set but it also
-tries to guess artist name and song name from the path/title
-etc."
-  (interactive)
-  (if (require 'versuri nil t)
-      (empv--let-properties '(metadata media-title)
-        (let* ((extracted (ignore-errors (empv--extract-metadata-from-title .media-title)))
-               (artist (or (empv--metadata-get .metadata 'artist 'icy-artist) (car extracted)))
-               (song (or (empv--metadata-get .metadata 'title 'icy-title) (cadr extracted))))
-          ;; Sometimes artist name gets into the song title, lets try to remove that
-          (setq song (string-trim (replace-regexp-in-string artist "" song)
-                                  "[ \t\n\r-]+" "[ \t\n\r-]+"))
-          (empv--display-event "Retrieving lyrics for '%s - %s'..." artist song)
-          (versuri-display artist song)))
-    (user-error "Please install `versuri' first to use this feature.  Do `M-x' `package-install', type `versuri' and hit `Enter' (or use your prefered method of installing a package)")))
 
 (defun empv-copy-path ()
   "Copy the path of currently playing item."
@@ -1198,16 +1171,15 @@ Show results in a tabulated buffers with thumbnails."
   (empv--youtube term 'playlist))
 
 (defun empv-youtube-show-current-comments ()
-  "Show YouTube comments for currently playing (or paused) YouTube
-video."
+  "Show YouTube comments for currently playing (or paused) YouTube video."
   (interactive)
   (empv--let-properties '(path)
     (empv-youtube-show-comments .path)))
 
 (declare-function emojify-mode "emojify")
 (defun empv-youtube-show-comments (video-id)
-  "Show comments of a YouTube video in a nicely formatted org
-buffer."
+  "Show comments of a YouTube VIDEO-ID in a nicely formatted org buffer.
+VIDEO-ID can be either a YouTube URL or just a YouTube ID."
   (interactive "sURL or ID: ")
   (setq video-id (replace-regexp-in-string "^.*v=\\([A-Za-z0-9_-]+\\).*" "\\1" video-id))
   (empv--request
@@ -1441,12 +1413,14 @@ Limit directory treversal at most DEPTH levels.  By default it's
 ;;; empv utility
 
 (defun empv-override-quit-key ()
-  "This function overrides the `q' key so that you dont accidentaly
+  "Override `q' key to 'pause and hide video' action.
+
+This function overrides the `q' key so that you dont accidentaly
 quit mpv, resulting in a loss of your current playlist.
 
 Instead of quitting mpv, it hides the video view (just like the
-`_' binding) and pauses the playback. If you want to hide the
-video view, without pausing you can still use `_' key binding. To
+`_' binding) and pauses the playback.  If you want to hide the
+video view, without pausing you can still use `_' key binding.  To
 really exit, you can still use `empv-exit' function.
 
 To make this behavior permanant, add the following to your init file:
@@ -1492,11 +1466,11 @@ To make this behavior permanant, add the following to your init file:
 ;; embark transformers
 
 (defun empv--embark-youtube-item-transformer (type target)
-  "Extract the YouTube url from TARGET."
+  "Extract the YouTube URL from TARGET."
   (cons type (empv--youtube-item-extract-link (get-text-property 0 'empv-item target))))
 
 (defun empv--embark-radio-item-transformer (type target)
-  "Extract the radio url from TARGET."
+  "Extract the radio URL from TARGET."
   (cons type (cdr (get-text-property 0 'empv-item target))))
 
 (defun empv--embark-playlist-item-transformer (type target)
@@ -1536,11 +1510,12 @@ To make this behavior permanant, add the following to your init file:
 
   ;; Basic file and url actions
   (define-key embark-file-map "p" 'empv-play)
-  (define-key embark-file-map "e" 'empv-enqueue)
+  (define-key embark-file-map "e" 'empv-enqueue) ;; → overrides eww-open-file
   (define-key embark-file-map "n" 'empv-enqueue-next)
   (define-key embark-url-map "p" 'empv-play)
   (define-key embark-url-map "n" 'empv-enqueue)
-  (define-key embark-url-map "e" 'empv-enqueue-next))
+  (define-key embark-url-map "e" 'empv-enqueue-next) ;; overrides eww
+  )
 
 
 ;; Consult integration
