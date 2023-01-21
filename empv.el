@@ -419,7 +419,7 @@ Mainly used by embark actions defined in this package.")
 
 If the returned result is sufficently long (like a very long
 playlist), `empv--filter' might get called with incomplete
-JSON. According to here[1], mpv terminates every result with
+JSON.  According to here[1], mpv terminates every result with
 `\n', so we simply wait until we see a newline before processing
 the result.
 
@@ -664,9 +664,10 @@ This function also tries to disable sorting in `completing-read' function."
 (cl-defun empv--completing-read-object
     (prompt objects &key (formatter #'identity) category (sort? t) def multiple?)
   "`completing-read' with formatter and sort control.
-Applies FORMATTER to every object and propertizes candidates with
-the actual object so that they can be retrieved later by embark
-actions. Also adds category metadata to each candidate, if given."
+Applies FORMATTER to every object in OBJECTS and propertizes
+candidates with the actual object so that they can be retrieved
+later by embark actions.  Also adds category metadata to each
+candidate, if given.  PROMPT passed to `completing-read' as is."
   (let* ((object-table
           (make-hash-table :test 'equal :size (length objects)))
          (object-strings
@@ -1381,26 +1382,34 @@ Limit directory treversal at most DEPTH levels.  By default it's
   (empv--youtube-item-extract-link (empv-youtube-results--current-item)))
 
 (defun empv-youtube-results-play-current ()
+  "Play the currently selected video in `empv-youtube-results-mode'."
   (interactive)
   (empv-play (empv-youtube-results--current-video-url)))
 
 (defun empv-youtube-results-enqueue-current ()
+  "Enqueue the currently selected video in `empv-youtube-results-mode'."
   (interactive)
   (empv-enqueue (empv-youtube-results--current-video-url)))
 
 (defun empv-youtube-results-play-or-enqueue-current ()
+  "Play or enqueue the currently selected video in `empv-youtube-results-mode'."
   (interactive)
   (empv--play-or-enqueue (empv-youtube-results--current-video-url)))
 
 (defun empv-youtube-results-copy-current ()
+  "Copy the URL of the currently selected video in `empv-youtube-results-mode'."
   (interactive)
   (empv-youtube-copy-link (empv-youtube-results--current-video-url)))
 
 (defun empv-youtube-results-show-comments ()
+  "Show comments of the currently selected video in `empv-youtube-results-mode'."
   (interactive)
   (empv-youtube-show-comments (empv-youtube-results--current-video-url)))
 
 (defun empv-youtube-results-inspect ()
+  "Inspect the currently selected video in `empv-youtube-results-mode'.
+This simply shows the data returned by the invidious API in a
+nicely formatted buffer."
   (interactive)
   (empv--inspect-obj (empv-youtube-results--current-item)))
 
@@ -1479,18 +1488,19 @@ To make this behavior permanant, add the following to your init file:
 ;; embark transformers
 
 (defun empv--embark-youtube-item-transformer (type target)
-  "Extract the YouTube URL from TARGET."
+  "Extract the YouTube URL from TARGET without changing it's TYPE."
   (cons type (empv--youtube-item-extract-link (get-text-property 0 'empv-item target))))
 
 (defun empv--embark-radio-item-transformer (type target)
-  "Extract the radio URL from TARGET."
+  "Extract the radio URL from TARGET without changing it's TYPE."
   (cons type (cdr (get-text-property 0 'empv-item target))))
 
 (defun empv--embark-playlist-item-transformer (type target)
-  "Extract the item object from TARGET."
+  "Extract the item object from TARGET without changing it's TYPE."
   (cons type (get-text-property 0 'empv-item target)))
 
 ;; initialize embark
+(declare-function embark-define-keymap "embark")
 
 (defun empv-initialize-embark ()
   (embark-define-keymap empv-embark-youtube-item-actions
@@ -1533,9 +1543,18 @@ To make this behavior permanant, add the following to your init file:
 
 ;; Consult integration
 
+(declare-function consult--read "consult")
+(declare-function consult--lookup-member "consult")
+(declare-function consult--async-split-initial "consult")
+(declare-function consult--async-sink "consult")
+(declare-function consult--async-refresh-immediate "consult")
+(declare-function consult--async-throttle "consult")
+(declare-function consult--async-split "consult")
+
 ;; FIXME: This does not return the selected item
 (defun empv--consult-get-input-with-suggestions (prompt)
-  "Get an input from user, using YouTube search suggestions."
+  "Get an input from user, using YouTube search suggestions.
+PROMPT is passed to `completing-read' as-is."
   (consult--read
    (empv--consult-yt-search-generator)
    :prompt prompt
