@@ -414,29 +414,43 @@ Mainly used by embark actions defined in this package.")
   (empv--display-event "Closed.")
   (empv-exit))
 
+(defvar empv--process-buffer ""
+  "Temporary variable to hold the date returned from mpv process.
+
+If the returned result is sufficently long (like a very long
+playlist), `empv--filter' might get called with incomplete
+JSON. According to here[1], mpv terminates every result with
+`\n', so we simply wait until we see a newline before processing
+the result.
+
+[1]: https://github.com/mpv-player/mpv/blob/master/DOCS/man/ipc.rst")
+
 (defun empv--filter (_proc incoming)
   "Filter INCOMING messages from the socket."
-  (seq-do
-   (lambda (it)
-     (let* ((json-data (empv--read-result it))
-            (id (map-elt json-data 'id))
-            (request-id (map-elt json-data 'request_id))
-            (callback (map-elt empv--callback-table (format "%s" (or request-id id))))
-            (cb-result (and callback (funcall callback (cdr (assoc 'data json-data))))))
-       (when cb-result
-         (empv--dbg "<> Removing callback.")
-         (map-delete empv--callback-table request-id))
-       (empv--dbg
-        "<< data: %s, request_id: %s, has-cb?: %s, remove-cb? :%s"
-        json-data
-        request-id
-        (and callback t)
-        cb-result)))
-   (seq-filter
-    (lambda (it) (not (string-empty-p it)))
-    (seq-map
-     #'string-trim
-     (split-string incoming "\n")))))
+  (setq empv--process-buffer (concat empv--process-buffer incoming))
+  (when (string-match-p "\n$" incoming)
+    (seq-do
+     (lambda (it)
+       (let* ((json-data (empv--read-result it))
+              (id (map-elt json-data 'id))
+              (request-id (map-elt json-data 'request_id))
+              (callback (map-elt empv--callback-table (format "%s" (or request-id id)))))
+         (when-let (cb-fn (plist-get callback :fn))
+           (ignore-error (quit minibuffer-quit)
+             (funcall cb-fn (cdr (assoc 'data json-data)))))
+         (when (not (plist-get callback :event?))
+           (map-delete empv--callback-table request-id))
+         (empv--dbg
+          "<< data: %s, request_id: %s, has-cb?: %s"
+          json-data
+          request-id
+          (and callback t))))
+     (seq-filter
+      (lambda (it) (not (string-empty-p it)))
+      (seq-map
+       #'string-trim
+       (split-string empv--process-buffer "\n"))))
+    (setq empv--process-buffer "")))
 
 
 ;;; Process primitives
@@ -472,7 +486,7 @@ happens."
                        (request_id . ,request-id))
                    `((command . ,command)
                      (request_id . ,request-id))))))
-      (map-put! empv--callback-table request-id callback)
+      (map-put! empv--callback-table request-id (list :fn callback :event? event?))
       (process-send-string empv--network-process (format "%s\n" msg))
       (empv--dbg ">> %s" msg)
       request-id)))
@@ -484,9 +498,9 @@ happens."
   "Run CMD with ARGS and then call FORMS with the result."
   `(if (listp ,args)
        (empv--send-command
-        `(,,cmd ,@,args) (lambda (it) (ignore it) ,@forms t))
+        `(,,cmd ,@,args) (lambda (it) (ignore it) ,@forms))
      (empv--send-command
-      `(,,cmd ,,args) (lambda (it) (ignore it) ,@forms t))))
+      `(,,cmd ,,args) (lambda (it) (ignore it) ,@forms))))
 
 (defmacro empv--cmd-seq (&rest forms)
   (seq-reduce
@@ -499,8 +513,7 @@ happens."
   `(empv--send-command
     '(observe_property ,property)
     (lambda (it)
-      ,@forms
-      nil)
+      ,@forms)
     t))
 
 (defmacro empv--run (&rest forms)
