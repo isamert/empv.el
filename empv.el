@@ -735,8 +735,8 @@ exact
 
 Some examples:
 
-    (empv-seek \"33:27\" '(\"absolute\")) -> Jump exactly to 33:27.
-    (empv-seek \"40\" '(\"relative\"))    -> Seek +40 seconds
+    (empv-seek \"33:27\" \\='(\"absolute\")) -> Jump exactly to 33:27.
+    (empv-seek \"40\" \\='(\"relative\"))    -> Seek +40 seconds
 
 See this[1] for more information.
 
@@ -1435,7 +1435,7 @@ nicely formatted buffer."
 ;;; empv utility
 
 (defun empv-override-quit-key ()
-  "Override `q' key to 'pause and hide video' action.
+  "Override `q' key to \"pause and hide video\" action.
 
 This function overrides the `q' key so that you dont accidentaly
 quit mpv, resulting in a loss of your current playlist.
@@ -1447,7 +1447,7 @@ really exit, you can still use `empv-exit' function.
 
 To make this behavior permanant, add the following to your init file:
 
-    (add-hook 'empv-init-hook #'empv-override-quit-key)"
+    (add-hook \\='empv-init-hook #\\='empv-override-quit-key)"
   (empv--cmd
    'keybind '("q" "set pause yes; cycle video")))
 
