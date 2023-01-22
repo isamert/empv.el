@@ -91,5 +91,22 @@ this functions definition to learn more."
   (define-key embark-url-map "e" 'empv-enqueue-next) ;; overrides eww
   (define-key embark-url-map "n" 'empv-enqueue))
 
+
+;; embark transformers
+
+(defun empv--embark-youtube-item-transformer (type target)
+  "Extract the YouTube URL from TARGET without changing it's TYPE."
+  (cons type (empv--youtube-item-extract-link (get-text-property 0 'empv-item target))))
+
+(defun empv--embark-radio-item-transformer (type target)
+  "Extract the radio URL from TARGET without changing it's TYPE."
+  (cons type (cdr (get-text-property 0 'empv-item target))))
+
+(defun empv--embark-playlist-item-transformer (type target)
+  "Extract the item object from TARGET without changing it's TYPE."
+  (cons type (get-text-property 0 'empv-item target)))
+
+
+
 (provide 'empv-embark)
 ;;; empv-embark.el ends here

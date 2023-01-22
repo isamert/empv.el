@@ -32,7 +32,6 @@
 (require 'map)
 (require 'json)
 (require 'url)
-(require 'embark nil t)
 (require 'consult nil t)
 (eval-when-compile
   (require 'subr-x))
@@ -1452,7 +1451,7 @@ To make this behavior permanant, add the following to your init file:
    'keybind '("q" "set pause yes; cycle video")))
 
 
-;;; embark integration
+;; Actions, mainly for embark but used in other places too
 
 (defun empv-playlist-play (item)
   (empv--cmd-seq
@@ -1484,21 +1483,6 @@ To make this behavior permanant, add the following to your init file:
   (let ((path (alist-get 'filename item)))
     (empv--display-event "URI copied: %s" (empv--clean-uri path))
     (kill-new (empv--clean-uri path))))
-
-;; embark transformers
-
-(defun empv--embark-youtube-item-transformer (type target)
-  "Extract the YouTube URL from TARGET without changing it's TYPE."
-  (cons type (empv--youtube-item-extract-link (get-text-property 0 'empv-item target))))
-
-(defun empv--embark-radio-item-transformer (type target)
-  "Extract the radio URL from TARGET without changing it's TYPE."
-  (cons type (cdr (get-text-property 0 'empv-item target))))
-
-(defun empv--embark-playlist-item-transformer (type target)
-  "Extract the item object from TARGET without changing it's TYPE."
-  (cons type (get-text-property 0 'empv-item target)))
-
 
 
 ;; Consult integration
