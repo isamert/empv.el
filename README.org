@@ -6,14 +6,13 @@ An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this pa
 Workflow is generally =M-x empv-something= and =completing-read= based, no buffers or complex interfaces (except for the tabulated YouTube results with thumbnails). Scroll down to see available [[*Interactive functions and configuration][interactive functions]].
 
 * Installation
-First, you need to install [[https://mpv.io][mpv]], go check out it's installation instructions for your operating system/distribution. Easiest way to install =empv.el= would be using either [[https://github.com/radian-software/straight.el][straigt]] or [[https://github.com/quelpa/quelpa-use-package][quelpa]] package managers:
+First, you need to install [[https://mpv.io][mpv]], go check out it's installation instructions for your operating system/distribution. Easiest way to install =empv.el= would be using either [[https://github.com/radian-software/straight.el][straight]] or [[https://github.com/quelpa/quelpa-use-package][quelpa]] package managers:
 
 #+begin_src elisp
   ;; Using straight:
-  (straight-use-package '(empv :type git :host github :repo "isamert/empv.el"))
   (use-package empv
     :ensure t
-    :straigt (:host github :repo "isamert/empv.el"))
+    :straight (:host github :repo "isamert/empv.el"))
 
   ;; Using quelpa:
   (use-package empv
@@ -56,7 +55,7 @@ No default keybindings are provided but there is ~empv-map~ keymap which contain
 Some keys are repeatable in this keymap. Continuing with the example above, you can do ~C-x m n~ to switch to the next media item in the playlist and if you want to go to the next item again just hit ~n~ this time (or ~N~ to go back one item), as it's repeatable. Keys that control sound level, playback speed are also repeatable.
 
 ** General YouTube configuration
-/empv.el/ lets you search in YouTube videos/playlists and play them in background or just play the video itself. It also let's you view YouTube comments of a video in a nicely formatted org buffer. This is done through [[https://github.com/iv-org/invidious][invidious]] API. It's a privacy respecting frontend (and API) for YouTube. To be able to use these features, you need to set an invidious instance manually, like:
+/empv.el/ lets you search in YouTube videos/playlists and play them in background or just play the video itself. It also let's you view YouTube comments of a video in a nicely formatted org buffer. This is done through [[https://github.com/iv-org/invidious][invidious]] API. It's a privacy respecting front-end (and API) for YouTube. To be able to use these features, you need to set an invidious instance manually, like:
 
 #+begin_src elisp
   (setq empv-invidious-instance "https://some-invidious-instance.com/api/v1")
@@ -64,7 +63,7 @@ Some keys are repeatable in this keymap. Continuing with the example above, you 
 
 You can select an invidious instance from [[https://api.invidious.io/][here]].
 
-The entrypoint function is ~empv-youtube~ which asks your input to search in YouTube videos. If you have ~consult~ installed, it'll also show you search suggestions while you are typing.
+The entry-point function is ~empv-youtube~ which asks your input to search in YouTube videos. If you have ~consult~ installed, it'll also show you search suggestions while you are typing.
 
 Thumbnails greatly help to identify the right video in a search. Using ~completing-read~ may sometimes fall short here and for that you can use ~empv-youtube-tabulated~. This function searches given term in YouTube and display them in a buffer with video thumbnails.
 
