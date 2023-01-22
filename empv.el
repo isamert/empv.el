@@ -1499,46 +1499,6 @@ To make this behavior permanant, add the following to your init file:
   "Extract the item object from TARGET without changing it's TYPE."
   (cons type (get-text-property 0 'empv-item target)))
 
-;; initialize embark
-(declare-function embark-define-keymap "embark")
-
-(defun empv-initialize-embark ()
-  (embark-define-keymap empv-embark-youtube-item-actions
-    "Actions for YouTube results."
-    ("y" empv-youtube-copy-link)
-    ("e" empv-enqueue)
-    ("n" empv-enqueue-next)
-    ("p" empv-play)
-    ("c" empv-youtube-show-comments))
-  (add-to-list 'embark-keymap-alist '(empv-youtube-item . empv-embark-youtube-item-actions))
-  (setf (alist-get 'empv-youtube-item embark-transformer-alist) #'empv--embark-youtube-item-transformer)
-
-  (embark-define-keymap empv-embark-radio-item-actions
-    "Actions for radio channels."
-    ("e" empv-enqueue)
-    ("n" empv-enqueue-next)
-    ("p" empv-play))
-  (add-to-list 'embark-keymap-alist '(empv-radio-item . empv-embark-radio-item-actions))
-  (setf (alist-get 'empv-radio-item embark-transformer-alist) #'empv--embark-radio-item-transformer)
-
-  (embark-define-keymap empv-embark-playlist-item-actions
-    "Actions for playlist items."
-    ("p" empv-playlist-play)
-    ("y" empv-playlist-copy-path)
-    ("m" empv-playlist-move)
-    ("r" empv-playlist-remove)
-    ("R" empv-playlist-remove-others))
-  (add-to-list 'embark-keymap-alist '(empv-playlist-item . empv-embark-playlist-item-actions))
-  (setf (alist-get 'empv-playlist-item embark-transformer-alist) #'empv--embark-playlist-item-transformer)
-
-  ;; Basic file and url actions
-  (define-key embark-file-map "p" 'empv-play)
-  (define-key embark-file-map "e" 'empv-enqueue) ;; → overrides eww-open-file
-  (define-key embark-file-map "n" 'empv-enqueue-next)
-  (define-key embark-url-map "p" 'empv-play)
-  (define-key embark-url-map "n" 'empv-enqueue)
-  (define-key embark-url-map "e" 'empv-enqueue-next) ;; overrides eww
-  )
 
 
 ;; Consult integration
