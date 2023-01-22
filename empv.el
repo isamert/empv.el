@@ -1495,7 +1495,6 @@ To make this behavior permanant, add the following to your init file:
 (declare-function consult--async-throttle "consult")
 (declare-function consult--async-split "consult")
 
-;; FIXME: This does not return the selected item
 (defun empv--consult-get-input-with-suggestions (prompt)
   "Get an input from user, using YouTube search suggestions.
 PROMPT is passed to `completing-read' as-is."
@@ -1503,9 +1502,8 @@ PROMPT is passed to `completing-read' as-is."
    (empv--consult-yt-search-generator)
    :prompt prompt
    :category 'empv-youtube
-   :lookup (lambda (_ candidates cand &rest _)
-             (or (consult--lookup-member nil candidates cand)
-                 (string-trim-left cand (consult--async-split-initial ""))))
+   :lookup (lambda (selected &rest _)
+             (string-trim-left selected (consult--async-split-initial "")))
    :initial (consult--async-split-initial "")
    :sort nil
    :require-match nil))
