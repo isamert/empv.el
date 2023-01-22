@@ -1,3 +1,13 @@
+* 3.0.0
+
+- Moved ~embark~ support into another file, ~empv-embark.el~. Now you need to ~require~ this file to be able to call ~empv-initialize-embark~.
+- Removed ~versuri~. I'll add a different, more accurate method for getting lyrics for given song.
+- Added capture functionality to ~empv-log-current-radio-song-name~. Now you can add arbitrary text along with the song name while you are capturing it, just call ~empv-log-current-radio-song-name~ with prefix argument. (Simply do ~C-u~ before calling it)
+- Fixes:
+  - Fixed some bindings.
+  - Did a code clean-up, cleared all byte compile warnings.
+  - Fixed a memory leak.
+
 * 2.0.0
 
 - ~consult-empv.el~ is removed. Now ~empv.el~ integrates itself with ~consult~ automatically, if it's found on your system. Use default functions instead of ~consult-empv-*~ functions. (e.g. Use ~empv-youtube~ instead of ~consult-empv-youtube~).

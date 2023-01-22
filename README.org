@@ -37,7 +37,8 @@ If you have [[https://github.com/minad/consult][consult]] and [[https://github.c
 To enable embark integration, add the following to your init file:
 
 #+begin_src emacs-lisp
-  (empv-initialize-embark)
+  (require 'empv-embark)
+  (empv-embark-initialize)
 #+end_src
 
 * Functionality and configuration
