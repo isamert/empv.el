@@ -6,7 +6,7 @@
 ;; Version: 1.0.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
-;; Package-Requires: ((emacs "28.1"))
+;; Package-Requires: ((emacs "28.1") (empv "3.0.0"))
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
