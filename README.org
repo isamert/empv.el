@@ -33,12 +33,13 @@ Some functionality may require the external program [[https://github.com/sharkdp
 * Embark and Consult integration
 If you have [[https://github.com/minad/consult][consult]] and [[https://github.com/oantolin/embark][embark]] installed on your Emacs, ~empv.el~ will automatically integrate itself with them. If you have ~consult~ installed, you get search suggestions during YouTube searches (~empv-youtube~) and if you have embark installed you get embark actions for playing/enqueueing selected media. This makes it easy to enqueue bunch of media results using ~embark-act-all~, or you can call ~embark-act~ on a file inside a ~dired~ buffer and you'll see options to play or enqueue given file or folder.
 
-To enable embark integration, add the following to your init file:
+To enable extra embark integration, add the following to your init file:
 
 #+begin_src emacs-lisp
-  (require 'empv-embark)
-  (empv-embark-initialize)
+  (with-eval-after-load 'embark (empv-embark-initialize-extra-actions))
 #+end_src
+
+This is not automatically applied because it has some drawbacks, please refer to the documentation of ~empv-embark-initialize-extra-actions~.
 
 * Functionality and configuration
 Do =M-x= and then search for =empv-= to list all available functions. Also check out all configuration options by doing =M-x customize-group empv RET=. I'll go over some extra configuration options that you may want to use:

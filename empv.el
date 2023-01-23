@@ -1485,6 +1485,83 @@ To make this behavior permanant, add the following to your init file:
     (kill-new (empv--clean-uri path))))
 
 
+;; embark transformers
+
+(defun empv--embark-youtube-item-transformer (type target)
+  "Extract the YouTube URL from TARGET without changing it's TYPE."
+  (cons type (empv--youtube-item-extract-link (get-text-property 0 'empv-item target))))
+
+(defun empv--embark-radio-item-transformer (type target)
+  "Extract the radio URL from TARGET without changing it's TYPE."
+  (cons type (cdr (get-text-property 0 'empv-item target))))
+
+(defun empv--embark-playlist-item-transformer (type target)
+  "Extract the item object from TARGET without changing it's TYPE."
+  (cons type (get-text-property 0 'empv-item target)))
+
+
+
+;; Embark integration
+
+(defvar embark-file-map)
+(defvar embark-keymap-alist)
+(defvar embark-url-map)
+(defvar embark-post-action-hooks)
+(defvar embark-transformer-alist)
+
+(defvar empv-playlist-item-action-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "p" #'empv-playlist-play)
+    (define-key map "y" #'empv-playlist-copy-path)
+    (define-key map "m" #'empv-playlist-move)
+    (define-key map "r" #'empv-playlist-remove)
+    (define-key map "R" #'empv-playlist-remove-others)
+    map)
+  "Action map for playlist items, utilized by Embark.")
+
+(defvar empv-radio-item-action-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "e" #'empv-enqueue)
+    (define-key map "n" #'empv-enqueue-next)
+    (define-key map "p" #'empv-play)
+    map)
+  "Action map for radio items, utilized by Embark.")
+
+(defvar empv-youtube-item-action-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map "y" #'empv-youtube-copy-link)
+    (define-key map "e" #'empv-enqueue)
+    (define-key map "n" #'empv-enqueue-next)
+    (define-key map "p" #'empv-play)
+    (define-key map "c" #'empv-youtube-show-comments)
+    map)
+  "Action map for YouTube items, utilized by Embark.")
+
+(defun empv-embark-initialize-extra-actions ()
+  "Add empv actions like play, enqueue etc. to embark file and url actions.
+This might override your changes to `embark-file-map' and
+`embark-url-map', if there is any.  It also overrides a few
+default embark actions.  Check out this functions definition to
+learn more.  Supposed to be used like this:
+
+  (with-eval-after-load \\='embark (empv-embark-initialize-extra-actions))"
+  (define-key embark-file-map "p" 'empv-play)
+  (define-key embark-file-map "n" 'empv-enqueue-next)
+  (define-key embark-file-map "e" 'empv-enqueue) ;; overrides eww-open-file
+  (define-key embark-url-map "p" 'empv-play)
+  (define-key embark-url-map "e" 'empv-enqueue-next) ;; overrides eww
+  (define-key embark-url-map "n" 'empv-enqueue))
+
+(with-eval-after-load 'embark
+  (add-to-list 'embark-keymap-alist '(empv-playlist-item . empv-playlist-item-action-map))
+  (add-to-list 'embark-keymap-alist '(empv-radio-item . empv-radio-item-action-map))
+  (add-to-list 'embark-keymap-alist '(empv-youtube-item . empv-youtube-item-action-map))
+
+  (setf (alist-get 'empv-playlist-item embark-transformer-alist) #'empv--embark-playlist-item-transformer)
+  (setf (alist-get 'empv-radio-item embark-transformer-alist) #'empv--embark-radio-item-transformer)
+  (setf (alist-get 'empv-youtube-item embark-transformer-alist) #'empv--embark-youtube-item-transformer))
+
+
 ;; Consult integration
 
 (declare-function consult--read "consult")
