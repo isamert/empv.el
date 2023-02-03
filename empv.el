@@ -1008,7 +1008,7 @@ Example:
       (write-file filename))))
 
 ;;;###autoload
-(defun empv-playtlist-save-to-file (filename)
+(defun empv-playlist-save-to-file (filename)
   "Save the current playlist to FILENAME."
   (interactive "FSave playlist to: ")
   (empv--playlist-apply #'empv--playlist-save-to-file filename))
