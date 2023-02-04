@@ -313,6 +313,9 @@ Mainly used by embark actions defined in this package.")
 (defvar empv--inspect-buffer-name "*empv inspect*"
   "Buffer name for showing pretty printed results.")
 
+(defconst empv--playlist-current-indicator "[CURRENT]"
+  "Simple text to show on the currently playing playlist item.")
+
 
 ;;; Utility
 
@@ -589,21 +592,21 @@ URI might be a string or a list of strings."
     (artist . ,(empv--metadata-get data 'artist 'icy-artist))
     (genre  . ,(empv--metadata-get data 'genre 'icy-genre))))
 
-(defun empv--create-media-summary-for-notification (metadata)
+(defun empv--create-media-summary-for-notification (metadata &optional fallback)
   "Generate a formatted media title like \"Song name - Artist\" from given METADATA."
   (let-alist (empv--extract-metadata metadata)
-    (when .title
-      (format "%s %s %s"
-              .title
-              (or (and .artist "-") "")
-              (or .artist "")))))
+    (if .title
+        (format "%s %s %s"
+                .title
+                (or (and .artist "-") "")
+                (or .artist ""))
+      fallback)))
 
 (defun empv--handle-metadata-change (data)
   "Display info about the current track using DATA."
   (empv--dbg "handle-metadata-change <> %s" data)
   (empv--let-properties '(media-title path)
-    (let ((title (or (empv--create-media-summary-for-notification data)
-                     .media-title)))
+    (let ((title (empv--create-media-summary-for-notification data .media-title)))
       (empv--display-event "%s" title)
       (puthash .path title empv--media-title-cache))))
 
@@ -641,7 +644,7 @@ INDEX is the place where the item appears in the playlist."
   (format
    "%s%s"
    (or (and (alist-get 'current item)
-            (propertize "[CURRENT] " 'face '(:foreground "green"))) "")
+            (propertize (format "%s " empv--playlist-current-indicator) 'face '(:foreground "green"))) "")
    (string-trim
     (or (alist-get 'title item)
         (empv--extract-title-from-filename (alist-get 'filename item))))))
@@ -1025,7 +1028,7 @@ Example:
 If ARG is non-nil, then also put the title to `kill-ring'."
   (interactive "P")
   (empv--let-properties '(playlist-pos-1 playlist-count time-pos percent-pos duration metadata media-title pause paused-for-cache loop-file loop-playlist)
-    (let ((title (string-trim (or (empv--create-media-summary-for-notification .metadata) .media-title)))
+    (let ((title (string-trim (empv--create-media-summary-for-notification .metadata .media-title)))
           (state (cond
                   ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "yellow")))
                   ((eq .pause t) (propertize "Paused" 'face '(:foreground "grey")))
