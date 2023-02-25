@@ -1146,7 +1146,7 @@ finishes."
   "Find and return YouTube url for ITEM."
   (let ((video-id (alist-get 'videoId item))
         (playlist-id (alist-get 'playlistId item)))
-    (format "https://youtu.be/%s=%s%s%s"
+    (format "https://youtube.com/%s=%s%s%s"
             (if video-id "watch?v" "playlist?list")
             (or video-id playlist-id)
             empv--title-sep
