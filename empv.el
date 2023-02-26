@@ -259,6 +259,12 @@ is playing but this variable is still holds some channel.")
 It is not bound to any key by default.  Some keys are loosely
 modelled after default keys of mpv.")
 
+
+(map-keymap
+ (lambda (_key cmd)
+   (when (symbolp cmd)
+     (put cmd 'repeat-map 'empv-map)))
+ empv-map)
 
 ;;; Internal variables
 
