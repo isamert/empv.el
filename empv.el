@@ -1520,13 +1520,10 @@ To make this behavior permanant, add the following to your init file:
       (s-match-strings-all "\\bhttps://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]\\b")
       (mapcar #'car)
       (mapcar (lambda (it) (string-trim-right it "&amp.*")))
-      (im-tap)
       ;; Then find the first sturmgeweiht|azlyrics|genius link
       ;; First part may be useful in the future
       (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\|genius.com/.*-lyrics\\)" it)))
-      (im-tap)
       (url-unhex-string)
-      (im-tap)
       (empv--url-body-sync)
       ;; Extract the lyrics from the page
       (string-replace "" "")
@@ -1593,7 +1590,7 @@ lyrics with the buffers content."
                 (process-exit-status proc)
                 out))))))
 
-(defun empv-lyrics ()
+(defun empv-lyrics-current ()
   (interactive)
   (empv--with-media-info
    (if-let (metadata-lyrics (empv--lyrics-from-metadata .metadata))
@@ -1604,6 +1601,10 @@ lyrics with the buffers content."
              (empv-lyrics-save .path web-lyrics))
            (empv--display-lyrics .path .media-title web-lyrics))
        (user-error ">> Lyrics not found for '%s" .media-title)))))
+
+(defun empv-lyrics-show (song)
+  (interactive "sSong title: ")
+  (empv--display-lyrics nil song (empv--lyrics-download song)))
 
 
 ;; Actions, mainly for embark but used in other places too
