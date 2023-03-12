@@ -11,7 +11,7 @@ Workflow is generally =M-x empv-something= and =completing-read= based, no buffe
 * Installation
 First, you need to install [[https://mpv.io][mpv]], go check out it's installation instructions for your operating system/distribution.
 
-empv is avalilable through [[https://melpa.org/#/empv][MELPA]]. If you have it set up already installed, just do ~M-x package-install empv~ and you are good to go. Otherwise please see [[https://melpa.org/#/getting-started][MELPA getting started]] page to learn how you can install packages through MELPA or see the following installation options.
+empv is available through [[https://melpa.org/#/empv][MELPA]]. If you have it set up already, just do ~M-x package-install empv~ and you are good to go. Otherwise please see [[https://melpa.org/#/getting-started][MELPA getting started]] page to learn how you can install packages through MELPA or see the following installation options.
 
 Another way to install =empv.el= would be using either [[https://github.com/radian-software/straight.el][straight]] or [[https://github.com/quelpa/quelpa-use-package][quelpa]] package managers:
 
