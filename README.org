@@ -1,4 +1,7 @@
-* empv.el
+#+TITLE: empv.el
+
+#+html: <a href="https://melpa.org/#/empv"><img alt="MELPA" src="https://melpa.org/packages/empv-badge.svg"/></a>
+
 An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this package provides somewhat comprehensive interface to mpv with bunch of convenient functionality like an embedded radio manager, YouTube interface, local music/video library manager etc.
 
 /empv/ is mostly focused on audio but it also provides some means to manage videos. It also supports YouTube searches for consuming audios or videos.
@@ -6,7 +9,11 @@ An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this pa
 Workflow is generally =M-x empv-something= and =completing-read= based, no buffers or complex interfaces (except for the tabulated YouTube results with thumbnails). Scroll down to see available [[*Interactive functions and configuration][interactive functions]].
 
 * Installation
-First, you need to install [[https://mpv.io][mpv]], go check out it's installation instructions for your operating system/distribution. Easiest way to install =empv.el= would be using either [[https://github.com/radian-software/straight.el][straight]] or [[https://github.com/quelpa/quelpa-use-package][quelpa]] package managers:
+First, you need to install [[https://mpv.io][mpv]], go check out it's installation instructions for your operating system/distribution.
+
+empv is avalilable through [[https://melpa.org/#/empv][MELPA]]. If you have it set up already installed, just do ~M-x package-install empv~ and you are good to go. Otherwise please see [[https://melpa.org/#/getting-started][MELPA getting started]] page to learn how you can install packages through MELPA or see the following installation options.
+
+Another way to install =empv.el= would be using either [[https://github.com/radian-software/straight.el][straight]] or [[https://github.com/quelpa/quelpa-use-package][quelpa]] package managers:
 
 #+begin_src elisp
   ;; Using straight:
@@ -22,7 +29,7 @@ First, you need to install [[https://mpv.io][mpv]], go check out it's installati
              :repo "isamert/empv.el"))
 #+end_src
 
-Another option is just downloading =empv.el= file and putting into your =load-path=, afterwards you can simply do the following in your =init.el=:
+Yet another option is just downloading =empv.el= file and putting into your =load-path=, afterwards you can simply do the following in your =init.el=:
 
 #+begin_src elisp
   (require 'empv)
