@@ -1475,6 +1475,28 @@ To make this behavior permanant, add the following to your init file:
   (empv--cmd
    'keybind '("q" "set pause yes; cycle video")))
 
+
+(defvar org-link-any-re)
+(declare-function org-element-property "org")
+(declare-function org-element-context "org")
+(declare-function shr-url-at-point "shr")
+(defun empv-media-at-point ()
+  "Return the potential media item at the point.
+It may be an absolute filepath, it may be a relative file
+path. No guarantees."
+  (or
+   (when (eq major-mode 'org-mode)
+     (ignore-errors (org-element-property :path (org-element-context))))
+   (ignore-errors (shr-url-at-point nil))
+   (thing-at-point 'url)
+   (thing-at-point 'existing-filename)
+   (thing-at-point 'filename)))
+
+(defun empv-play-media-at-point ()
+  "Play the media at point."
+  (interactive)
+  (empv--play-or-enqueue (empv-media-at-point)))
+
 
 ;; Actions, mainly for embark but used in other places too
 
