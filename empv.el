@@ -374,9 +374,10 @@ Mainly used by embark actions defined in this package.")
                  (error (empv--dbg "Error while reading JSON :: %s" result) nil))))
     json))
 
+(defvar empv--request-id 0)
 (defun empv--new-request-id ()
   "Generate a new unique request id."
-  (format "%s" (random)))
+  (format "%s" (setq empv--request-id (1+ empv--request-id))))
 
 (defmacro empv--select-action (prompt &rest forms)
   (declare (indent 1))
@@ -418,6 +419,13 @@ Mainly used by embark actions defined in this package.")
 (defun empv--clean-uri (it)
   (car (split-string it empv--title-sep)))
 
+(defmacro empv--run (&rest forms)
+  "Start if mpv is not running already and then run FORMS."
+  `(progn
+     (unless (empv--running?)
+       (empv-start))
+     ,@forms))
+
 
 ;;; Handlers
 
@@ -448,16 +456,18 @@ the result.
               (id (map-elt json-data 'id))
               (request-id (map-elt json-data 'request_id))
               (callback (map-elt empv--callback-table (format "%s" (or request-id id)))))
-         (when-let (cb-fn (plist-get callback :fn))
-           (ignore-error (quit minibuffer-quit)
-             (funcall cb-fn (cdr (assoc 'data json-data)))))
-         (when (not (plist-get callback :event?))
-           (map-delete empv--callback-table request-id))
          (empv--dbg
           "<< data: %s, request_id: %s, has-cb?: %s"
           json-data
           request-id
-          (and callback t))))
+          (and callback t))
+         ;; Remove it first from callback table, so we don't get into
+         ;; a loop if an error occurs on the callback function
+         (when (not (plist-get callback :event?))
+           (map-delete empv--callback-table request-id))
+         (when-let (cb-fn (plist-get callback :fn))
+           (ignore-error (quit minibuffer-quit)
+             (funcall cb-fn (cdr (assoc 'data json-data)))))))
      (seq-filter
       (lambda (it) (not (string-empty-p it)))
       (seq-map
@@ -486,34 +496,35 @@ the result.
                                    `(,empv-mpv-binary ,@empv-mpv-args ,uri)
                                  `(,empv-mpv-binary ,@empv-mpv-args)))))
 
-(defun empv--send-command (command callback &optional event?)
+(defun empv--send-command (command &optional callback event?)
   "Send COMMAND to mpv and call CALLBACK when mpv responds.
 If EVENT? is non-nil, then the command is treated as an event
 observer and the callback is called everytime that given event
 happens."
-  (when (empv--running?)
-    (let* ((request-id (empv--new-request-id))
-           (msg (json-encode
-                 (if event?
-                     `((command . (,(seq-first command) ,(string-to-number request-id) ,@(seq-rest command)))
-                       (request_id . ,request-id))
-                   `((command . ,command)
-                     (request_id . ,request-id))))))
-      (map-put! empv--callback-table request-id (list :fn callback :event? event?))
-      (process-send-string empv--network-process (format "%s\n" msg))
-      (empv--dbg ">> %s" msg)
-      request-id)))
+  (empv--run
+   (let* ((request-id (empv--new-request-id))
+          (msg (json-encode
+                (if event?
+                    `((command . (,(seq-first command) ,(string-to-number request-id) ,@(seq-rest command)))
+                      (request_id . ,request-id))
+                  `((command . ,command)
+                    (request_id . ,request-id))))))
+     (when callback
+       (map-put! empv--callback-table request-id (list :fn callback :event? event?)))
+     (process-send-string empv--network-process (format "%s\n" msg))
+     (empv--dbg ">> %s" msg)
+     request-id)))
 
 
 ;;; Essential macros
 
 (defmacro empv--cmd (cmd &optional args &rest forms)
   "Run CMD with ARGS and then call FORMS with the result."
-  `(if (listp ,args)
-       (empv--send-command
-        `(,,cmd ,@,args) (lambda (it) (ignore it) ,@forms))
-     (empv--send-command
-      `(,,cmd ,,args) (lambda (it) (ignore it) ,@forms))))
+  (let ((cb (when (not (seq-empty-p forms))
+              `(lambda (it) (ignore it) ,@forms))))
+    `(if (listp ,args)
+         (empv--send-command `(,,cmd ,@,args) ,cb)
+       (empv--send-command `(,,cmd ,,args) ,cb))))
 
 (defmacro empv--cmd-seq (&rest forms)
   (seq-reduce
@@ -528,13 +539,6 @@ happens."
     (lambda (it)
       ,@forms)
     t))
-
-(defmacro empv--run (&rest forms)
-  "Start if mpv is not running already and then run FORMS."
-  `(progn
-     (unless (empv--running?)
-       (empv-start))
-     ,@forms))
 
 (defmacro empv--let-properties (props &rest forms)
   (declare (indent 1))
@@ -580,11 +584,10 @@ URI might be a string or a list of strings."
   (empv--select-action _
     "Play" → (cond
               ((stringp uri) (empv-play uri))
-              ((listp uri) (empv--run
-                            (empv--cmd
-                             'stop nil
-                             (seq-do #'empv-enqueue uri)
-                             (empv-resume)))))
+              ((listp uri) (empv--cmd
+                            'stop nil
+                            (seq-do #'empv-enqueue uri)
+                            (empv-resume))))
     "Enqueue last" → (cond
                       ((stringp uri) (empv-enqueue uri))
                       ((listp uri) (seq-do #'empv-enqueue uri)))
@@ -663,16 +666,15 @@ INDEX is the place where the item appears in the playlist."
 (defmacro empv--playlist-select-item-and (&rest forms)
   "Select a playlist item and then run FORMS with the input.
 This function also tries to disable sorting in `completing-read' function."
-  `(empv--run
-    (empv--let-properties '(playlist)
-      (let ((item (empv--completing-read-object
-                   "Select track: "
-                   (seq-map-indexed (lambda (item index) (map-insert item 'index index)) .playlist)
-                   :formatter #'empv--format-playlist-item
-                   :category 'empv-playlist-item
-                   :sort? nil)))
-        (ignore item)
-        ,@forms))))
+  `(empv--let-properties '(playlist)
+     (let ((item (empv--completing-read-object
+                  "Select track: "
+                  (seq-map-indexed (lambda (item index) (map-insert item 'index index)) .playlist)
+                  :formatter #'empv--format-playlist-item
+                  :category 'empv-playlist-item
+                  :sort? nil)))
+       (ignore item)
+       ,@forms)))
 
 (cl-defun empv--completing-read-object
     (prompt objects &key (formatter #'identity) category (sort? t) def multiple?)
@@ -798,8 +800,7 @@ see `empv-base-directory'."
 (defun empv-toggle ()
   "Toggle the playback."
   (interactive)
-  (empv--run
-   (empv--cmd 'cycle 'pause)))
+  (empv--cmd 'cycle 'pause))
 
 ;;;###autoload
 (defun empv-current-loop-on ()
@@ -865,8 +866,7 @@ see `empv-base-directory'."
 You can press \"_\" to hide it again when you are focused on
 MPV."
   (interactive)
-  (empv--run
-   (empv--cmd 'cycle 'video)))
+  (empv--cmd 'cycle 'video))
 
 ;;;###autoload
 (defun empv-exit ()
@@ -933,51 +933,45 @@ along with the log."
   (interactive "sEnter an URI to play: ")
   (when (string-prefix-p "~/" uri)
     (setq uri (expand-file-name uri)))
-  (empv--run
-   (empv--cmd 'loadfile `(,uri append-play))
-   (empv--display-event "Enqueued %s" uri)))
+  (empv--cmd 'loadfile `(,uri append-play))
+  (empv--display-event "Enqueued %s" uri))
 
 (defalias 'empv-enqueue-last #'empv-enqueue)
 
 (defun empv-enqueue-next (uri)
   "Like `empv-enqueue' but append URI right after current item."
   (interactive "sEnter an URI to play: ")
-  (empv--run
-   (empv--let-properties '(playlist)
-     (let ((len (length .playlist))
-           (idx (empv-seq-find-index (lambda (it) (alist-get 'current it)) .playlist)))
-       (empv-enqueue uri)
-       (empv--cmd 'playlist-move `(,len ,(1+ idx)))))))
+  (empv--let-properties '(playlist)
+    (let ((len (length .playlist))
+          (idx (empv-seq-find-index (lambda (it) (alist-get 'current it)) .playlist)))
+      (empv-enqueue uri)
+      (empv--cmd 'playlist-move `(,len ,(1+ idx))))))
 
 ;;;###autoload
 (defun empv-playlist-next ()
   "Play next in the playlist."
   (interactive)
-  (empv--run
-   (empv--cmd 'playlist-next)))
+  (empv--cmd 'playlist-next))
 
 ;;;###autoload
 (defun empv-playlist-prev ()
   "Play previous in the playlist."
   (interactive)
-  (empv--run
-   (empv--cmd 'playlist-prev)))
+  (empv--cmd 'playlist-prev))
 
 ;;;###autoload
 (defun empv-playlist-clear ()
   "Clear the current playlist."
   (interactive)
-  (empv--run
-   (empv--cmd 'playlist-clear)
-   (empv--display-event "Playlist cleared.")))
+  (empv--cmd 'playlist-clear)
+  (empv--display-event "Playlist cleared."))
 
 ;;;###autoload
 (defun empv-playlist-shuffle ()
   "Shuffle the current playlist."
   (interactive)
-  (empv--run
-   (empv--cmd 'playlist-shuffle)
-   (empv--display-event "Playlist shuffled.")))
+  (empv--cmd 'playlist-shuffle)
+  (empv--display-event "Playlist shuffled."))
 
 ;;;###autoload
 (defun empv-playlist-select ()
