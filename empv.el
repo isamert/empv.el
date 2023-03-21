@@ -6,7 +6,7 @@
 ;; Version: 3.0.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
-;; Package-Requires: ((emacs "28.1"))
+;; Package-Requires: ((emacs "28.1") (s "1.13.0"))
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -43,6 +43,7 @@
 (require 'map)
 (require 'json)
 (require 'url)
+(require 's)
 (require 'consult nil t)
 (eval-when-compile
   (require 'subr-x))
@@ -178,6 +179,11 @@ replaced with their current values at the time of calling.
   "~/logged-radio-songs.org"
   "The file that is used by `empv-log-current-radio-song-name'."
   :type 'file
+  :group 'empv)
+
+(defcustom empv-lyrics-save-automatically nil
+  "Save lyrics to audio file automatically when `empv-lyrics' is called."
+  :type 'boolean
   :group 'empv)
 
 (defcustom empv-allow-insecure-connections
@@ -327,6 +333,11 @@ Mainly used by embark actions defined in this package.")
   "The text displayed on action selection menus.")
 (defvar empv--inspect-buffer-name "*empv inspect*"
   "Buffer name for showing pretty printed results.")
+(defvar-local empv--current-file nil
+  "Current media file associated with the buffer.")
+
+(defconst empv--playlist-current-indicator "[CURRENT]"
+  "Simple text to show on the currently playing playlist item.")
 
 
 ;;; Utility
@@ -558,6 +569,12 @@ happens."
                ,@forms)))))
       ,props)))
 
+(defmacro empv--with-media-info (&rest body)
+  "Gives you a context containing `.media-title', `.path' `.metadata'"
+  `(empv--let-properties '(metadata media-title path)
+     (let ((.media-title (empv--create-media-summary-for-notification .metadata .media-title)))
+       ,@body)))
+
 (defmacro empv--with-video-enabled (&rest forms)
   `(let* ((empv-mpv-args (seq-filter (lambda (it) (not (equal it "--no-video"))) empv-mpv-args))
           (result (progn ,@forms)))
@@ -607,21 +624,21 @@ URI might be a string or a list of strings."
     (artist . ,(empv--metadata-get data 'artist 'icy-artist))
     (genre  . ,(empv--metadata-get data 'genre 'icy-genre))))
 
-(defun empv--create-media-summary-for-notification (metadata)
+(defun empv--create-media-summary-for-notification (metadata &optional fallback)
   "Generate a formatted media title like \"Song name - Artist\" from given METADATA."
   (let-alist (empv--extract-metadata metadata)
-    (when .title
-      (format "%s %s %s"
-              .title
-              (or (and .artist "-") "")
-              (or .artist "")))))
+    (if .title
+        (format "%s %s %s"
+                .title
+                (or (and .artist "-") "")
+                (or .artist ""))
+      fallback)))
 
 (defun empv--handle-metadata-change (data)
   "Display info about the current track using DATA."
   (empv--dbg "handle-metadata-change <> %s" data)
   (empv--let-properties '(media-title path)
-    (let ((title (or (empv--create-media-summary-for-notification data)
-                     .media-title)))
+    (let ((title (empv--create-media-summary-for-notification data .media-title)))
       (empv--display-event "%s" title)
       (puthash .path title empv--media-title-cache))))
 
@@ -659,7 +676,7 @@ INDEX is the place where the item appears in the playlist."
   (format
    "%s%s"
    (or (and (alist-get 'current item)
-            (propertize "[CURRENT] " 'face '(:foreground "green"))) "")
+            (propertize (format "%s " empv--playlist-current-indicator) 'face '(:foreground "green"))) "")
    (string-trim
     (or (alist-get 'title item)
         (empv--extract-title-from-filename (alist-get 'filename item))))))
@@ -1053,7 +1070,7 @@ Example:
 If ARG is non-nil, then also put the title to `kill-ring'."
   (interactive "P")
   (empv--let-properties '(playlist-pos-1 playlist-count time-pos percent-pos duration metadata media-title pause paused-for-cache loop-file loop-playlist)
-    (let ((title (string-trim (or (empv--create-media-summary-for-notification .metadata) .media-title)))
+    (let ((title (string-trim (empv--create-media-summary-for-notification .metadata .media-title)))
           (state (cond
                   ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "yellow")))
                   ((eq .pause t) (propertize "Paused" 'face '(:foreground "grey")))
@@ -1509,6 +1526,145 @@ path. No guarantees."
   "Play the media at point."
   (interactive)
   (empv--play-or-enqueue (empv-media-at-point)))
+
+
+;; Lyrics manager
+
+(defvar empv-lyrics-display-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c C-c") #'empv-lyrics-save)
+    (define-key map (kbd "C-c C-w") #'empv-lyrics-force-web)
+    map)
+  "Keymap for `empv-lyrics-display-mode'.")
+
+(define-derived-mode empv-lyrics-display-mode text-mode "empv-lyrics-display-mode"
+  "Major mode for displaying lyrics of a given song.")
+
+(defun empv--display-lyrics (path title lyrics)
+  (with-current-buffer (get-buffer-create "*empv-lyrics*")
+    (empv-lyrics-display-mode)
+    (erase-buffer)
+    (insert lyrics)
+    (setq header-line-format (format "Lyrics :: %s" title))
+    (setq empv--current-file path)
+    (goto-char (point-min))
+    (unless (get-buffer-window (current-buffer))
+      (switch-to-buffer-other-window (current-buffer)))))
+
+(defun empv--url-body-sync (url)
+  "Retrieve URL's body synchronously as string."
+  (let ((result nil))
+    (request url
+      :parser 'buffer-string
+      :headers '(("User-Agent" . "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"))
+      :sync t
+      :success (cl-function
+                (lambda (&key data &allow-other-keys)
+                  (setq result data)))
+      :error (cl-function
+              (lambda (&key data &allow-other-keys)
+                (message "%s" data))))
+    result)
+  ;; (let ((url-request-extra-headers '(("User-Agent" . "Mozilla/5.0"))))
+  ;;   (with-current-buffer (url-retrieve-synchronously url)
+  ;;     (let ((result (decode-coding-string (buffer-string) 'utf-8)))
+  ;;       (kill-buffer)
+  ;;       (cadr (s-split "\n\n" result)))))
+  )
+
+(defun empv--lyrics-download (song)
+  (ignore-error 'wrong-type-argument
+    (thread-last
+      (empv--url-body-sync (url-encode-url (format "https://google.com/search?q=%s lyrics" song)))
+      ;; Find all the links in the response first
+      (s-match-strings-all "\\bhttps://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]\\b")
+      (mapcar #'car)
+      (mapcar (lambda (it) (string-trim-right it "&amp.*")))
+      ;; Then find the first sturmgeweiht|azlyrics|genius link
+      ;; First part may be useful in the future
+      (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\|genius.com/.*-lyrics\\)" it)))
+      (url-unhex-string)
+      (empv--url-body-sync)
+      ;; Extract the lyrics from the page
+      (string-replace "" "")
+      (string-replace "\n" "<newline>")
+      ((lambda (it)
+         (or
+          (s-match "<div class=\"inhalt\">\\(.*\\)<a href=\"" it) ;; sturmgeweiht
+          (s-match "Sorry about that\\. -->\\(.*\\)<!-- MxM banner -->" it) ;; azlyrics
+          (s-match "\\\\\"html\\\\\":\\\\\"\\(.*\\)\\\\\",\\\\\"children\\\\\":" it) ;; genius
+          (s-match "x-ref=\"lyric_text\">\\(.*\\)</p>" it) ;; lyrics.az
+          (s-match "<div class=\"main-panel-content\".*?>\\(.*\\)<div class=\"sharebar-wrapper\"" it)
+          )))
+      (nth 1)
+      (s-replace-all '(("<br>" . "\n")
+                       ("<br/>" . "\n")
+                       ("<br />" . "\n")
+                       ("\\n" . "\n")
+                       ("<div>" . "")
+                       ("</div>" . "")
+                       ("\\" . "")
+                       ("<newline>" . "\n")
+                       ("\"" . "")
+                       ("&#x27;" . "'")
+                       ("&#039;" . "'")))
+      (s-replace "\n\n" "\n")
+      (s-split "\n")
+      (mapcar #'s-trim)
+      (s-join "\n")
+      (s-trim)
+      ;; Clear all remaning html tags
+      (replace-regexp-in-string "<[^>]*>" ""))))
+
+(defun empv--lyrics-from-metadata (metadata)
+  (when-let (lyrics-key (seq-find
+                         (lambda (key) (string-match-p "lyrics" (symbol-name key)))
+                         (map-keys metadata)))
+    (map-elt metadata lyrics-key)))
+
+(defun empv-lyrics-force-web ()
+  "Fill buffer with lyrics downloaded from web.
+This does not save lyrics to file. Call `empv-lyrics-save' to really save."
+  (interactive)
+  (empv--with-media-info
+   (if-let (lyrics (empv--lyrics-download .media-title))
+       (empv--display-lyrics .path .media-title lyrics)
+     (user-error ">> Lyrics not found for '%s" .media-title))))
+
+(defun empv-lyrics-save (file lyrics)
+  "Save LYRICS into FILEs ID3 lyrics tag.
+If you are in a `*empv-lyrics*' buffer and call this function
+interactively, it will automatically update the currently shown
+lyrics with the buffers content."
+  (interactive
+   (list (or empv--current-file (read-file-name "Audio file: "))
+         (buffer-string)))
+  (let ((lyrics-file (make-temp-file "empv-lyrics" nil ".txt" lyrics)))
+    (set-process-filter
+     (start-process "" nil "eyeD3" "--encoding" "utf8" "--add-lyrics" lyrics-file file)
+     (lambda (proc out)
+       (if (eq (process-exit-status proc) 0)
+           (empv--display-event "Lyrics saved for '%s'" file)
+         (error "Failed to save lyrics into '%s'. exit-code=%s, output=%s"
+                file
+                (process-exit-status proc)
+                out))))))
+
+(defun empv-lyrics-current ()
+  (interactive)
+  (empv--with-media-info
+   (if-let (metadata-lyrics (empv--lyrics-from-metadata .metadata))
+       (empv--display-lyrics .path .media-title metadata-lyrics)
+     (if-let* ((web-lyrics (empv--lyrics-download .media-title)))
+         (progn
+           (when empv-lyrics-save-automatically
+             (empv-lyrics-save .path web-lyrics))
+           (empv--display-lyrics .path .media-title web-lyrics))
+       (user-error ">> Lyrics not found for '%s" .media-title)))))
+
+(defun empv-lyrics-show (song)
+  (interactive "sSong title: ")
+  (empv--display-lyrics nil song (empv--lyrics-download song)))
 
 
 ;; Actions, mainly for embark but used in other places too
