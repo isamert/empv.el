@@ -821,6 +821,14 @@ see `empv-base-directory'."
 
 (defalias 'empv-file-loop-off #'empv-current-loop-off)
 
+(defun empv-toggle-current-loop ()
+  "Turn on or off the loop for current file."
+  (interactive)
+  (empv--transform-property 'loop-file
+    (lambda (it) (if (equal it "inf") 'no 'inf))))
+
+(defalias 'empv-toggle-file-loop #'empv-toggle-current-loop)
+
 ;;;###autoload
 (defun empv-volume-up ()
   "Up the volume to a max of 100%."
@@ -994,6 +1002,12 @@ along with the log."
   (interactive)
   (empv--cmd 'set_property '(loop-playlist no))
   (empv--display-event "Playlist loop off."))
+
+(defun empv-toggle-playlist-loop ()
+  "Turn on or off the loop for current file."
+  (interactive)
+  (empv--transform-property 'loop-playlist
+    (lambda (it) (if (equal it "inf") 'no 'inf))))
 
 (defun empv--playlist-apply (fn &rest args)
   "Call FN with the current playlist, and the extra ARGS.
