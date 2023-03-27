@@ -1372,9 +1372,12 @@ Limit directory treversal at most DEPTH levels.  By default it's
            candidates))
     (tabulated-list-init-header)
     (when empv-youtube-thumbnail-quality
-      (empv-youtube-results--load-thumbnails candidates))))
+      (empv--youtube-tabulated-load-thumbnails candidates))
+    (tabulated-list-print)
+    (back-to-indentation)
+    (pop-to-buffer-same-window (current-buffer))))
 
-(defun empv-youtube-results--load-thumbnails (candidates)
+(defun empv--youtube-tabulated-load-thumbnails (candidates)
   (let ((total-count (length candidates))
         (completed-count 0)
         (buffer (current-buffer)))
@@ -1422,8 +1425,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
                 (tabulated-list-print)
                 (iimage-mode)
                 (back-to-indentation)))))))
-     candidates)
-    (pop-to-buffer-same-window buffer)))
+     candidates)))
 
 (defun empv-youtube-results--current-item ()
   (save-excursion
