@@ -222,6 +222,13 @@ determines which function is used to show you these actions."
   :type 'string
   :group 'empv)
 
+(defcustom empv-search-prefix
+  "https://html.duckduckgo.com/html/?q="
+  "URL that is used for searching the web.
+Only used in lyrics related functions."
+  :type 'string
+  :group 'empv)
+
 
 ;;; Public variables
 
@@ -1169,9 +1176,25 @@ object."
     (url-retrieve
      full-url
      (lambda (_status)
-       (let ((result (decode-coding-string (buffer-string) 'utf-8)))
+       (let ((result (progn
+                       (goto-char (point-min))
+                       (re-search-forward "\n\n" nil t)
+                       (delete-region (point-min) (point))
+                       (decode-coding-string (buffer-string) 'utf-8))))
          (kill-buffer)
-         (funcall callback (empv--read-result (or (cadr (split-string result "\n\n")) "{}"))))))))
+         (funcall callback (empv--read-result result)))))))
+
+(defun empv--request-raw-sync (url)
+  "Retrieve URL's body synchronously as string."
+  (with-current-buffer (url-retrieve-synchronously url)
+    (let ((result (progn
+                    (goto-char (point-min))
+                    (re-search-forward "\n\n" nil t)
+                    (delete-region (point-min) (point))
+                    (set-buffer-multibyte t)
+                    (decode-coding-region (point-min) (point-max) 'utf-8)
+                    (buffer-substring-no-properties (point-min) (point-max)))))
+      result)))
 
 ;; TODO: Add [NEXT] item to load next page of results
 (defun empv--youtube-search (term type callback)
@@ -1553,51 +1576,31 @@ path. No guarantees."
     (unless (get-buffer-window (current-buffer))
       (switch-to-buffer-other-window (current-buffer)))))
 
-(defun empv--url-body-sync (url)
-  "Retrieve URL's body synchronously as string."
-  (let ((result nil))
-    (request url
-      :parser 'buffer-string
-      :headers '(("User-Agent" . "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36"))
-      :sync t
-      :success (cl-function
-                (lambda (&key data &allow-other-keys)
-                  (setq result data)))
-      :error (cl-function
-              (lambda (&key data &allow-other-keys)
-                (message "%s" data))))
-    result)
-  ;; (let ((url-request-extra-headers '(("User-Agent" . "Mozilla/5.0"))))
-  ;;   (with-current-buffer (url-retrieve-synchronously url)
-  ;;     (let ((result (decode-coding-string (buffer-string) 'utf-8)))
-  ;;       (kill-buffer)
-  ;;       (cadr (s-split "\n\n" result)))))
-  )
-
+;; TODO Make this async? Not quite sure if it does worth or not
 (defun empv--lyrics-download (song)
   (ignore-error 'wrong-type-argument
     (thread-last
-      (empv--url-body-sync (url-encode-url (format "https://google.com/search?q=%s lyrics" song)))
+      (empv--request-raw-sync (url-encode-url (format "%s%s lyrics" empv-search-prefix song)))
       ;; Find all the links in the response first
       (s-match-strings-all "\\bhttps://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]\\b")
       (mapcar #'car)
       (mapcar (lambda (it) (string-trim-right it "&amp.*")))
       ;; Then find the first sturmgeweiht|azlyrics|genius link
-      ;; First part may be useful in the future
       (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\|genius.com/.*-lyrics\\)" it)))
       (url-unhex-string)
-      (empv--url-body-sync)
+      (empv--request-raw-sync)
       ;; Extract the lyrics from the page
       (string-replace "" "")
       (string-replace "\n" "<newline>")
+      ;; FIXME: The resulting string may be too long and regexes may
+      ;; fail due to stack overflow errors
       ((lambda (it)
          (or
           (s-match "<div class=\"inhalt\">\\(.*\\)<a href=\"" it) ;; sturmgeweiht
           (s-match "Sorry about that\\. -->\\(.*\\)<!-- MxM banner -->" it) ;; azlyrics
           (s-match "\\\\\"html\\\\\":\\\\\"\\(.*\\)\\\\\",\\\\\"children\\\\\":" it) ;; genius
           (s-match "x-ref=\"lyric_text\">\\(.*\\)</p>" it) ;; lyrics.az
-          (s-match "<div class=\"main-panel-content\".*?>\\(.*\\)<div class=\"sharebar-wrapper\"" it)
-          )))
+          (s-match "<div class=\"main-panel-content\".*?>\\(.*\\)<div class=\"sharebar-wrapper\"" it))))
       (nth 1)
       (s-replace-all '(("<br>" . "\n")
                        ("<br/>" . "\n")
@@ -1619,6 +1622,9 @@ path. No guarantees."
       (replace-regexp-in-string "<[^>]*>" ""))))
 
 (defun empv--lyrics-from-metadata (metadata)
+  "Fetch lyrics from METADATA.
+Tries to find a key in METADATA that contains \"lyrics\" as there
+is no standard key for lyrics."
   (when-let (lyrics-key (seq-find
                          (lambda (key) (string-match-p "lyrics" (symbol-name key)))
                          (map-keys metadata)))
@@ -1627,7 +1633,7 @@ path. No guarantees."
 (defun empv-lyrics-force-web ()
   "Fill buffer with lyrics downloaded from web.
 This does not save lyrics to file. Call `empv-lyrics-save' to really save."
-  (interactive)
+  (interactive nil empv-lyrics-display-mode)
   (empv--with-media-info
    (if-let (lyrics (empv--lyrics-download .media-title))
        (empv--display-lyrics .path .media-title lyrics)
@@ -1640,19 +1646,24 @@ interactively, it will automatically update the currently shown
 lyrics with the buffers content."
   (interactive
    (list (or empv--current-file (read-file-name "Audio file: "))
-         (buffer-string)))
+         (buffer-string))
+   empv-lyrics-display-mode)
+  (unless (file-exists-p (expand-file-name file))
+    (user-error "File not found: '%s'" file))
   (let ((lyrics-file (make-temp-file "empv-lyrics" nil ".txt" lyrics)))
     (set-process-filter
-     (start-process "" nil "eyeD3" "--encoding" "utf8" "--add-lyrics" lyrics-file file)
+     (start-process "*empv-eyeD3*" nil "eyeD3" "--encoding" "utf8" "--add-lyrics" lyrics-file file)
      (lambda (proc out)
+       (empv--dbg "*eyeD3* output: %s" out)
        (if (eq (process-exit-status proc) 0)
            (empv--display-event "Lyrics saved for '%s'" file)
          (error "Failed to save lyrics into '%s'. exit-code=%s, output=%s"
-                file
-                (process-exit-status proc)
-                out))))))
+                file (process-exit-status proc) out))))))
 
 (defun empv-lyrics-current ()
+  "Get lyrics for currently playing song.
+This tries to extract the lyrics from the file metada first and
+if it can't find one then downloads it from the web."
   (interactive)
   (empv--with-media-info
    (if-let (metadata-lyrics (empv--lyrics-from-metadata .metadata))
@@ -1665,6 +1676,10 @@ lyrics with the buffers content."
        (user-error ">> Lyrics not found for '%s" .media-title)))))
 
 (defun empv-lyrics-show (song)
+  "Show lyrics for SONG in a seperate buffer.
+This function searches the web for SONG lyrics.  If you want to
+get the lyrics for currently playing/paused song, use
+`empv-lyrics-current'."
   (interactive "sSong title: ")
   (empv--display-lyrics nil song (empv--lyrics-download song)))
 
