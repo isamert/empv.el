@@ -1180,20 +1180,22 @@ object."
                        (goto-char (point-min))
                        (re-search-forward "\n\n" nil t)
                        (delete-region (point-min) (point))
-                       (decode-coding-string (buffer-string) 'utf-8))))
+                       (decode-coding-string
+                        (buffer-substring-no-properties (point-min) (point-max)) 'utf-8))))
          (kill-buffer)
          (funcall callback (empv--read-result result)))))))
 
 (defun empv--request-raw-sync (url)
   "Retrieve URL's body synchronously as string."
   (with-current-buffer (url-retrieve-synchronously url)
-    (let ((result (progn
-                    (goto-char (point-min))
-                    (re-search-forward "\n\n" nil t)
-                    (delete-region (point-min) (point))
-                    (set-buffer-multibyte t)
-                    (decode-coding-region (point-min) (point-max) 'utf-8)
-                    (buffer-substring-no-properties (point-min) (point-max)))))
+    (let ((result
+           (progn
+             (goto-char (point-min))
+             (re-search-forward "\n\n" nil t)
+             (delete-region (point-min) (point))
+             (set-buffer-multibyte t)
+             (decode-coding-region (point-min) (point-max) 'utf-8)
+             (buffer-substring-no-properties (point-min) (point-max)))))
       result)))
 
 ;; TODO: Add [NEXT] item to load next page of results
