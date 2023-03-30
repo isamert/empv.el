@@ -1577,20 +1577,26 @@ path. No guarantees."
       (switch-to-buffer-other-window (current-buffer)))))
 
 ;; TODO Make this async? Not quite sure if it does worth or not
+;; This function is completely fucked up *and* it works, most of the time.
 (defun empv--lyrics-download (song)
   (ignore-error 'wrong-type-argument
     (thread-last
       (empv--request-raw-sync (url-encode-url (format "%s%s lyrics" empv-search-prefix song)))
       ;; Find all the links in the response first
-      (s-match-strings-all "\\bhttps://[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]\\b")
+      (s-match-strings-all "https\\(://\\|%3A%2F%2F\\)[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]")
       (mapcar #'car)
-      (mapcar (lambda (it) (string-trim-right it "&amp.*")))
+      (mapcar (lambda (it) (thread-last
+                        (string-trim-right it "&amp.*")
+                        (string-replace "%3A%2F%2F" "://")
+                        (string-replace "%2F" "/")
+                        (string-replace "%2D" "-")
+                        (string-replace "%2D" "+"))))
       ;; Then find the first sturmgeweiht|azlyrics|genius link
       (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\|genius.com/.*-lyrics\\)" it)))
       (url-unhex-string)
       (empv--request-raw-sync)
-      ;; Extract the lyrics from the page
       (string-replace "" "")
+      ;; Replace newlines so that regexes can work
       (string-replace "\n" "<newline>")
       ;; FIXME: The resulting string may be too long and regexes may
       ;; fail due to stack overflow errors
@@ -1600,7 +1606,8 @@ path. No guarantees."
           (s-match "Sorry about that\\. -->\\(.*\\)<!-- MxM banner -->" it) ;; azlyrics
           (s-match "\\\\\"html\\\\\":\\\\\"\\(.*\\)\\\\\",\\\\\"children\\\\\":" it) ;; genius
           (s-match "x-ref=\"lyric_text\">\\(.*\\)</p>" it) ;; lyrics.az
-          (s-match "<div class=\"main-panel-content\".*?>\\(.*\\)<div class=\"sharebar-wrapper\"" it))))
+          (s-match "<div class=\"main-panel-content\".*?>\\(.*\\)<div class=\"sharebar-wrapper\"" it) ;; flashlyrics
+          )))
       (nth 1)
       (s-replace-all '(("<br>" . "\n")
                        ("<br/>" . "\n")
