@@ -1,12 +1,12 @@
 #+TITLE: empv.el
 
-#+html: <a href="https://melpa.org/#/empv"><img alt="MELPA" src="https://melpa.org/packages/empv-badge.svg"/></a>
+[[https://melpa.org/#/empv][file:https://melpa.org/packages/empv-badge.svg]]
 
 An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this package provides somewhat comprehensive interface to mpv with bunch of convenient functionality like an embedded radio manager, YouTube interface, local music/video library manager etc.
 
 /empv/ is mostly focused on audio but it also provides some means to manage videos. It also supports YouTube searches for consuming audios or videos.
 
-Workflow is generally =M-x empv-something= and =completing-read= based, no buffers or complex interfaces (except for the tabulated YouTube results with thumbnails). Scroll down to see available [[*Interactive functions and configuration][interactive functions]].
+Workflow is generally =M-x empv-something= and =completing-read= based, no buffers or complex interfaces (except for the tabulated YouTube results with thumbnails).
 
 * Installation
 First, you need to install [[https://mpv.io][mpv]], go check out it's installation instructions for your operating system/distribution.
