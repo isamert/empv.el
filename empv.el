@@ -92,7 +92,9 @@ commands if this variable is nil."
 
 (defcustom empv-youtube-thumbnail-quality "default"
   "Default value for YouTube thumbnail quality."
-  :type 'string
+    :type '(choice
+          (const :tag "None" nil)
+          (string :tag "Quality" :value "default"))
   :group 'empv)
 
 (defcustom empv-audio-dir (or (getenv "XDG_MUSIC_DIR") "~/Music")
