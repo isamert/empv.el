@@ -857,7 +857,10 @@ see `empv-base-directory'."
 (defun empv-volume-up ()
   "Up the volume to a max of 100%."
   (interactive)
-  (empv--transform-property 'volume (lambda (current) (min (floor (+ current empv-volume-step)) 100))))
+  (empv--cmd
+   'get_property 'volume-max
+   (empv--transform-property 'volume
+     (lambda (current) (min (floor (+ current empv-volume-step)) (or it 100))))))
 
 ;;;###autoload
 (defun empv-volume-down ()
