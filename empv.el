@@ -857,10 +857,9 @@ see `empv-base-directory'."
 (defun empv-volume-up ()
   "Up the volume to a max of 100%."
   (interactive)
-  (empv--cmd
-   'get_property 'volume-max
-   (empv--transform-property 'volume
-     (lambda (current) (min (floor (+ current empv-volume-step)) (or it 100))))))
+  (empv--let-properties '(volume-max)
+    (empv--transform-property 'volume
+      (lambda (current) (min (floor (+ current empv-volume-step)) (or .volume-max 100))))))
 
 ;;;###autoload
 (defun empv-volume-down ()
@@ -872,9 +871,10 @@ see `empv-base-directory'."
 (defun empv-set-volume ()
   "Set the exact volume."
   (interactive)
-  (empv--transform-property 'volume
-    (lambda (current)
-      (max 0 (min 100 (floor (read-number (format "Volume (0-100, current %s): " (floor current)))))))))
+  (empv--let-properties '(volume-max)
+    (empv--transform-property 'volume
+      (lambda (current)
+        (max 0 (min (or .volume-max 100) (floor (read-number (format "Volume (0-100, current %s): " (floor current))))))))))
 
 ;;;###autoload
 (defun empv-set-playback-speed ()
