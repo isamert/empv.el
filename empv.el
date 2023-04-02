@@ -874,7 +874,7 @@ see `empv-base-directory'."
   (empv--let-properties '(volume-max)
     (empv--transform-property 'volume
       (lambda (current)
-        (max 0 (min (or .volume-max 100) (floor (read-number (format "Volume (0-100, current %s): " (floor current))))))))))
+        (max 0 (min (or .volume-max 100) (floor (read-number (format "Volume (0-%s, current %s): " (floor (or .volume-max 100)) (floor current))))))))))
 
 ;;;###autoload
 (defun empv-set-playback-speed ()
