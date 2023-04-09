@@ -3,7 +3,7 @@
 ;; Copyright (C) 2022  Isa Mert Gurbuz
 
 ;; Author: Isa Mert Gurbuz <isamertgurbuz@gmail.com>
-;; Version: 3.0.0
+;; Version: 3.1.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
 ;; Package-Requires: ((emacs "28.1") (s "1.13.0"))
@@ -264,6 +264,10 @@ is playing but this variable is still holds some channel.")
     (put 'empv-playback-speed-up 'repeat-map 'empv-map)
     (put 'empv-playback-speed-down 'repeat-map 'empv-map)
 
+    (define-key map "x" 'empv-chapter-select)
+    (define-key map "(" 'empv-chapter-prev)
+    (define-key map ")" 'empv-chapter-next)
+
     (define-key map "9" 'empv-volume-down)
     (define-key map "0" 'empv-volume-up)
     (put 'empv-volume-up 'repeat-map 'empv-map)
@@ -343,7 +347,7 @@ Mainly used by embark actions defined in this package.")
 (defvar-local empv--current-file nil
   "Current media file associated with the buffer.")
 
-(defconst empv--playlist-current-indicator "[CURRENT]"
+(defconst empv--playlist-current-indicator (propertize "[CURRENT]" 'face '(:foreground "green"))
   "Simple text to show on the currently playing playlist item.")
 
 
@@ -683,7 +687,7 @@ INDEX is the place where the item appears in the playlist."
   (format
    "%s%s"
    (or (and (alist-get 'current item)
-            (propertize (format "%s " empv--playlist-current-indicator) 'face '(:foreground "green"))) "")
+            (format "%s " empv--playlist-current-indicator)) "")
    (string-trim
     (or (alist-get 'title item)
         (empv--extract-title-from-filename (alist-get 'filename item))))))
@@ -1074,19 +1078,35 @@ Example:
 (defun empv--format-clock (it)
   (format "%02d:%02d" (floor (/ it 60)) (% (floor it) 60)))
 
+(defun empv--format-chapter (chapter-list chapter time-pos duration)
+  ;; NOTE The documentation says current chapter should be marked in
+  ;; chapter-list but it was not in my case. Hence, I use chapter
+  ;; property to get which chapter we are currently on.
+  (let* ((current-chapter (nth chapter chapter-list))
+         (next-chapter (nth (1+ chapter) chapter-list))
+         (current-chapter-time-pos (- time-pos (alist-get 'time current-chapter)))
+         (current-chapter-duration (- (or (alist-get 'time next-chapter) duration) (alist-get 'time current-chapter))))
+    (format
+     "(%s: %s, %s of %s (%%%d))"
+     (propertize "Chapter" 'face 'italic)
+     (propertize (alist-get 'title current-chapter chapter) 'face 'underline)
+     (empv--format-clock current-chapter-time-pos)
+     (empv--format-clock current-chapter-duration)
+     (* (/ current-chapter-time-pos current-chapter-duration) 100))))
+
 ;;;###autoload
 (defun empv-display-current (arg)
   "Display currently playing item's title and media player state.
 If ARG is non-nil, then also put the title to `kill-ring'."
   (interactive "P")
-  (empv--let-properties '(playlist-pos-1 playlist-count time-pos percent-pos duration metadata media-title pause paused-for-cache loop-file loop-playlist)
+  (empv--let-properties '(playlist-pos-1 playlist-count time-pos percent-pos duration metadata media-title pause paused-for-cache loop-file loop-playlist chapter chapter-list)
     (let ((title (string-trim (empv--create-media-summary-for-notification .metadata .media-title)))
           (state (cond
                   ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "yellow")))
                   ((eq .pause t) (propertize "Paused" 'face '(:foreground "grey")))
                   (t (propertize "Playing" 'face '(:foreground "green"))))))
       (empv--display-event
-       "[%s%s, %s of %s (%d%%), %s/%s%s] %s"
+       "[%s%s, %s of %s (%d%%), %s/%s%s] %s %s"
        state
        ;; Show a spinning icon near state, indicating that current
        ;; playlist item is in loop.
@@ -1099,7 +1119,10 @@ If ARG is non-nil, then also put the title to `kill-ring'."
        ;; Show a spinning icon near playlist count, indicating that
        ;; current playlist itself is on loop.
        (if (eq :json-false .loop-playlist) "" " ↻")
-       (propertize title 'face 'bold))
+       (propertize title 'face 'bold)
+       (if .chapter
+           (empv--format-chapter .chapter-list .chapter .time-pos .duration)
+         ""))
       (when arg
         (kill-new title)))))
 
@@ -1109,6 +1132,37 @@ If ARG is non-nil, then also put the title to `kill-ring'."
   (empv--let-properties '(path)
     (empv--display-event "URI copied: %s" (empv--clean-uri .path))
     (kill-new (empv--clean-uri .path))))
+
+
+;;; Interactive - Chapters
+
+(defun empv-chapter-prev ()
+  "Seek to previous chapter in current media file."
+  (interactive)
+  (empv--transform-property 'chapter #'1-))
+
+(defun empv-chapter-next ()
+  "Seek to next chapter in current media file."
+  (interactive)
+  (empv--transform-property 'chapter #'1+))
+
+(defun empv-chapter-select ()
+  "Select a chapter to seek in current media file."
+  (interactive)
+  (empv--let-properties '(chapter chapter-list)
+    (let* ((chapters (seq-map-indexed (lambda (it it-index) `(,@it (id . ,it-index))) .chapter-list))
+           (result (alist-get
+                    'id
+                    (empv--completing-read-object
+                     "Select chapter: "
+                     chapters
+                     :formatter (lambda (it)
+                                  (let ((id (alist-get 'id it)))
+                                    (format "%s %s"
+                                            (alist-get 'title it id)
+                                            (or (and (= .chapter id) empv--playlist-current-indicator) ""))))
+                     :sort? nil))))
+      (empv--cmd 'set_property `(chapter ,result)))))
 
 
 ;;; Radio
