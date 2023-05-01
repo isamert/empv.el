@@ -1182,7 +1182,9 @@ If ARG is non-nil, then also put the title to `kill-ring'."
    (empv--completing-read-object
     "Channel: "
     empv-radio-channels
-    :formatter #'car
+    :formatter (lambda (x) (if (equal x empv-current-radio-channel)
+                          (format "%s %s" (car x) empv--playlist-current-indicator)
+                        (car x)))
     :category 'empv-radio-item)
    t))
 
