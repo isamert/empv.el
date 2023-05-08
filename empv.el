@@ -1738,9 +1738,9 @@ if it can't find one then downloads it from the web."
        (empv--display-lyrics .path .media-title metadata-lyrics)
      (if-let* ((web-lyrics (empv--lyrics-download .media-title)))
          (progn
-           (when empv-lyrics-save-automatically
-             (empv-lyrics-save .path web-lyrics))
-           (empv--display-lyrics .path .media-title web-lyrics))
+           (empv--display-lyrics .path .media-title web-lyrics)
+           (when (and empv-lyrics-save-automatically (file-exists-p (expand-file-name .path)))
+             (empv-lyrics-save .path web-lyrics)))
        (user-error ">> Lyrics not found for '%s" .media-title)))))
 
 (defun empv-lyrics-show (song)
