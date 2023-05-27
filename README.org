@@ -9,7 +9,7 @@ An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this pa
 Workflow is generally =M-x empv-something= and =completing-read= based, no buffers or complex interfaces (except for the tabulated YouTube results with thumbnails).
 
 * Installation
-First, you need to install [[https://mpv.io][mpv]], go check out it's installation instructions for your operating system/distribution.
+First, you need to install [[https://mpv.io][mpv]], go check out its installation instructions for your operating system/distribution.
 
 empv is available through [[https://melpa.org/#/empv][MELPA]]. If you have it set up already, just do ~M-x package-install empv~ and you are good to go. Otherwise please see [[https://melpa.org/#/getting-started][MELPA getting started]] page to learn how you can install packages through MELPA or see the following installation options.
 
