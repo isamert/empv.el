@@ -1561,15 +1561,16 @@ nicely formatted buffer."
 (defun empv-youtube-last-results ()
   "Show and act on last search results."
   (interactive)
-  (thread-last
-    (empv--completing-read-object
-     "YouTube results"
-     empv--last-youtube-candidates
-     :formatter #'empv--format-yt-item
-     :category 'empv-youtube-item
-     :sort? nil)
-    (empv--youtube-item-extract-link)
-    (empv--play-or-enqueue)))
+  (ignore-error (quit minibuffer-quit)
+    (thread-last
+      (empv--completing-read-object
+       "YouTube results"
+       empv--last-youtube-candidates
+       :formatter #'empv--format-yt-item
+       :category 'empv-youtube-item
+       :sort? nil)
+      (empv--youtube-item-extract-link)
+      (empv--play-or-enqueue))))
 
 
 ;;; empv utility
