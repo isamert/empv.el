@@ -232,13 +232,6 @@ Only used in lyrics related functions."
 
 ;;; Public variables
 
-(defvar empv-current-radio-channel
-  nil
-  "Currently playing radio channel.
-The format is `(channel name . channel address)'.  This variable
-does not clean itself up, it's possible that currently no radio
-is playing but this variable is still holds some channel.")
-
 ;;;###autoload
 (defvar empv-map
   (let ((map (make-sparse-keymap)))
@@ -307,10 +300,10 @@ the following media:
 
     https://youtu.be/watch?v=X4bgXH3sJ2Q
 
-empv appends `empv--title-sep' and the media's title to end of
-the URL.
+empv appends `empv--title-sep' and a parsable sexp containing the
+media's title etc. to end of the PATH.
 
-    https://youtu.be/watch?v=X4bgXH3sJ2Q#~Iron Maiden - The Trooper
+    https://youtu.be/watch?v=X4bgXH3sJ2Q##(:title \"Iron Maiden - The Trooper\" :youtube t)
 
 Stuff that starts with # is discarded in the URL while fetching,
 so it's a hackish way to store extra information in the
@@ -583,7 +576,7 @@ happens."
 (defmacro empv--with-media-info (&rest body)
   "Gives you a context containing `.media-title', `.path' `.metadata'"
   `(empv--let-properties '(metadata media-title path)
-     (let ((.media-title (empv--create-media-summary-for-notification .metadata .media-title)))
+     (let ((.media-title (empv--create-media-summary-for-notification .metadata .path .media-title)))
        ,@body)))
 
 (defmacro empv--with-video-enabled (&rest forms)
@@ -635,21 +628,24 @@ URI might be a string or a list of strings."
     (artist . ,(empv--metadata-get data 'artist 'icy-artist))
     (genre  . ,(empv--metadata-get data 'genre 'icy-genre))))
 
-(defun empv--create-media-summary-for-notification (metadata &optional fallback)
+(defun empv--create-media-summary-for-notification (metadata path &optional fallback)
   "Generate a formatted media title like \"Song name - Artist\" from given METADATA."
-  (let-alist (empv--extract-metadata metadata)
-    (if .title
-        (format "%s %s %s"
-                .title
-                (or (and .artist "-") "")
-                (or .artist ""))
-      fallback)))
+  (let ((empv-metadata (empv--extract-empv-metadata-from-path path)))
+    (let-alist (empv--extract-metadata metadata)
+      (if .title
+          (format "%s %s %s"
+                  .title
+                  (or (and .artist "-") "")
+                  (or .artist ""))
+        (or
+         (plist-get empv-metadata :title)
+         fallback)))))
 
 (defun empv--handle-metadata-change (data)
   "Display info about the current track using DATA."
   (empv--dbg "handle-metadata-change <> %s" data)
   (empv--let-properties '(media-title path)
-    (let ((title (empv--create-media-summary-for-notification data .media-title)))
+    (let ((title (empv--create-media-summary-for-notification data .path .media-title)))
       (empv--display-event "%s" title)
       (puthash .path title empv--media-title-cache))))
 
@@ -665,21 +661,48 @@ URI might be a string or a list of strings."
     (empv--observe metadata (empv--handle-metadata-change it))
     (run-hooks 'empv-init-hook)))
 
-(defun empv--extract-title-from-filename (fname)
-  "Find the media title for FNAME.
-Try to gather it from internal cache or extract it from FNAME
-directly if FNAME is a URL.  Also see `empv--title-sep' and
-`empv--media-title-cache' documentation."
+(defun empv--extract-empv-metadata-from-path (path)
+  "Extract the metadata encoded in PATH.
+Some metadata is encoded into PATH and this function tries to
+parse that and returns a form along the lines of:
+
+    '(:title \"...\" :uri \"the-real-uri-without-metadata\" :radio nil/t :youtube nil/t)
+
+:TITLE is the human readable name of the path. This function also
+checks if is there any cached name for this PATH.
+
+:URI is the PATH but without the encoded metadata. Clean version
+of the PATH.
+
+:RADIO indicates if this PATH is a radio stream or not (only true
+if invoked by `empv-play-radio' etc.)
+
+:YOUTUBE indicates if this PATH is a YouTube path or not (only
+true if invoked by `empv-youtube' family of functions.)
+
+Also see `empv--title-sep' and `empv--media-title-cache'
+documentation."
   ;; First try the URL encoded title and then check for the
   ;; media-title cache.  Cache may contain last playing media's title
   ;; for a stream, not the name for the stream itself. URL encoded
   ;; title probably has the stream's title. (At least this is the case
   ;; for radio streams, see `empv-radio-channels' and
   ;; `empv--play-radio-channel')
-  (let ((s (split-string fname empv--title-sep)))
-    (or (nth 1 s)
-        (gethash
-         fname empv--media-title-cache (abbreviate-file-name (car s))))))
+  (let ((s (split-string path empv--title-sep)))
+    (if-let (data (nth 1 s))
+        (if-let (((and (string-prefix-p "(" data) (string-suffix-p ")" data)))
+                 (parsed (ignore-errors (read data))))
+            `(,@parsed :uri ,(car s))
+          (list :uri (car s)
+                :title (gethash path empv--media-title-cache (abbreviate-file-name (car s))))))))
+
+(cl-defmacro empv--with-empv-metadata (&rest forms)
+  "Gives you a context containing `empv-metadata' and execute FORMS.
+See `empv--extract-empv-metadata-from-path' documentation to
+see what `empv-metadata' object looks like."
+  `(empv--let-properties '(path)
+     (let ((empv-metadata (empv--extract-empv-metadata-from-path .path)))
+       ,@forms)))
 
 (defun empv--format-playlist-item (item)
   "Format given ITEM into a readable item.
@@ -690,7 +713,7 @@ INDEX is the place where the item appears in the playlist."
             (format "%s " empv--playlist-current-indicator)) "")
    (string-trim
     (or (alist-get 'title item)
-        (empv--extract-title-from-filename (alist-get 'filename item))))))
+        (plist-get (empv--extract-empv-metadata-from-path (alist-get 'filename item)) :title)))))
 
 (defmacro empv--playlist-select-item-and (&rest forms)
   "Select a playlist item and then run FORMS with the input.
@@ -756,7 +779,8 @@ switch to it"
        ('playlist-play-index (1- it))
        ('set_property '(pause :json-false)))
     (empv-start uri))
-  (empv--display-event "Playing %s" uri))
+  (when (called-interactively-p 'interactive)
+    (empv--display-event "Playing %s" uri)))
 
 (defun empv-seek (target &optional type)
   "Change the playback position according to TARGET.
@@ -1099,14 +1123,15 @@ Example:
   "Display currently playing item's title and media player state.
 If ARG is non-nil, then also put the title to `kill-ring'."
   (interactive "P")
-  (empv--let-properties '(playlist-pos-1 playlist-count time-pos percent-pos duration metadata media-title pause paused-for-cache loop-file loop-playlist chapter chapter-list)
-    (let ((title (string-trim (empv--create-media-summary-for-notification .metadata .media-title)))
+  (empv--let-properties '(playlist-pos-1 playlist-count time-pos percent-pos duration metadata media-title pause paused-for-cache loop-file loop-playlist chapter chapter-list path)
+    (let ((title (string-trim (empv--create-media-summary-for-notification .metadata .path .media-title)))
           (state (cond
                   ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "yellow")))
                   ((eq .pause t) (propertize "Paused" 'face '(:foreground "grey")))
-                  (t (propertize "Playing" 'face '(:foreground "green"))))))
+                  (t (propertize "Playing" 'face '(:foreground "green")))))
+          (empv-metadata (empv--extract-empv-metadata-from-path .path)))
       (empv--display-event
-       "[%s%s, %s of %s (%d%%), %s/%s%s] %s %s"
+       "[%s%s, %s of %s (%d%%), %s/%s%s%s] %s %s"
        state
        ;; Show a spinning icon near state, indicating that current
        ;; playlist item is in loop.
@@ -1119,6 +1144,10 @@ If ARG is non-nil, then also put the title to `kill-ring'."
        ;; Show a spinning icon near playlist count, indicating that
        ;; current playlist itself is on loop.
        (if (eq :json-false .loop-playlist) "" " ↻")
+       ;; If it's a radio being played, show the radio name too
+       (if (plist-get empv-metadata :radio)
+           (concat ", " (propertize (plist-get empv-metadata :title) 'face 'italic))
+         "")
        (propertize title 'face 'bold)
        (if .chapter
            (empv--format-chapter .chapter-list .chapter .time-pos .duration)
@@ -1168,8 +1197,8 @@ If ARG is non-nil, then also put the title to `kill-ring'."
 ;;; Radio
 
 (defun empv--play-radio-channel (channel &optional ask)
-  (setq empv-current-radio-channel channel)
-  (let ((url (format "%s%s%s" (cdr channel) empv--title-sep (car channel))))
+  (let* ((data (list :title (car channel) :url (cdr channel) :radio t))
+         (url (format "%s%s%s" (cdr channel) empv--title-sep (prin1-to-string data))))
     (if ask
         (empv--play-or-enqueue url)
       (empv-play url))))
@@ -1178,15 +1207,16 @@ If ARG is non-nil, then also put the title to `kill-ring'."
 (defun empv-play-radio ()
   "Play radio channels."
   (interactive)
-  (empv--play-radio-channel
-   (empv--completing-read-object
-    "Channel: "
-    empv-radio-channels
-    :formatter (lambda (x) (if (equal x empv-current-radio-channel)
-                          (format "%s %s" (car x) empv--playlist-current-indicator)
-                        (car x)))
-    :category 'empv-radio-item)
-   t))
+  (empv--with-empv-metadata
+   (empv--play-radio-channel
+    (empv--completing-read-object
+     "Channel: "
+     empv-radio-channels
+     :formatter (lambda (x) (if (equal (cdr x) (plist-get empv-metadata :uri))
+                           (format "%s %s" (car x) empv--playlist-current-indicator)
+                         (car x)))
+     :category 'empv-radio-item)
+    t)))
 
 ;;;###autoload
 (defun empv-play-random-channel ()
@@ -1274,11 +1304,12 @@ finishes."
   "Find and return YouTube url for ITEM."
   (let ((video-id (alist-get 'videoId item))
         (playlist-id (alist-get 'playlistId item)))
-    (format "https://youtube.com/%s=%s%s%s"
-            (if video-id "watch?v" "playlist?list")
-            (or video-id playlist-id)
-            empv--title-sep
-            (alist-get 'title item))))
+    (format
+     "https://youtube.com/%s=%s%s%s"
+     (if video-id "watch?v" "playlist?list")
+     (or video-id playlist-id)
+     empv--title-sep
+     (prin1-to-string (list :title (alist-get 'title item) :youtube t)))))
 
 (defun empv--youtube (term type)
   "Search TERM in YouTube.
