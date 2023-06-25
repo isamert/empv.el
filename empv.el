@@ -660,24 +660,24 @@ URI might be a string or a list of strings."
 
 (defun empv--create-media-summary-for-notification (metadata path &optional fallback)
   "Generate a formatted media title like \"Song name - Artist\" from given METADATA."
-  (let ((empv-metadata (empv--extract-empv-metadata-from-path path)))
-    (let-alist (empv--extract-metadata metadata)
-      (if .title
-          (format "%s %s %s"
-                  .title
-                  (or (and .artist "-") "")
-                  (or .artist ""))
-        (or
-         (plist-get empv-metadata :title)
-         fallback)))))
+  (let-alist (empv--extract-metadata metadata)
+    (if .title
+        (format "%s %s %s"
+                (string-trim .title)
+                (or (and .artist "-") "")
+                (or .artist ""))
+      (or
+       (plist-get (empv--extract-empv-metadata-from-path path) :title)
+       fallback))))
 
 (defun empv--handle-metadata-change (data)
   "Display info about the current track using DATA."
   (empv--dbg "handle-metadata-change <> %s" data)
   (empv--let-properties '(media-title path)
-    (let ((title (empv--create-media-summary-for-notification data .path .media-title)))
-      (empv--display-event "%s" title)
-      (puthash .path title empv--media-title-cache))))
+    (when .path
+      (let ((title (empv--create-media-summary-for-notification data .path .media-title)))
+        (empv--display-event "%s" title)
+        (puthash (empv--clean-uri .path) title empv--media-title-cache)))))
 
 (defun empv-start (&optional uri)
   "Start mpv using `empv-mpv-command' with given URI."
@@ -716,13 +716,17 @@ documentation."
   ;; title probably has the stream's title. (At least this is the case
   ;; for radio streams, see `empv-radio-channels' and
   ;; `empv--play-radio-channel')
-  (let ((s (split-string (or path "") empv--title-sep)))
-    (if-let (data (nth 1 s))
-        (if-let (((and (string-prefix-p "(" data) (string-suffix-p ")" data)))
-                 (parsed (ignore-errors (read data))))
-            `(,@parsed :uri ,(car s))
-          (list :uri (car s)
-                :title (gethash path empv--media-title-cache (abbreviate-file-name (car s))))))))
+  (pcase-let* ((`(,uri ,data) (split-string (or path "") empv--title-sep)))
+    (if-let (parsed
+             (and data
+                  (string-prefix-p "(" data)
+                  (string-suffix-p ")" data)
+                  (ignore-errors (read data))))
+        `(,@parsed :uri ,uri)
+      (list
+       :uri uri
+       :title (gethash uri empv--media-title-cache
+                       (abbreviate-file-name uri))))))
 
 (cl-defmacro empv--with-empv-metadata (&rest forms)
   "Gives you a context containing `empv-metadata' and execute FORMS.
@@ -741,7 +745,10 @@ INDEX is the place where the item appears in the playlist."
             (format "%s " empv--playlist-current-indicator)) "")
    (string-trim
     (or (alist-get 'title item)
-        (plist-get (empv--extract-empv-metadata-from-path (alist-get 'filename item)) :title)))))
+        (thread-first
+          (alist-get 'filename item)
+          empv--extract-empv-metadata-from-path
+          (plist-get :title))))))
 
 (defmacro empv--playlist-select-item-and (&rest forms)
   "Select a playlist item and then run FORMS with the input.
