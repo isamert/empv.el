@@ -358,6 +358,27 @@ Mainly used by embark actions defined in this package.")
   "Return the first index in SEQ for which FN evaluate to non-nil."
   (seq-position seq 'empv-dummy-item (lambda (it _) (funcall fn it))))
 
+(cl-defmacro empv--wait-until-non-nil (place &rest forms)
+  "Wait until PLACE is non-nil, after executing FORMS."
+  (declare (indent 1))
+  `(let (,place (try-count 0))
+     ,@forms
+     (while (and (not result) (< try-count 500))
+       (setq try-count (1+ try-count))
+       (sleep-for 0.01))
+     result))
+
+(cl-defmacro empv--try-until-non-nil (place &rest forms)
+  "Run FORMS until PLACE becomes non-nil."
+  (declare (indent 1))
+  `(let (,place (try-count 0))
+     ,@forms
+     (while (and (not result) (< try-count 500))
+       (setq try-count (1+ try-count))
+       (sleep-for 0.01)
+       ,@forms)
+     result))
+
 (defun empv--running? ()
   "Return if there is an mpv instance running or not."
   empv--process)
@@ -494,15 +515,6 @@ the result.
 
 ;;; Process primitives
 
-(defun empv--make-network-process ()
-  "Create the network process for mpv."
-  (setq empv--network-process
-        (make-network-process :name "empv-network-process"
-                              :family 'local
-                              :service empv-socket-file
-                              :sentinel #'empv--sentinel
-                              :filter #'empv--filter)))
-
 (defun empv--make-process (&optional uri)
   "Create the MPV process with given URI."
   (setq empv--process
@@ -511,6 +523,20 @@ the result.
                       :command (if uri
                                    `(,empv-mpv-binary ,@empv-mpv-args ,uri)
                                  `(,empv-mpv-binary ,@empv-mpv-args)))))
+
+(defun empv--make-network-process ()
+  "Create the network process for mpv.
+Blocks until mpv process establishes it's socket interface."
+  (setq empv--network-process
+        (empv--try-until-non-nil result
+          (setq result
+                (ignore-error file-error
+                  (make-network-process :name "empv-network-process"
+                                        :family 'local
+                                        :service empv-socket-file
+                                        :sentinel #'empv--sentinel
+                                        :filter #'empv--filter))))))
+
 
 (defun empv--send-command (command &optional callback event?)
   "Send COMMAND to mpv and call CALLBACK when mpv responds.
@@ -531,6 +557,11 @@ happens."
      (empv--dbg ">> %s" msg)
      request-id)))
 
+(defun empv--send-command-sync (command)
+  "Send COMMAND to mpv process and return the result."
+  (empv--wait-until-non-nil result
+    (empv--send-command command (lambda (x) (setq result x)))))
+
 
 ;;; Essential macros
 
@@ -547,14 +578,6 @@ happens."
    (lambda (acc it) `(empv--cmd ,(nth 0 it) ,(nth 1 it) (,@acc)))
    (reverse forms)
    '()))
-
-(defmacro empv--observe (property &rest forms)
-  "Observe PROPERTY and call FORMS when it does chage."
-  `(empv--send-command
-    '(observe_property ,property)
-    (lambda (it)
-      ,@forms)
-    t))
 
 (defmacro empv--let-properties (props &rest forms)
   (declare (indent 1))
@@ -596,6 +619,13 @@ happens."
       (let ((new-val (funcall ,fn result)))
         (empv--send-command (list "set_property" ,property new-val) #'ignore)
         (empv--display-event "%s is set to %s" (capitalize (symbol-name ,property)) new-val)))))
+
+
+;;; User level helpers
+
+(defun empv-observe (property callback)
+  "Observe PROPERTY and call CALLBACK when it does change."
+  (empv--send-command `(observe_property ,property) callback t))
 
 
 ;;; Essential functions
@@ -655,10 +685,8 @@ URI might be a string or a list of strings."
   (unless (empv--running?)
     (empv--dbg "Starting MPV.")
     (empv--make-process uri)
-    ;; TODO: remove sleep
-    (sleep-for 1.5)
     (empv--make-network-process)
-    (empv--observe metadata (empv--handle-metadata-change it))
+    (empv-observe 'metadata #'empv--handle-metadata-change)
     (run-hooks 'empv-init-hook)))
 
 (defun empv--extract-empv-metadata-from-path (path)
@@ -666,7 +694,7 @@ URI might be a string or a list of strings."
 Some metadata is encoded into PATH and this function tries to
 parse that and returns a form along the lines of:
 
-    '(:title \"...\" :uri \"the-real-uri-without-metadata\" :radio nil/t :youtube nil/t)
+    \\='(:title \"...\" :uri \"the-real-uri-without-metadata\" :radio nil/t :youtube nil/t)
 
 :TITLE is the human readable name of the path. This function also
 checks if is there any cached name for this PATH.
@@ -688,7 +716,7 @@ documentation."
   ;; title probably has the stream's title. (At least this is the case
   ;; for radio streams, see `empv-radio-channels' and
   ;; `empv--play-radio-channel')
-  (let ((s (split-string path empv--title-sep)))
+  (let ((s (split-string (or path "") empv--title-sep)))
     (if-let (data (nth 1 s))
         (if-let (((and (string-prefix-p "(" data) (string-suffix-p ")" data)))
                  (parsed (ignore-errors (read data))))
@@ -728,6 +756,7 @@ This function also tries to disable sorting in `completing-read' function."
        (ignore item)
        ,@forms)))
 
+;;;###autoload
 (cl-defun empv--completing-read-object
     (prompt objects &key (formatter #'identity) category (sort? t) def multiple?)
   "`completing-read' with formatter and sort control.
