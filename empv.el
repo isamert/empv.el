@@ -1735,7 +1735,7 @@ path. No guarantees."
          (or
           (s-match "<div class=\"inhalt\">\\(.*\\)<a href=\"" it) ;; sturmgeweiht
           (s-match "Sorry about that\\. -->\\(.*\\)<!-- MxM banner -->" it) ;; azlyrics
-          (s-match "\\\\\"html\\\\\":\\\\\"\\(.*\\)\\\\\",\\\\\"children\\\\\":" it) ;; genius
+          (s-match "window.__PRELOADED_STATE__ =.*\\\\\"html\\\\\":\\\\\"\\(.*\\)\\\\\",\\\\\"children\\\\\":" it) ;; genius
           (s-match "x-ref=\"lyric_text\">\\(.*\\)</p>" it) ;; lyrics.az
           (s-match "<div class=\"main-panel-content\".*?>\\(.*\\)<div class=\"sharebar-wrapper\"" it) ;; flashlyrics
           )))
