@@ -1674,6 +1674,8 @@ path. No guarantees."
   (interactive)
   (empv--play-or-enqueue (empv-media-at-point)))
 
+(defalias 'empv-play-thing-at-point #'empv-play-media-at-point)
+
 
 ;; Lyrics manager
 
