@@ -666,9 +666,7 @@ URI might be a string or a list of strings."
                 (string-trim .title)
                 (or (and .artist "-") "")
                 (or .artist ""))
-      (or
-       (plist-get (empv--extract-empv-metadata-from-path path) :title)
-       fallback))))
+      (plist-get (empv--extract-empv-metadata-from-path path fallback) :title))))
 
 (defun empv--handle-metadata-change (data)
   "Display info about the current track using DATA."
@@ -689,7 +687,7 @@ URI might be a string or a list of strings."
     (empv-observe 'metadata #'empv--handle-metadata-change)
     (run-hooks 'empv-init-hook)))
 
-(defun empv--extract-empv-metadata-from-path (path)
+(defun empv--extract-empv-metadata-from-path (path &optional fallback)
   "Extract the metadata encoded in PATH.
 Some metadata is encoded into PATH and this function tries to
 parse that and returns a form along the lines of:
@@ -726,7 +724,7 @@ documentation."
       (list
        :uri uri
        :title (gethash uri empv--media-title-cache
-                       (abbreviate-file-name uri))))))
+                       (or fallback (abbreviate-file-name uri)))))))
 
 (cl-defmacro empv--with-empv-metadata (&rest forms)
   "Gives you a context containing `empv-metadata' and execute FORMS.
