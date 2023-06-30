@@ -1160,7 +1160,13 @@ Example:
   "Display currently playing item's title and media player state.
 If ARG is non-nil, then also put the title to `kill-ring'."
   (interactive "P")
-  (empv--let-properties '(playlist-pos-1 playlist-count time-pos percent-pos duration metadata media-title pause paused-for-cache loop-file loop-playlist chapter chapter-list path)
+  (empv--let-properties '( playlist-pos-1 playlist-count
+                           time-pos percent-pos duration
+                           metadata media-title path
+                           pause paused-for-cache loop-file loop-playlist
+                           chapter chapter-list
+                           volume option-info/volume/default-value
+                           speed option-info/volume/default-value)
     (let ((title (string-trim (empv--create-media-summary-for-notification .metadata .path .media-title)))
           (state (cond
                   ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "yellow")))
@@ -1168,7 +1174,7 @@ If ARG is non-nil, then also put the title to `kill-ring'."
                   (t (propertize "Playing" 'face '(:foreground "green")))))
           (empv-metadata (empv--extract-empv-metadata-from-path .path)))
       (empv--display-event
-       "[%s%s, %s of %s (%d%%), %s/%s%s%s] %s %s"
+       "[%s%s, %s of %s (%d%%), %s/%s%s%s%s%s] %s %s"
        state
        ;; Show a spinning icon near state, indicating that current
        ;; playlist item is in loop.
@@ -1184,6 +1190,12 @@ If ARG is non-nil, then also put the title to `kill-ring'."
        ;; If it's a radio being played, show the radio name too
        (if (plist-get empv-metadata :radio)
            (concat ", " (propertize (plist-get empv-metadata :title) 'face 'italic))
+         "")
+       (if (not (= .volume (or .option-info/volume/default-value 100)))
+           (concat ", " (propertize (format "🔊 %s" (floor .volume)) 'face 'bold))
+         "")
+       (if (not (= .speed (or .option-info/speed/default-value 1)))
+           (concat ", " (propertize (format "⏩ %s" .speed) 'face 'bold))
          "")
        (propertize title 'face 'bold)
        (if .chapter
