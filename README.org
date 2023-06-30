@@ -77,6 +77,7 @@ Thumbnails greatly help to identify the right video in a search. Using ~completi
 
 You can also set ~empv-youtube-use-tabulated-results~ to a non-nil value to make YouTube commands use the tabulated interface by default at all times.
 
+* Tips/Extras
 ** Viewing YouTube videos
 If you start playing a YouTube video, it'll start playing in background. You may be tempted to call =empv-toggle-video= to start watching the video itself but it'll not work. /mpv/ tries to be smart when it's in background and it only downloads the audio if it's possible. If you want to be able to watch YouTube videos whenever you want, you need to add something like this to your configuration to force-download videos:
 
@@ -91,4 +92,11 @@ See [[https://github.com/ytdl-org/youtube-dl/blob/master/README.md#format-select
 
 #+begin_src emacs-lisp
   (add-to-list 'empv-mpv-args "--save-position-on-quit")
+#+end_src
+
+** Getting notified on media change
+empv already notifies you when media changes by default (see ~empv-display-events~), or you can always call ~empv-display-current~ to get the details for currently playing media and status of the media player itself. But you may also want to take an action programatically when current media (or any other property of mpv) changes. You can register an observer to underlying property changes of /mpv/ through ~empv-observe~ function. See [[https://github.com/mpv-player/mpv/blob/master/DOCS/man/input.rst#property-list][list of properties]] that you can subscribe to their changes. Here is an example showing you how you can register an observer to ~metadata~ change event:
+
+#+begin_src emacs-lisp
+  (empv-observe 'metadata (lambda (data) (message "Metadata changed, new metadata is: %s" data)))
 #+end_src
