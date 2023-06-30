@@ -1012,13 +1012,14 @@ that is defined in `empv-radio-log-format'.
 When CAPTURE? is non-nil, also ask user for extra input to save
 along with the log."
   (interactive "P")
-  (empv--let-properties '(metadata)
-    (when-let ((title (alist-get 'icy-title .metadata)))
+  (empv--let-properties '(metadata path)
+    (when-let ((title (alist-get 'icy-title .metadata))
+               (empv-metadata (empv--extract-empv-metadata-from-path .path)))
       (write-region
        (thread-last
          empv-radio-log-format
          (string-replace "#{timestamp}" (format "[%s]" (format-time-string "%F %a %R")))
-         (string-replace "#{channel-name}" (car empv-current-radio-channel))
+         (string-replace "#{channel-name}" (plist-get empv-metadata :title))
          (string-replace "#{track-title}" title)
          (string-replace "#{capture}" (if capture? (read-string "Extra notes: ") "")))
        nil empv-radio-log-file 'append)
