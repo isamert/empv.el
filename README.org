@@ -2,7 +2,9 @@
 
 [[https://melpa.org/#/empv][file:https://melpa.org/packages/empv-badge.svg]]
 
-An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this package provides somewhat comprehensive interface to mpv with bunch of convenient functionality like an embedded radio manager, YouTube interface, local music/video library manager etc.
+An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this package provides somewhat comprehensive interface to mpv with bunch of convenient functionality like an embedded radio manager, YouTube interface, local music/video library manager, lyrics manager etc.
+
+Scroll to bottom of the page to see the *screenshots*.
 
 /empv/ is mostly focused on audio but it also provides some means to manage videos. It also supports YouTube searches for consuming audios or videos.
 
@@ -37,19 +39,19 @@ Yet another option is just downloading =empv.el= file and putting into your =loa
 
 Some functionality may require the external program [[https://github.com/sharkdp/fd][fd]]. You are also advised to install it.
 
-* Embark and Consult integration
-If you have [[https://github.com/minad/consult][consult]] and [[https://github.com/oantolin/embark][embark]] installed on your Emacs, ~empv.el~ will automatically integrate itself with them. If you have ~consult~ installed, you get search suggestions during YouTube searches (~empv-youtube~) and if you have embark installed you get embark actions for playing/enqueueing selected media. This makes it easy to enqueue bunch of media results using ~embark-act-all~, or you can call ~embark-act~ on a file inside a ~dired~ buffer and you'll see options to play or enqueue given file or folder.
+* Basics
+See /Keybindings/ section down below to learn more about the bindings and the commands. Here are a few basic functions that'll get you started:
 
-To enable extra embark integration, add the following to your init file:
-
-#+begin_src emacs-lisp
-  (with-eval-after-load 'embark (empv-embark-initialize-extra-actions))
-#+end_src
-
-This is not automatically applied because it has some drawbacks, please refer to the documentation of ~empv-embark-initialize-extra-actions~.
-
-* Functionality and configuration
-Do =M-x= and then search for =empv-= to list all available functions. Also check out all configuration options by doing =M-x customize-group empv RET=. I'll go over some extra configuration options that you may want to use:
+- empv-play
+- empv-play-{file,audio,video,directory,radio,random-channel}
+- empv-playlist-{select,next,prev,clear,shuffle}
+- empv-display-current
+- empv-toggle
+- empv-toggle-video
+- empv-youtube
+- empv-volume-{down,up}
+- empv-chapter-{prev,next,select}
+- empv-exit
 
 ** Keybindings
 No default keybindings are provided but there is ~empv-map~ keymap which contains all the useful empv actions. You can bind this keymap to a key, like following:
@@ -61,6 +63,12 @@ No default keybindings are provided but there is ~empv-map~ keymap which contain
 ...and now you can do ~C-x m t~ to toggle playback, for example. Do ~M-x describe-keymap empv-map~ to list all actions in this keymap.
 
 Some keys are repeatable in this keymap. Continuing with the example above, you can do ~C-x m n~ to switch to the next media item in the playlist and if you want to go to the next item again just hit ~n~ this time (or ~N~ to go back one item), as it's repeatable. Keys that control sound level, playback speed are also repeatable.
+
+** Playing options
+When you invoke one of the functions that triggers playing a media, you'll be automatically presented with some options that asks you whether you want to /play directly/, /enqueue next/ or /enqueue last/. By default this uses ~read-multiple-choice~ to ask you about your choices. You can change this to use ~completing-read~ based interface if you want by setting ~empv-action-handler~ variable to ~completing-read~. See the variable documentation for more information.
+
+* Extra functionality and configuration
+Do =M-x= and then search for =empv-= to list all available functions. Currently there are ~66 interactive functions. Also check out all configuration options by doing =M-x customize-group empv RET=. I'll go over some extra configuration options that you may want to use:
 
 ** General YouTube configuration
 /empv.el/ lets you search in YouTube videos/playlists and play them in background or just play the video itself. It also let's you view YouTube comments of a video in a nicely formatted org buffer. This is done through [[https://github.com/iv-org/invidious][invidious]] API. It's a privacy respecting front-end (and API) for YouTube. To be able to use these features, you need to set an invidious instance manually, like:
@@ -77,7 +85,19 @@ Thumbnails greatly help to identify the right video in a search. Using ~completi
 
 You can also set ~empv-youtube-use-tabulated-results~ to a non-nil value to make YouTube commands use the tabulated interface by default at all times.
 
-* Tips/Extras
+There is also functions for reopening the last YouTube search results: ~empv-youtube-last-results~ and ~empv-youtube-tabulated-last-results~ which helps if you accidentally close the search results or you did a ~completing-read~ search and you actually wanted to see thumbnails with the tabulated results.
+
+** Embark and Consult integration
+If you have [[https://github.com/minad/consult][consult]] and [[https://github.com/oantolin/embark][embark]] installed on your Emacs, ~empv.el~ will automatically integrate itself with them. If you have ~consult~ installed, you get search suggestions during YouTube searches (~empv-youtube~) and if you have embark installed you get embark actions for playing/enqueueing selected media. This makes it easy to enqueue bunch of media results using ~embark-act-all~, or you can call ~embark-act~ on a file inside a ~dired~ buffer and you'll see options to play or enqueue given file or folder.
+
+To enable extra embark integration, add the following to your init file:
+
+#+begin_src emacs-lisp
+  (with-eval-after-load 'embark (empv-embark-initialize-extra-actions))
+#+end_src
+
+This is not automatically applied because it has some drawbacks, please refer to the documentation of ~empv-embark-initialize-extra-actions~.
+
 ** Viewing YouTube videos
 If you start playing a YouTube video, it'll start playing in background. You may be tempted to call =empv-toggle-video= to start watching the video itself but it'll not work. /mpv/ tries to be smart when it's in background and it only downloads the audio if it's possible. If you want to be able to watch YouTube videos whenever you want, you need to add something like this to your configuration to force-download videos:
 
@@ -86,6 +106,12 @@ If you start playing a YouTube video, it'll start playing in background. You may
 #+end_src
 
 See [[https://github.com/ytdl-org/youtube-dl/blob/master/README.md#format-selection][this page]] for how you can use =--ytdl-format= option.
+
+** Lyrics manager
+empv has two functions for managing lyrics:
+- ~empv-lyrics-current~ :: Get the lyrics for currently playing (or paused) song. First, it checks if there is a lyrics embedded in the media file, otherwise it tries to fetch it from web. This works fairly well for popular songs, may have false positives for more obscure songs.
+  - The resulting buffer is editable and you can embed the lyrics to media file by doing ~C-c C-c~ (or by calling ~empv-lyrics-save~). For this to work, you need to have ~eyeD3~ program available in your path. Also check out ~empv-lyrics-save-automatically~ variable.
+- ~empv-lyrics-show~ :: Like ~empv-lyrics-current~ but asks you for a song name.
 
 ** Saving playback position
 =empv-save-and-exit= shuts down empv and saves the current playing position but you can also add ~--save-position-on-quit~ to ~empv-mpv-args~ to get the same effect by default so that every time you quit empv, it'll automatically save the playback position of the currently playing file and it'll seek to previous position on start.
@@ -100,3 +126,35 @@ empv already notifies you when media changes by default (see ~empv-display-event
 #+begin_src emacs-lisp
   (empv-observe 'metadata (lambda (data) (message "Metadata changed, new metadata is: %s" data)))
 #+end_src
+
+* Screenshots
+
+| Actions                                                                                                   |
+|-----------------------------------------------------------------------------------------------------------|
+| [[file:https://user-images.githubusercontent.com/8031017/250307688-1f147e6c-e860-4778-9927-e7401efdf32b.png]] |
+
+| Info                                                                                                      |
+|-----------------------------------------------------------------------------------------------------------|
+| [[file:https://user-images.githubusercontent.com/8031017/250307794-d4e5fbec-e468-4e52-aa36-1bd3c236d486.png]] |
+| [[file:https://user-images.githubusercontent.com/8031017/250311428-207c40eb-b49f-480c-8a67-f5e6d78bcb5d.png]] |
+
+| Playlist & Chapters                                                                                       |
+|-----------------------------------------------------------------------------------------------------------|
+| [[file:https://user-images.githubusercontent.com/8031017/250311617-be72c3ed-d971-4272-9b5a-1ab8081c6104.png]] |
+| [[file:https://user-images.githubusercontent.com/8031017/250311395-f860f490-b1c2-4905-ade3-26f52d40456c.png]] |
+
+| Lyrics                                                                                                    |
+|-----------------------------------------------------------------------------------------------------------|
+| [[file:https://user-images.githubusercontent.com/8031017/250307735-8c549788-b193-4d28-b7dc-9d03dcf62bd1.png]] |
+
+| YouTube search suggestion                                                                                 |
+|-----------------------------------------------------------------------------------------------------------|
+| [[file:https://user-images.githubusercontent.com/8031017/250307075-3a46065d-96b5-45f8-ba56-7286581896ea.png]] |
+
+| YouTube results                                                                                           |
+|-----------------------------------------------------------------------------------------------------------|
+| [[file:https://user-images.githubusercontent.com/8031017/250307601-8a1ee5e5-4cc3-4cd8-9f5e-47284914b7cf.png]] |
+
+| YouTube tabulated results                                                                                 |
+|-----------------------------------------------------------------------------------------------------------|
+| [[file:https://user-images.githubusercontent.com/8031017/250307500-a95f84ac-0ba0-45a6-b3eb-e6153e2fe46a.png]] |
