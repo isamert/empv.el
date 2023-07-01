@@ -87,7 +87,12 @@ You can also set ~empv-youtube-use-tabulated-results~ to a non-nil value to make
 
 There is also functions for reopening the last YouTube search results: ~empv-youtube-last-results~ and ~empv-youtube-tabulated-last-results~ which helps if you accidentally close the search results or you did a ~completing-read~ search and you actually wanted to see thumbnails with the tabulated results.
 
-** Radio manager
+** Local media management
+~empv-play-audio~ and ~empv-play-video~ functions let's you quickly select a local media file found on your computer through ~completing-read~ and play it. This works by finding all files under ~empv-audio-dir~ or ~empv-video-dir~ (Also see ~empv-video-file-extensions~, ~empv-audio-file-extensions~ and ~empv-max-directory-search-depth~ variables). You can even enqueue multiple files at the same time by using ~embark~. See down below to learn how you can configure embark support.
+
+You can still use ~empv-play-file~ to select and play files using classic ~read-file-name~ interface or ~empv-play-thing-at-point~ on a URI or in a dired buffer to play selected media.
+
+** Radio/stream management
 /Radio manager/ is just a way to easily play internet streams (any type of stream that mpv supports, it might be even YouTube videos etc. It doesn't event need to be internet resources, might be just local files too). You just need to set ~empv-radio-channels~ as you wish in the following format (following is the default value, so actually you don't need to set it if you want to only use these radios):
 
 #+begin_src emacs-lisp
