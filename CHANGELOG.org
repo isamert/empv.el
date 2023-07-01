@@ -1,3 +1,27 @@
+* 4.0.0
+
+- Various fixes.
+- Moved ~embark~ to ~empv.el~ again.
+- Added two new interactive functions for lyrics management:
+  - ~empv-lyrics-current~
+  - ~empv-lyrics-show~
+- Added new utility functions:
+  - ~empv-toggle-current-loop~
+  - ~empv-toggle-playlist-loop~
+  - ~empv-play-media-at-point~
+- Media chapters are now supported. You can use following functions:
+  - ~empv-chapter-next~
+  - ~empv-chapter-prev~
+  - ~empv-chapter-select~
+- Now currently played radio is marked with ~[CURRENT]~ in ~empv-play-radio~.
+- ~empv-display-current~ is improved.
+  - It shows if current file or playlist is on loop.
+  - It shows the current volume level and play speed if they differ from the default value.
+  - It shows the chapter related information, if available.
+- Volume now can be increased to ~volume-max~ value of mpv.
+- Now thumbnail downloading on ~empv-youtube-tabulated~ can be disabled by setting ~empv-youtube-thumbnail-quality~ to nil
+- Now ~empv-video-dir~ and ~empv-audio-dir~ can be list of directories instead of a single directory.
+
 * 3.0.0
 
 - Moved ~embark~ support into another file, ~empv-embark.el~. Now you need to ~require~ this file to be able to call ~empv-initialize-embark~.
