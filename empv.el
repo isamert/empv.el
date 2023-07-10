@@ -1734,7 +1734,7 @@ path. No guarantees."
                         (string-replace "%2D" "-")
                         (string-replace "%2D" "+"))))
       ;; Then find the first sturmgeweiht|azlyrics|genius link
-      (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\|genius.com/.*-lyrics\\)" it)))
+      (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\)" it)))
       (url-unhex-string)
       (empv--request-raw-sync)
       (string-replace "" "")
@@ -1746,7 +1746,7 @@ path. No guarantees."
          (or
           (s-match "<div class=\"inhalt\">\\(.*\\)<a href=\"" it) ;; sturmgeweiht
           (s-match "Sorry about that\\. -->\\(.*\\)<!-- MxM banner -->" it) ;; azlyrics
-          (s-match "window.__PRELOADED_STATE__ =.*\\\\\"html\\\\\":\\\\\"\\(.*\\)\\\\\",\\\\\"children\\\\\":" it) ;; genius
+          ;; (s-match "window.__PRELOADED_STATE__ =.*\\\\\"html\\\\\":\\\\\"\\(.*\\)\\\\\",\\\\\"children\\\\\":" it) ;; genius
           (s-match "x-ref=\"lyric_text\">\\(.*\\)</p>" it) ;; lyrics.az
           (s-match "<div class=\"main-panel-content\".*?>\\(.*\\)<div class=\"sharebar-wrapper\"" it) ;; flashlyrics
           )))
@@ -1765,6 +1765,8 @@ path. No guarantees."
       (s-replace "\n\n" "\n")
       (s-split "\n")
       (mapcar #'s-trim)
+      ;; Remove some lines
+      (seq-filter (lambda (it) (not (s-contains? "adsbygoogle" it))))
       (s-join "\n")
       (s-trim)
       ;; Clear all remaning html tags
