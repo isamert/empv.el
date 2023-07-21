@@ -630,7 +630,8 @@ happens."
 
 ;;; Essential functions
 
-(defun empv--play-or-enqueue (uri)
+;;;###autoload
+(defun empv-play-or-enqueue (uri)
   "Play or enqueue the URI based on user input.
 URI might be a string or a list of strings."
   (empv--select-action _
@@ -855,7 +856,7 @@ See this[1] for more information.
 This is just a simple wrapper around `empv-play' that displays
 `find-file' dialog if called interactively."
   (interactive "fPlay file: ")
-  (empv--play-or-enqueue (expand-file-name path)))
+  (empv-play-or-enqueue (expand-file-name path)))
 
 ;;;###autoload
 (defun empv-play-directory (path)
@@ -869,7 +870,7 @@ see `empv-base-directory'."
   (thread-last
     (empv--find-files path (append empv-audio-file-extensions empv-video-file-extensions) 1)
     (mapcar (lambda (it) (expand-file-name it path)))
-    (empv--play-or-enqueue)))
+    (empv-play-or-enqueue)))
 
 ;;;###autoload
 (defun empv-resume ()
@@ -1247,7 +1248,7 @@ If ARG is non-nil, then also put the title to `kill-ring'."
   (let* ((data (list :title (car channel) :url (cdr channel) :radio t))
          (url (format "%s%s%s" (cdr channel) empv--title-sep (prin1-to-string data))))
     (if ask
-        (empv--play-or-enqueue url)
+        (empv-play-or-enqueue url)
       (empv-play url))))
 
 ;;;###autoload
@@ -1478,14 +1479,14 @@ Limit directory treversal at most DEPTH levels.  By default it's
   "Interactively select and play a video file from `empv-video-dir'."
   (interactive)
   (empv--with-video-enabled
-   (empv--play-or-enqueue
+   (empv-play-or-enqueue
     (empv--select-file "Select a video file" empv-video-dir empv-video-file-extensions))))
 
 ;;;###autoload
 (defun empv-play-audio ()
   "Interactively select and play an audio file from `empv-audio-dir'."
   (interactive)
-  (empv--play-or-enqueue
+  (empv-play-or-enqueue
    (empv--select-file "Select an audio file:" empv-audio-dir empv-audio-file-extensions)))
 
 
@@ -1612,7 +1613,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
 (defun empv-youtube-results-play-or-enqueue-current ()
   "Play or enqueue the currently selected video in `empv-youtube-results-mode'."
   (interactive)
-  (empv--play-or-enqueue (empv-youtube-results--current-video-url)))
+  (empv-play-or-enqueue (empv-youtube-results--current-video-url)))
 
 (defun empv-youtube-results-copy-current ()
   "Copy the URL of the currently selected video in `empv-youtube-results-mode'."
@@ -1648,7 +1649,7 @@ nicely formatted buffer."
        :category 'empv-youtube-item
        :sort? nil)
       (empv--youtube-item-extract-link)
-      (empv--play-or-enqueue))))
+      (empv-play-or-enqueue))))
 
 
 ;;; empv utility
@@ -1690,7 +1691,7 @@ path. No guarantees."
 (defun empv-play-media-at-point ()
   "Play the media at point."
   (interactive)
-  (empv--play-or-enqueue (empv-media-at-point)))
+  (empv-play-or-enqueue (empv-media-at-point)))
 
 (defalias 'empv-play-thing-at-point #'empv-play-media-at-point)
 
