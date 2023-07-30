@@ -237,7 +237,7 @@ Only used in lyrics related functions."
   (let ((map (make-sparse-keymap)))
     ;; TODO: Add loop on/off
 
-    (define-key map "o" 'empv-play)
+    (define-key map "o" 'empv-play-or-enqueue)
     (define-key map "f" 'empv-play-file)
     (define-key map "d" 'empv-play-directory)
     (define-key map "v" 'empv-play-video)
@@ -634,6 +634,7 @@ happens."
 (defun empv-play-or-enqueue (uri)
   "Play or enqueue the URI based on user input.
 URI might be a string or a list of strings."
+  (interactive "sEnter an URI to play: ")
   (empv--select-action _
     "Play" → (cond
               ((stringp uri) (empv-play uri))
