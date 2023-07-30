@@ -795,7 +795,7 @@ candidate, if given.  PROMPT passed to `completing-read' as is."
                 action object-strings string predicate))))))
     (if multiple?
         (or (mapcar (lambda (it) (gethash it object-table)) selected) def)
-      (gethash selected object-table def))))
+      (gethash selected object-table (or def selected)))))
 
 
 ;;; Interactive - Basics
