@@ -1914,6 +1914,8 @@ get the lyrics for currently playing/paused song, use
     map)
   "Action map for radio items, utilized by Embark.")
 
+(defalias 'empv-youtube-become-tabulated #'empv-youtube-tabulated-last-results)
+
 (defvar empv-youtube-item-action-map
   (let ((map (make-sparse-keymap)))
     (define-key map "y" #'empv-youtube-copy-link)
@@ -1921,6 +1923,7 @@ get the lyrics for currently playing/paused song, use
     (define-key map "n" #'empv-enqueue-next)
     (define-key map "p" #'empv-play)
     (define-key map "c" #'empv-youtube-show-comments)
+    (define-key map "t" #'empv-youtube-become-tabulated)
     map)
   "Action map for YouTube items, utilized by Embark.")
 
