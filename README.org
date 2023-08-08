@@ -20,12 +20,10 @@ Another way to install =empv.el= would be using either [[https://github.com/radi
 #+begin_src elisp
   ;; Using straight:
   (use-package empv
-    :ensure t
     :straight (:host github :repo "isamert/empv.el"))
 
   ;; Using quelpa:
   (use-package empv
-    :ensure t
     :quelpa (empv
              :fetcher github
              :repo "isamert/empv.el"))
