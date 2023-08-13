@@ -144,6 +144,22 @@ empv already notifies you when media changes by default (see ~empv-display-event
   (empv-observe 'metadata (lambda (data) (message "Metadata changed, new metadata is: %s" data)))
 #+end_src
 
+** Overriding the quit key for mpv
+If you are watching something in mpv window and hit ~q~ key, it will close mpv altogether and you may loose your current playlist etc. A more graceful way to handle this would be simply hiding mpv instead of shutting it down. Add this to your init file to override quit key with a functionality that simply pauses the video and hides the mpv window.
+
+#+begin_src elisp
+  (add-hook 'empv-init-hook #'empv-override-quit-key)
+#+end_src
+
+** Resetting playback speed after quit
+If you have applied the workaround above, you can set the following option to non-nil and from then on, whenever you hit ~q~ in mpv's video view, the playback speed will be reset to 1. This should be set before starting empv (or quit it first by doing ~empv-quit~ and re-start it to apply this configuration).
+
+#+begin_src emacs-lisp
+  (setq empv-reset-playback-speed-on-quit t)
+#+end_src
+
+This is useful if you watch videos on higher speeds but you want to quickly restore the playback speed after being done with the video.
+
 * Screenshots
 
 | Actions                                                                                                   |

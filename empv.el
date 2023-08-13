@@ -229,6 +229,15 @@ Only used in lyrics related functions."
   :type 'string
   :group 'empv)
 
+(defcustom empv-reset-playback-speed-on-quit
+  nil
+  "Whether to reset the playback speed when quitting mpv.
+This sets the playback speed to 1 when you hit the `q' key while
+on video view in mpv.  You need to enable overriding the quit key
+for this to work.  See `empv-override-quit-key'."
+  :type 'string
+  :group 'empv)
+
 
 ;;; Public variables
 
@@ -1672,7 +1681,10 @@ To make this behavior permanant, add the following to your init file:
 
     (add-hook \\='empv-init-hook #\\='empv-override-quit-key)"
   (empv--cmd
-   'keybind '("q" "set pause yes; cycle video")))
+   'keybind `("q" ,(format "set pause yes;%s cycle video"
+                           (if empv-reset-playback-speed-on-quit
+                               "set speed 1;"
+                             "")))))
 
 
 (defvar org-link-any-re)
