@@ -1709,7 +1709,7 @@ path. No guarantees."
 (define-derived-mode empv-lyrics-display-mode text-mode "empv-lyrics-display-mode"
   "Major mode for displaying lyrics of a given song.")
 
-(defun empv--display-lyrics (path title lyrics)
+(defun empv--lyrics-display (path title lyrics)
   (with-current-buffer (get-buffer-create "*empv-lyrics*")
     (empv-lyrics-display-mode)
     (erase-buffer)
@@ -1821,10 +1821,10 @@ if it can't find one then downloads it from the web."
   (interactive)
   (empv--with-media-info
    (if-let (metadata-lyrics (empv--lyrics-from-metadata .metadata))
-       (empv--display-lyrics .path .media-title metadata-lyrics)
+       (empv--lyrics-display .path .media-title metadata-lyrics)
      (if-let* ((web-lyrics (empv--lyrics-download .media-title)))
          (progn
-           (empv--display-lyrics .path .media-title web-lyrics)
+           (empv--lyrics-display .path .media-title web-lyrics)
            (when (and empv-lyrics-save-automatically (file-exists-p (expand-file-name .path)))
              (empv-lyrics-save .path web-lyrics)))
        (user-error ">> Lyrics not found for '%s" .media-title)))))
@@ -1835,7 +1835,7 @@ This function searches the web for SONG lyrics.  If you want to
 get the lyrics for currently playing/paused song, use
 `empv-lyrics-current'."
   (interactive "sSong title: ")
-  (empv--display-lyrics nil song (empv--lyrics-download song)))
+  (empv--lyrics-display nil song (empv--lyrics-download song)))
 
 
 ;; Actions, mainly for embark but used in other places too
