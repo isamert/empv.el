@@ -806,7 +806,7 @@ candidate, if given.  PROMPT passed to `completing-read' as is."
 Add given URI to end of the current playlist and immediately
 switch to it"
   (interactive "sEnter an URI to play: ")
-  (when (string-prefix-p "~/" uri)
+  (when (file-exists-p uri)
     (setq uri (expand-file-name uri)))
   (if (empv--running?)
       (empv--cmd-seq
