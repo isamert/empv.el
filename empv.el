@@ -1325,6 +1325,8 @@ object."
 
 (defun empv--request-raw-sync (url)
   "Retrieve URL's body synchronously as string."
+  (when (string-empty-p url)
+    (error 'wrong-type-argument))
   (with-current-buffer (url-retrieve-synchronously url)
     (let ((result
            (progn
@@ -1720,12 +1722,16 @@ path. No guarantees."
     (unless (get-buffer-window (current-buffer))
       (switch-to-buffer-other-window (current-buffer)))))
 
+(defun empv--lyrics-make-search-url (song)
+  "Generate a search URL for the given SONG."
+  (url-encode-url (format "%s%s lyrics" empv-search-prefix song)))
+
 ;; TODO Make this async? Not quite sure if it does worth or not
 ;; This function is completely fucked up *and* it works, most of the time.
 (defun empv--lyrics-download (song)
-  (ignore-error 'wrong-type-argument
+  (ignore-error wrong-type-argument
     (thread-last
-      (empv--request-raw-sync (url-encode-url (format "%s%s lyrics" empv-search-prefix song)))
+      (empv--request-raw-sync (empv--lyrics-make-search-url song))
       ;; Find all the links in the response first
       (s-match-strings-all "https\\(://\\|%3A%2F%2F\\)[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]")
       (mapcar #'car)
@@ -1784,6 +1790,11 @@ is no standard key for lyrics."
                          (map-keys metadata)))
     (map-elt metadata lyrics-key)))
 
+(defun empv--lyrics-on-not-found (song)
+  "Prompt the user to search the web for SONG lyrics if they are not found."
+  (when (y-or-n-p ">> Lyrics not found.  Do you want to search the web?")
+    (browse-url (empv--lyrics-make-search-url song))))
+
 (defun empv-lyrics-force-web ()
   "Fill buffer with lyrics downloaded from web.
 This does not save lyrics to file. Call `empv-lyrics-save' to really save."
@@ -1791,7 +1802,7 @@ This does not save lyrics to file. Call `empv-lyrics-save' to really save."
   (empv--with-media-info
    (if-let (lyrics (empv--lyrics-download .media-title))
        (empv--display-lyrics .path .media-title lyrics)
-     (user-error ">> Lyrics not found for '%s" .media-title))))
+     (empv--lyrics-on-not-found .media-title))))
 
 (defun empv-lyrics-save (file lyrics)
   "Save LYRICS into FILEs ID3 lyrics tag.
@@ -1827,7 +1838,7 @@ if it can't find one then downloads it from the web."
            (empv--lyrics-display .path .media-title web-lyrics)
            (when (and empv-lyrics-save-automatically (file-exists-p (expand-file-name .path)))
              (empv-lyrics-save .path web-lyrics)))
-       (user-error ">> Lyrics not found for '%s" .media-title)))))
+       (empv--lyrics-on-not-found .media-title)))))
 
 (defun empv-lyrics-show (song)
   "Show lyrics for SONG in a seperate buffer.
@@ -1835,7 +1846,9 @@ This function searches the web for SONG lyrics.  If you want to
 get the lyrics for currently playing/paused song, use
 `empv-lyrics-current'."
   (interactive "sSong title: ")
-  (empv--lyrics-display nil song (empv--lyrics-download song)))
+  (if-let (lyrics (empv--lyrics-download song))
+      (empv--lyrics-display nil song lyrics)
+    (empv--lyrics-on-not-found song)))
 
 
 ;; Actions, mainly for embark but used in other places too
