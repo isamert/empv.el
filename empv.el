@@ -1813,7 +1813,7 @@ This does not save lyrics to file. Call `empv-lyrics-save' to really save."
   (interactive nil empv-lyrics-display-mode)
   (empv--with-media-info
    (if-let (lyrics (empv--lyrics-download .media-title))
-       (empv--display-lyrics .path .media-title lyrics)
+       (empv--lyrics-display .path .media-title lyrics)
      (empv--lyrics-on-not-found .media-title))))
 
 (defun empv-lyrics-save (file lyrics)
