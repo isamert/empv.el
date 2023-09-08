@@ -352,6 +352,8 @@ Mainly used by embark actions defined in this package.")
 (defconst empv--playlist-current-indicator (propertize "[CURRENT]" 'face '(:foreground "green"))
   "Simple text to show on the currently playing playlist item.")
 
+(defvar empv--youtube-search-history nil)
+
 
 ;;; Utility
 
@@ -2004,6 +2006,7 @@ PROMPT is passed to `completing-read' as-is."
              (string-trim-left selected (consult--async-split-initial "")))
    :initial (consult--async-split-initial "")
    :sort nil
+   :history 'empv--youtube-search-history
    :require-match nil))
 
 (defun empv--consult-yt-search-generator ()
@@ -2034,7 +2037,7 @@ results to consult using NEXT."
 (defun empv--yt-suggest (prompt)
   (if (require 'consult nil t)
       (empv--consult-get-input-with-suggestions prompt)
-    (read-string prompt)))
+    (read-string prompt nil 'empv--youtube-search-history)))
 
 
 
