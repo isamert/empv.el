@@ -1811,7 +1811,8 @@ is no standard key for lyrics."
 
 (defun empv-lyrics-force-web ()
   "Fill buffer with lyrics downloaded from web.
-This does not save lyrics to file. Call `empv-lyrics-save' to really save."
+This does not save lyrics to file.  Call `empv-lyrics-save' to
+really save."
   (interactive nil empv-lyrics-display-mode)
   (empv--with-media-info
    (if-let (lyrics (empv--lyrics-download .media-title))
@@ -1825,9 +1826,11 @@ interactively, it will automatically update the currently shown
 lyrics with the buffers content."
   (interactive
    (list (or empv--current-file (read-file-name "Audio file: "))
-         (buffer-string))
-   empv-lyrics-display-mode)
-  (unless (file-exists-p (expand-file-name file))
+         (if (eq major-mode 'empv-lyrics-display-mode)
+             (buffer-string)
+           (read-string "Lyrics: "))))
+  (setq file (expand-file-name file))
+  (unless (file-exists-p file)
     (user-error "File not found: '%s'" file))
   (let ((lyrics-file (make-temp-file "empv-lyrics" nil ".txt" lyrics)))
     (set-process-filter
@@ -1836,7 +1839,7 @@ lyrics with the buffers content."
        (empv--dbg "*eyeD3* output: %s" out)
        (if (eq (process-exit-status proc) 0)
            (empv--display-event "Lyrics saved for '%s'" file)
-         (error "Failed to save lyrics into '%s'. exit-code=%s, output=%s"
+         (error "Failed to save lyrics into '%s'.  exit-code=%s, output=%s"
                 file (process-exit-status proc) out))))))
 
 (defun empv-lyrics-current ()
