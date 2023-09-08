@@ -1291,14 +1291,20 @@ If ARG is non-nil, then also put the title to `kill-ring'."
 
 ;;; YouTube/Invidious
 
+(defun empv--format-yt-views (view-count)
+  (format "%.2sK views" (/ view-count 1000.0)))
+
+(defun empv--format-yt-duration (length-seconds)
+  (format "%.2s mins" (/ length-seconds 60.0)))
+
 (defun empv--format-yt-item (it)
   "Format IT into `(\"formatted video title\" . it)'."
   (let-alist it
     (pcase (alist-get 'type it)
       ("video" (format "[%s] %s"
-                       (propertize (format "%.2sK views, %.2s mins"
-                                           (/ .viewCount 1000.0)
-                                           (/ .lengthSeconds 60.0))
+                       (propertize (format "%s, %s"
+                                           (empv--format-yt-views .viewCount)
+                                           (empv--format-yt-duration .lengthSeconds))
                                    'face
                                    'italic)
                        .title))
@@ -1541,8 +1547,8 @@ Limit directory treversal at most DEPTH levels.  By default it's
            (lambda (it index)
              (let* ((video-info (cdr it))
                     (video-title (propertize (alist-get 'title video-info) 'empv-youtube-item it))
-                    (video-view (format "%0.2fk views" (/ (alist-get 'viewCount video-info) 1000.0)))
-                    (video-length (format "%0.2f mins" (/ (alist-get 'lengthSeconds video-info) 60.0))))
+                    (video-view (empv--format-yt-views (alist-get 'viewCount video-info)))
+                    (video-length (empv--format-yt-duration (alist-get 'lengthSeconds video-info))))
                (list index (vector "<THUMBNAIL>" video-title video-length video-view))))
            candidates))
     (tabulated-list-init-header)
