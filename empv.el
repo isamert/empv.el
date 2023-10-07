@@ -1296,8 +1296,13 @@ If ARG is non-nil, then also put the title to `kill-ring'."
 (defun empv--format-yt-views (view-count)
   (format "%.2sK views" (/ view-count 1000.0)))
 
-(defun empv--format-yt-duration (length-seconds)
-  (format "%.2s mins" (/ length-seconds 60.0)))
+(defun empv--format-yt-duration (seconds)
+  (let ((hours (/ seconds 3600))
+        (minutes (mod (/ seconds 60) 60))
+        (remaining-seconds (mod seconds 60)))
+    (cond
+     ((< hours 1) (format "%02d:%02d" minutes remaining-seconds))
+     (t (format "%d:%02d:%02d" hours minutes remaining-seconds)))))
 
 (defun empv--format-yt-item (it)
   "Format IT into `(\"formatted video title\" . it)'."
