@@ -105,7 +105,17 @@ commands if this variable is nil."
 (defcustom empv-youtube-thumbnail-quality "default"
   "Default value for YouTube thumbnail quality.
 If it's nil, then downloading thumbnails are disabled."
-  :type 'string
+  :type '(choice
+          (const :tag "No thumbnail" nil)
+          (const :value "maxres")
+          (const :value "maxresdefault")
+          (const :value "sddefault")
+          (const :value "high")
+          (const :value "medium")
+          (const :value "default")
+          (const :value "start")
+          (const :value "middle")
+          (const :value "end"))
   :group 'empv)
 
 (defcustom empv-audio-dir (or (getenv "XDG_MUSIC_DIR") "~/Music")
