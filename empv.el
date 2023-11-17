@@ -1193,7 +1193,8 @@ If ARG is non-nil, then also put the title to `kill-ring'."
                   ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "yellow")))
                   ((eq .pause t) (propertize "Paused" 'face '(:foreground "grey")))
                   (t (propertize "Playing" 'face '(:foreground "green")))))
-          (empv-metadata (empv--extract-empv-metadata-from-path .path)))
+          (empv-metadata (empv--extract-empv-metadata-from-path .path))
+          (empv-display-events t))
       (empv--display-event
        "[%s%s, %s of %s (%d%%), %s/%s%s%s%s%s] %s %s"
        state
