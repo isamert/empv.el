@@ -6,7 +6,7 @@
 ;; Version: 4.0.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
-;; Package-Requires: ((emacs "28.1") (s "1.13.0"))
+;; Package-Requires: ((emacs "28.1") (s "1.13.0") (compat "29.1.4.4"))
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -45,6 +45,7 @@
 (require 'url)
 (require 's)
 (require 'consult nil t)
+(require 'compat)
 (eval-when-compile
   (require 'subr-x))
 
