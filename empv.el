@@ -249,6 +249,50 @@ for this to work.  See `empv-override-quit-key'."
   :type 'string
   :group 'empv)
 
+(defcustom empv-display-current-format
+  "[#{state}#{item-loop-indicator}, #{time-pos} of #{duration} (#{percent-pos}%), #{playlist-pos}/#{playlist-count}#{playlist-loop-indicator}#{radio}#{volume}#{speed}] #{title} #{chapter}"
+  "Format of the message displayed when `empv-display-current' is called.
+
+- #{title} - Shows the title of the current media.
+
+- #{chapter} - Shows the current chapter of the media file being
+   played.
+
+- #{state} - Shows one one of the following: Playing, Paused,
+   Buffered...
+
+- #{time-pos} - Shows the current time of the media being played
+   in MM:SS format.
+
+- #{duration} - Shows the total duration of the current media in
+   MM:SS format.
+
+- #{percent-pos} - Shows the total completed percentage of the
+   current media.
+
+- #{playlist-pos} - Shows the current media's position in the
+   playlist.
+
+- #{playlist-count} - Shows the total item count in the current
+   playlist.
+
+- #{item-loop-indicator} - Shows ↻ if the current file is on
+   loop.
+
+- #{playlist-loop-indicator} - Shows ↻ if the current playlist is
+   on loop.
+
+- #{radio} - Shows the current radio channel being played, if
+   there is any.
+
+- #{volume} - Shows the current volume level in percentage, if
+   it's different from 100%.
+
+- #{speed} - Shows the current volume level in percentage, if
+   it's different from 100%."
+  :type 'string
+  :group 'empv)
+
 
 ;;; Public variables
 
@@ -1170,7 +1214,7 @@ Example:
          (current-chapter-time-pos (- time-pos (alist-get 'time current-chapter)))
          (current-chapter-duration (- (or (alist-get 'time next-chapter) duration) (alist-get 'time current-chapter))))
     (format
-     "(%s: %s, %s of %s (%%%d))"
+     "(%s: %s, %s of %s (%d%%))"
      (propertize "Chapter" 'face 'italic)
      (propertize (alist-get 'title current-chapter chapter) 'face 'underline)
      (empv--format-clock current-chapter-time-pos)
@@ -1180,7 +1224,10 @@ Example:
 ;;;###autoload
 (defun empv-display-current (arg)
   "Display currently playing item's title and media player state.
-If ARG is non-nil, then also put the title to `kill-ring'."
+If ARG is non-nil, then also put the title to `kill-ring'.
+
+The display format is determined by the
+`empv-display-current-format' variable, see it's documentation"
   (interactive "P")
   (empv--let-properties '(playlist-pos-1
                           playlist-count
@@ -1198,33 +1245,30 @@ If ARG is non-nil, then also put the title to `kill-ring'."
           (empv-metadata (empv--extract-empv-metadata-from-path .path))
           (empv-display-events t))
       (empv--display-event
-       "[%s%s, %s of %s (%d%%), %s/%s%s%s%s%s] %s %s"
-       state
-       ;; Show a spinning icon near state, indicating that current
-       ;; playlist item is in loop.
-       (if (eq :json-false .loop-file) "" " ↻")
-       (empv--format-clock (or .time-pos 0))
-       (empv--format-clock (or .duration 0))
-       (or .percent-pos 0)
-       .playlist-pos-1
-       .playlist-count
-       ;; Show a spinning icon near playlist count, indicating that
-       ;; current playlist itself is on loop.
-       (if (eq :json-false .loop-playlist) "" " ↻")
-       ;; If it's a radio being played, show the radio name too
-       (if (plist-get empv-metadata :radio)
-           (concat ", " (propertize (plist-get empv-metadata :title) 'face 'italic))
-         "")
-       (if (not (= .volume (or .option-info/volume/default-value 100)))
-           (concat ", " (propertize (format "🔊 %s" (floor .volume)) 'face 'bold))
-         "")
-       (if (not (= .speed (or .option-info/speed/default-value 1)))
-           (concat ", " (propertize (format "⏩ %s" .speed) 'face 'bold))
-         "")
-       (propertize title 'face 'bold)
-       (if .chapter
-           (empv--format-chapter .chapter-list .chapter .time-pos .duration)
-         ""))
+       "%s"
+       (s-replace-all
+        `(("#{state}" . ,state)
+          ("#{item-loop-indicator}" . ,(if (eq :json-false .loop-file) "" " ↻"))
+          ("#{time-pos}" . ,(format "%s" (empv--format-clock (or .time-pos 0))))
+          ("#{duration}" . ,(format "%s" (empv--format-clock (or .duration 0))))
+          ("#{percent-pos}" . ,(format "%d" (or .percent-pos 0)))
+          ("#{playlist-pos}" . ,(format "%s" .playlist-pos-1))
+          ("#{playlist-count}" . ,(format "%s" .playlist-count))
+          ("#{playlist-loop-indicator}" . ,(if (eq :json-false .loop-playlist) "" " ↻"))
+          ("#{radio}" . ,(if (plist-get empv-metadata :radio)
+                             (concat ", " (propertize (plist-get empv-metadata :title) 'face 'italic))
+                           ""))
+          ("#{volume}" . ,(if (not (= .volume (or .option-info/volume/default-value 100)))
+                              (concat ", " (propertize (format "🔊 %s" (floor .volume)) 'face 'bold))
+                            ""))
+          ("#{speed}" . ,(if (not (= .speed (or .option-info/speed/default-value 1)))
+                             (concat ", " (propertize (format "⏩ %s" .speed) 'face 'bold))
+                           ""))
+          ("#{title}" . ,(propertize title 'face 'bold))
+          ("#{chapter}" . ,(if .chapter
+                               (empv--format-chapter .chapter-list .chapter .time-pos .duration)
+                             "")))
+        empv-display-current-format))
       (when arg
         (kill-new title)))))
 
