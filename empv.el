@@ -74,7 +74,7 @@
   "Args used while starting mpv.
 This should contain --input-ipc-server=`empv-socket-file', also
 --idle is recommended for keeping your state."
-  :type 'list
+  :type '(repeat (string :tag "Command line option"))
   :group 'empv)
 
 (defcustom empv-display-events t
