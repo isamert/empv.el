@@ -1182,13 +1182,14 @@ Example:
   "Display currently playing item's title and media player state.
 If ARG is non-nil, then also put the title to `kill-ring'."
   (interactive "P")
-  (empv--let-properties '( playlist-pos-1 playlist-count
-                           time-pos percent-pos duration
-                           metadata media-title path
-                           pause paused-for-cache loop-file loop-playlist
-                           chapter chapter-list
-                           volume option-info/volume/default-value
-                           speed option-info/volume/default-value)
+  (empv--let-properties '(playlist-pos-1
+                          playlist-count
+                          time-pos percent-pos duration
+                          metadata media-title path
+                          pause paused-for-cache loop-file loop-playlist
+                          chapter chapter-list
+                          volume option-info/volume/default-value
+                          speed option-info/volume/default-value)
     (let ((title (string-trim (empv--create-media-summary-for-notification .metadata .path .media-title)))
           (state (cond
                   ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "yellow")))
