@@ -65,6 +65,11 @@
   :type 'string
   :group 'empv)
 
+(defcustom empv-fd-binary "fd"
+  "FD path."
+  :type 'string
+  :group 'empv)
+
 (defcustom empv-mpv-binary "mpv"
   "MPV binary path."
   :type 'string
@@ -1515,7 +1520,9 @@ PROMPT is shown when `completing-read' is called."
       extensions
       (mapcar (lambda (ext) (format "-e '%s' " ext)))
       (string-join)
-      (concat (format "fd . --absolute-path --max-depth %s " (or depth empv-max-directory-search-depth)))
+      (concat (format "%s . --absolute-path --max-depth %s "
+                      empv-fd-binary
+                      (or depth empv-max-directory-search-depth)))
       (shell-command-to-string)
       (empv-flipcall #'split-string "\n")
       (empv-seq-init))))
