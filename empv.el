@@ -46,6 +46,7 @@
 (require 's)
 (require 'consult nil t)
 (require 'compat)
+(require 'iimage)
 (eval-when-compile
   (require 'subr-x))
 
@@ -1335,8 +1336,8 @@ The display format is determined by the
      "Channel: "
      empv-radio-channels
      :formatter (lambda (x) (if (equal (cdr x) (plist-get empv-metadata :uri))
-                           (format "%s %s" (car x) empv--playlist-current-indicator)
-                         (car x)))
+                                (format "%s %s" (car x) empv--playlist-current-indicator)
+                              (car x)))
      :category 'empv-radio-item)
     t)))
 
@@ -1827,11 +1828,11 @@ path. No guarantees."
       (s-match-strings-all "https\\(://\\|%3A%2F%2F\\)[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]")
       (mapcar #'car)
       (mapcar (lambda (it) (thread-last
-                        (string-trim-right it "&amp.*")
-                        (string-replace "%3A%2F%2F" "://")
-                        (string-replace "%2F" "/")
-                        (string-replace "%2D" "-")
-                        (string-replace "%2D" "+"))))
+                             (string-trim-right it "&amp.*")
+                             (string-replace "%3A%2F%2F" "://")
+                             (string-replace "%2F" "/")
+                             (string-replace "%2D" "-")
+                             (string-replace "%2D" "+"))))
       ;; Then find the first sturmgeweiht|azlyrics|genius link
       (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\)" it)))
       (url-unhex-string)
