@@ -259,6 +259,21 @@ for this to work.  See `empv-override-quit-key'."
   "[#{state}#{item-loop-indicator}, #{time-pos} of #{duration} (#{percent-pos}%), #{playlist-pos}/#{playlist-count}#{playlist-loop-indicator}#{radio}#{volume}#{speed}] #{title} #{chapter}"
   "Format of the message displayed when `empv-display-current' is called.
 
+This is a string representing the format or this can be an alist
+from file format to format string, like:
+
+    \\='((\"hls\" . \"#{state} #{title} ...\")
+      (\"mp3\" . \"#{state} #{title} ...\")
+      ;; Multiple formats can be defined like this:
+      (\"mkv,mp4\" . \"#{state} #{title} ...\")
+      ;; Catch-all case:
+      (t . \"#{state} #{title} ...\"))
+
+So that you can use different formats for different file types.
+
+Here are the template strings that you can utilize in the format
+string:
+
 - #{title} - Shows the title of the current media.
 
 - #{chapter} - Shows the current chapter of the media file being
@@ -297,6 +312,9 @@ for this to work.  See `empv-override-quit-key'."
 - #{speed} - Shows the current volume level in percentage, if
    it's different from 100%."
   :type 'string
+  :type '(choice (string :tag "Template format for all file types")
+                 (alist :key-type (string :tag "File format (like hls, mp3, mpv etc.)")
+                        :value-type (string :tag "Template format")))
   :group 'empv)
 
 
@@ -1242,7 +1260,8 @@ The display format is determined by the
                           pause paused-for-cache loop-file loop-playlist
                           chapter chapter-list
                           volume option-info/volume/default-value
-                          speed option-info/volume/default-value)
+                          speed option-info/volume/default-value
+                          file-format)
     (let ((title (string-trim (empv--create-media-summary-for-notification .metadata .path .media-title)))
           (state (cond
                   ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "yellow")))
@@ -1274,7 +1293,15 @@ The display format is determined by the
           ("#{chapter}" . ,(if .chapter
                                (empv--format-chapter .chapter-list .chapter .time-pos .duration)
                              "")))
-        empv-display-current-format))
+        (if (stringp empv-display-current-format)
+            empv-display-current-format
+          (cdr (or (seq-find (lambda (it)
+                               (when (stringp (car it))
+                                 (seq-some
+                                  (lambda (format) (s-contains? format (or .file-format "")))
+                                  (s-split "," (car it)))))
+                             empv-display-current-format)
+                   (assoc 't empv-display-current-format))))))
       (when arg
         (kill-new title)))))
 
