@@ -311,7 +311,6 @@ string:
 
 - #{speed} - Shows the current volume level in percentage, if
    it's different from 100%."
-  :type 'string
   :type '(choice (string :tag "Template format for all file types")
                  (alist :key-type (string :tag "File format (like hls, mp3, mpv etc.)")
                         :value-type (string :tag "Template format")))
