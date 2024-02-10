@@ -1536,6 +1536,38 @@ VIDEO-ID can be either a YouTube URL or just a YouTube ID."
           (alist-get 'comments result))
          (goto-char (point-min)))))))
 
+;; TODO: Add video download support
+;; TODO: Add audio format option (ogg etc.)
+(defun empv-youtube-download (link)
+  "Download given YouTube LINK to selected destination as MP3 file."
+  (let* ((url (empv--clean-uri link))
+         (title (or (plist-get (empv--extract-empv-metadata-from-path link) :title) ""))
+         ;; For some reason, embark triggers this
+         (use-dialog-box nil)
+         (where (read-file-name
+                 "Download to: "
+                 (if (stringp empv-audio-dir)
+                     empv-audio-dir
+                   (car empv-audio-dir))
+                 nil nil
+                 (concat title ".mp3")))
+         (default-directory (f-dirname where)))
+    (set-process-sentinel
+     (start-process "*empv-yt-dlp*" (generate-new-buffer " *empv-yt-dlp*") "yt-dlp"
+                    url "--extract-audio" "--audio-format=mp3" "--output" (f-filename where))
+     (lambda (proc _)
+       (if (eq (process-exit-status proc) 0)
+           (progn
+             (message "Downloaded: %s to %s" url where)
+             (kill-new where)
+             (empv-play-or-enqueue where))
+         (empv--display-event "Failed to download: %s" url))))))
+
+(defun empv-download-youtube (link)
+  "Download LINK to interactively selected path."
+  (interactive "sLink: ")
+  (empv-youtube-download link))
+
 
 ;;; Videos and music
 
@@ -2052,6 +2084,7 @@ get the lyrics for currently playing/paused song, use
     "RET" #'empv-play
     "p" #'empv-play
     "y" #'empv-youtube-copy-link
+    "d" #'empv-youtube-download
     "e" #'empv-enqueue
     "n" #'empv-enqueue-next
     "c" #'empv-youtube-show-comments
