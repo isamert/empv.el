@@ -47,6 +47,7 @@
 (require 'consult nil t)
 (require 'compat)
 (require 'iimage)
+(require 'f)
 (eval-when-compile
   (require 'subr-x))
 
