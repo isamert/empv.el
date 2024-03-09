@@ -581,7 +581,8 @@ the result.
        (let* ((json-data (empv--read-result it))
               (id (map-elt json-data 'id))
               (request-id (map-elt json-data 'request_id))
-              (callback (map-elt empv--callback-table (format "%s" (or request-id id)))))
+              (event-name (map-elt json-data 'event))
+              (callback (map-elt empv--callback-table (format "%s" (or request-id id event-name)))))
          (empv--dbg
           "<< data: %s, request_id: %s, has-cb?: %s"
           json-data
@@ -593,7 +594,9 @@ the result.
            (map-delete empv--callback-table request-id))
          (when-let (cb-fn (plist-get callback :fn))
            (ignore-error (quit minibuffer-quit)
-             (funcall cb-fn (cdr (assoc 'data json-data)))))))
+             (if-let ((data (cdr (assoc 'data json-data))))
+                 (funcall cb-fn data)
+               (funcall cb-fn json-data))))))
      (seq-filter
       (lambda (it) (not (string-empty-p it)))
       (seq-map
@@ -715,6 +718,12 @@ happens."
 (defun empv-observe (property callback)
   "Observe PROPERTY and call CALLBACK when it does change."
   (empv--send-command `(observe_property ,property) callback t))
+
+(defun empv-event (event callback)
+  "Every time mpv fires an EVENT, call CALLBACK.
+EVENT is a symbol representing the event name, see list of
+events: https://mpv.io/manual/stable/#list-of-events"
+  (map-put! empv--callback-table (symbol-name event) (list :fn callback :event? t)))
 
 
 ;;; Essential functions
