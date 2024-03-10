@@ -607,13 +607,13 @@ the result.
 
 ;;; Process primitives
 
-(defun empv--make-process (&optional uri)
-  "Create the MPV process with given URI."
+(defun empv--make-process (&rest uris)
+  "Create the MPV process with given URIs."
   (setq empv--process
         (make-process :name "empv-process"
                       :buffer nil
-                      :command (if uri
-                                   `(,empv-mpv-binary ,@empv-mpv-args ,uri)
+                      :command (if uris
+                                   `(,empv-mpv-binary ,@empv-mpv-args ,@uris)
                                  `(,empv-mpv-binary ,@empv-mpv-args)))))
 
 (defun empv--make-network-process ()
@@ -777,12 +777,12 @@ URI might be a string or a list of strings."
         (empv--display-event "%s" title)
         (puthash (empv--clean-uri .path) title empv--media-title-cache)))))
 
-(defun empv-start (&optional uri)
-  "Start mpv using `empv-mpv-command' with given URI."
+(defun empv-start (&rest uris)
+  "Start mpv using `empv-mpv-command' with given URIs."
   (interactive)
   (unless (empv--running?)
     (empv--dbg "Starting MPV.")
-    (empv--make-process uri)
+    (apply #'empv--make-process uris)
     (empv--make-network-process)
     (empv-observe 'metadata #'empv--handle-metadata-change)
     (run-hooks 'empv-init-hook)))
