@@ -594,8 +594,8 @@ the result.
            (map-delete empv--callback-table request-id))
          (when-let (cb-fn (plist-get callback :fn))
            (ignore-error (quit minibuffer-quit)
-             (if-let ((data (cdr (assoc 'data json-data))))
-                 (funcall cb-fn data)
+             (if (or request-id id)
+                 (funcall cb-fn (cdr (assoc 'data json-data)))
                (funcall cb-fn json-data))))))
      (seq-filter
       (lambda (it) (not (string-empty-p it)))
