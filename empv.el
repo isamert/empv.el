@@ -3,7 +3,7 @@
 ;; Copyright (C) 2022  Isa Mert Gurbuz
 
 ;; Author: Isa Mert Gurbuz <isamertgurbuz@gmail.com>
-;; Version: 4.0.0
+;; Version: 4.1.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
 ;; Package-Requires: ((emacs "28.1") (s "1.13.0") (compat "29.1.4.4"))
@@ -1671,32 +1671,47 @@ Limit directory treversal at most DEPTH levels.  By default it's
     map)
   "Keymap for `empv-youtube-results-mode'.")
 
-(declare-function evil-set-initial-state "evil-core")
 (define-derived-mode empv-youtube-results-mode tabulated-list-mode "empv-youtube-results-mode"
   "Major mode for interacting with YouTube results with thumbnails."
-  (setq tabulated-list-padding 3)
-  (setq tabulated-list-format [("Thumbnail" 20 nil)
-                               ("Title" 60 t)
-                               ("Length"  10 t)
-                               ("Views" 10 t)])
-  (when (require 'evil nil t)
-    (evil-set-initial-state 'empv-youtube-results-mode 'emacs)))
+  (setq tabulated-list-padding 3))
 
 (defadvice tabulated-list-sort (after empv-tabulated-list-sort-after activate)
   (when (derived-mode-p 'empv-youtube-results-mode)
     (iimage-recenter)))
 
+(defun empv--youtube-results-mode-format-video (it)
+  (let-alist (cdr it)
+    (vector
+     "<THUMBNAIL>"
+     (propertize .title 'empv-youtube-item it)
+     (empv--format-yt-duration .lengthSeconds)
+     (empv--format-yt-views .viewCount))))
+
+(defun empv--youtube-results-mode-format-playlist (it)
+  (let-alist (cdr it)
+    (vector "<THUMBNAIL>" (propertize .title 'empv-youtube-item it) .author (format "%s" .videoCount))))
+
 (defun empv--youtube-show-tabulated-results (candidates)
   (with-current-buffer (get-buffer-create "*empv-yt-results*")
     (empv-youtube-results-mode)
+    (setq tabulated-list-format
+          (pcase (alist-get 'type (car candidates))
+            ("video" [("Thumbnail" 20 nil)
+                      ("Title" 60 t)
+                      ("Length"  10 t)
+                      ("Views" 10 t)])
+            ("playlist" [("Thumbnail" 20 nil)
+                         ("Title" 50 t)
+                         ("Author"  20 t)
+                         ("Video Count" 10 t)])))
     (setq tabulated-list-entries
           (seq-map-indexed
            (lambda (it index)
-             (let* ((video-info (cdr it))
-                    (video-title (propertize (alist-get 'title video-info) 'empv-youtube-item it))
-                    (video-view (empv--format-yt-views (alist-get 'viewCount video-info)))
-                    (video-length (empv--format-yt-duration (alist-get 'lengthSeconds video-info))))
-               (list index (vector "<THUMBNAIL>" video-title video-length video-view))))
+             (list index (funcall
+                          (pcase (alist-get 'type (car candidates))
+                            ("video" #'empv--youtube-results-mode-format-video)
+                            ("playlist" #'empv--youtube-results-mode-format-playlist))
+                          it)))
            candidates))
     (tabulated-list-init-header)
     (when empv-youtube-thumbnail-quality
@@ -1711,20 +1726,22 @@ Limit directory treversal at most DEPTH levels.  By default it's
         (buffer (current-buffer)))
     (seq-do-indexed
      (lambda (video index)
-       (let* ((video-info (cdr video))
-              (video-id (alist-get 'videoId video-info))
+       (let* ((info (cdr video))
+              (id (or (alist-get 'videoId info) (alist-get 'playlistId info)))
               (filename (format
                          (expand-file-name "~/.cache/empv_%s_%s.jpg")
-                         video-id
+                         id
                          empv-youtube-thumbnail-quality))
-              (thumb-url (thread-last
-                           video-info
-                           (alist-get 'videoThumbnails video-info)
-                           (seq-find (lambda (thumb)
-                                       (equal empv-youtube-thumbnail-quality
-                                              (alist-get 'quality thumb))))
-                           (cdr)
-                           (alist-get 'url)))
+              (thumb-url (or
+                          (alist-get 'playlistThumbnail info)
+                          (thread-last
+                            info
+                            (alist-get 'videoThumbnails info)
+                            (seq-find (lambda (thumb)
+                                        (equal empv-youtube-thumbnail-quality
+                                               (alist-get 'quality thumb))))
+                            (cdr)
+                            (alist-get 'url))))
               (args (seq-filter
                      #'identity
                      (list
@@ -1739,7 +1756,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
          (empv--dbg "Dowloading thumbnail using: '%s'" args)
          (set-process-sentinel
           (apply #'start-process
-                 (format "empv-download-process-%s" video-id)
+                 (format "empv-download-process-%s" id)
                  "*empv-thumbnail-downloads*"
                  args)
           (lambda (_ _)
@@ -1762,33 +1779,33 @@ Limit directory treversal at most DEPTH levels.  By default it's
     (tabulated-list-next-column)
     (get-text-property (point) 'empv-youtube-item)))
 
-(defun empv-youtube-results--current-video-url ()
+(defun empv-youtube-results--current-item-url ()
   (empv--youtube-item-extract-link (empv-youtube-results--current-item)))
 
 (defun empv-youtube-results-play-current ()
   "Play the currently selected video in `empv-youtube-results-mode'."
   (interactive)
-  (empv-play (empv-youtube-results--current-video-url)))
+  (empv-play (empv-youtube-results--current-item-url)))
 
 (defun empv-youtube-results-enqueue-current ()
   "Enqueue the currently selected video in `empv-youtube-results-mode'."
   (interactive)
-  (empv-enqueue (empv-youtube-results--current-video-url)))
+  (empv-enqueue (empv-youtube-results--current-item-url)))
 
 (defun empv-youtube-results-play-or-enqueue-current ()
   "Play or enqueue the currently selected video in `empv-youtube-results-mode'."
   (interactive)
-  (empv-play-or-enqueue (empv-youtube-results--current-video-url)))
+  (empv-play-or-enqueue (empv-youtube-results--current-item-url)))
 
 (defun empv-youtube-results-copy-current ()
   "Copy the URL of the currently selected video in `empv-youtube-results-mode'."
   (interactive)
-  (empv-youtube-copy-link (empv-youtube-results--current-video-url)))
+  (empv-youtube-copy-link (empv-youtube-results--current-item-url)))
 
 (defun empv-youtube-results-show-comments ()
   "Show comments of the currently selected video in `empv-youtube-results-mode'."
   (interactive)
-  (empv-youtube-show-comments (empv-youtube-results--current-video-url)))
+  (empv-youtube-show-comments (empv-youtube-results--current-item-url)))
 
 (defun empv-youtube-results-inspect ()
   "Inspect the currently selected video in `empv-youtube-results-mode'.
