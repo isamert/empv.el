@@ -592,7 +592,7 @@ the result.
          ;; a loop if an error occurs on the callback function
          (when (not (plist-get callback :event?))
            (map-delete empv--callback-table request-id))
-         (when-let (cb-fn (plist-get callback :fn))
+         (when-let ((cb-fn (plist-get callback :fn)))
            (ignore-error (quit minibuffer-quit)
              (if (or request-id id)
                  (funcall cb-fn (cdr (assoc 'data json-data)))
@@ -815,11 +815,11 @@ documentation."
   ;; for radio streams, see `empv-radio-channels' and
   ;; `empv--play-radio-channel')
   (pcase-let* ((`(,uri ,data) (split-string (or path "") empv--title-sep)))
-    (if-let (parsed
-             (and data
-                  (string-prefix-p "(" data)
-                  (string-suffix-p ")" data)
-                  (ignore-errors (read data))))
+    (if-let ((parsed
+              (and data
+                   (string-prefix-p "(" data)
+                   (string-suffix-p ")" data)
+                   (ignore-errors (read data)))))
         `(,@parsed :uri ,uri)
       (list
        :uri uri
@@ -1969,9 +1969,9 @@ path. No guarantees."
   "Fetch lyrics from METADATA.
 Tries to find a key in METADATA that contains \"lyrics\" as there
 is no standard key for lyrics."
-  (when-let (lyrics-key (seq-find
-                         (lambda (key) (string-match-p "lyrics" (symbol-name key)))
-                         (map-keys metadata)))
+  (when-let ((lyrics-key (seq-find
+                          (lambda (key) (string-match-p "lyrics" (symbol-name key)))
+                          (map-keys metadata))))
     (map-elt metadata lyrics-key)))
 
 (defun empv--lyrics-on-not-found (song)
@@ -1985,7 +1985,7 @@ This does not save lyrics to file.  Call `empv-lyrics-save' to
 really save."
   (interactive nil empv-lyrics-display-mode)
   (empv--with-media-info
-   (if-let (lyrics (empv--lyrics-download .media-title))
+   (if-let ((lyrics (empv--lyrics-download .media-title)))
        (empv--lyrics-display .path .media-title lyrics)
      (empv--lyrics-on-not-found .media-title))))
 
@@ -2018,7 +2018,7 @@ This tries to extract the lyrics from the file metada first and
 if it can't find one then downloads it from the web."
   (interactive)
   (empv--with-media-info
-   (if-let (metadata-lyrics (empv--lyrics-from-metadata .metadata))
+   (if-let ((metadata-lyrics (empv--lyrics-from-metadata .metadata)))
        (empv--lyrics-display .path .media-title metadata-lyrics)
      (if-let* ((web-lyrics (empv--lyrics-download .media-title)))
          (progn
@@ -2033,7 +2033,7 @@ This function searches the web for SONG lyrics.  If you want to
 get the lyrics for currently playing/paused song, use
 `empv-lyrics-current'."
   (interactive "sSong title: ")
-  (if-let (lyrics (empv--lyrics-download song))
+  (if-let ((lyrics (empv--lyrics-download song)))
       (empv--lyrics-display nil song lyrics)
     (empv--lyrics-on-not-found song)))
 
