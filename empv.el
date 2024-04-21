@@ -126,13 +126,13 @@ If it's nil, then downloading thumbnails are disabled."
 (defcustom empv-audio-dir (or (getenv "XDG_MUSIC_DIR") "~/Music")
   "The directory (or list of directories) that you keep your music in."
   :type '(choice (directory :tag "Audio directory")
-                 (list :tag "List of audio directories"))
+                 (repeat (directory :tag "Audio directory")))
   :group 'empv)
 
 (defcustom empv-video-dir (or (getenv "XDG_VIDEOS_DIR") "~/Videos")
   "The directory (or list of directories) that you keep your videos in."
   :type '(choice (directory :tag "Video directory")
-                 (list :tag "List of video directories"))
+                 (repeat (directory :tag "Video directory")))
   :group 'empv)
 
 (defcustom empv-playlist-dir (or (getenv "XDG_MUSIC_DIR") "~/Music")
