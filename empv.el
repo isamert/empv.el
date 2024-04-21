@@ -50,11 +50,9 @@
 (eval-when-compile
   (require 'subr-x))
 
-
 ;;; Some helpful resources
 ;; - https://github.com/mpv-player/mpv/blob/master/DOCS/man/input.rst
 
-
 ;;; Customization
 
 (defgroup empv nil
@@ -316,7 +314,6 @@ string:
                         :value-type (string :tag "Template format")))
   :group 'empv)
 
-
 ;;; Public variables
 
 ;;;###autoload
@@ -370,7 +367,6 @@ string:
 It is not bound to any key by default.  Some keys are loosely
 modelled after default keys of mpv.")
 
-
 ;;; Internal variables
 
 (defconst empv--title-sep "##"
@@ -432,7 +428,6 @@ Mainly used by embark actions defined in this package.")
 
 (defvar empv--youtube-search-history nil)
 
-
 ;;; Utility
 
 (defun empv-flipcall (fn x y)
@@ -552,7 +547,6 @@ Mainly used by embark actions defined in this package.")
        (empv-start))
      ,@forms))
 
-
 ;;; Handlers
 
 (defun empv--sentinel (_proc msg)
@@ -604,7 +598,6 @@ the result.
        (split-string empv--process-buffer "\n"))))
     (setq empv--process-buffer "")))
 
-
 ;;; Process primitives
 
 (defun empv--make-process (&rest uris)
@@ -654,7 +647,6 @@ happens."
   (empv--wait-until-non-nil result
     (empv--send-command command (lambda (x) (setq result x)))))
 
-
 ;;; Essential macros
 
 (defmacro empv--cmd (cmd &optional args &rest forms)
@@ -712,7 +704,6 @@ happens."
         (empv--send-command (list "set_property" ,property new-val) #'ignore)
         (empv--display-event "%s is set to %s" (capitalize (symbol-name ,property)) new-val)))))
 
-
 ;;; User level helpers
 
 (defun empv-observe (property callback)
@@ -725,7 +716,6 @@ EVENT is a symbol representing the event name, see list of
 events: https://mpv.io/manual/stable/#list-of-events"
   (map-put! empv--callback-table (symbol-name event) (list :fn callback :event? t)))
 
-
 ;;; Essential functions
 
 ;;;###autoload
@@ -895,7 +885,6 @@ candidate, if given.  PROMPT passed to `completing-read' as is."
         (or (mapcar (lambda (it) (gethash it object-table)) selected) def)
       (gethash selected object-table (or def selected)))))
 
-
 ;;; Interactive - Basics
 
 ;;;###autoload
@@ -1123,7 +1112,6 @@ along with the log."
        nil empv-radio-log-file 'append)
       (message "%s" title))))
 
-
 ;;; Interactive - Playlist
 
 ;;;###autoload
@@ -1231,7 +1219,6 @@ Example:
         fname))))
   (empv--playlist-apply #'empv--playlist-save-to-file filename))
 
-
 ;;; Interactive - Misc
 
 (defun empv--format-clock (it)
@@ -1320,7 +1307,6 @@ The display format is determined by the
     (empv--display-event "URI copied: %s" (empv--clean-uri .path))
     (kill-new (empv--clean-uri .path))))
 
-
 ;;; Interactive - Chapters
 
 (defun empv-chapter-prev ()
@@ -1351,7 +1337,6 @@ The display format is determined by the
                      :sort? nil))))
       (empv--cmd 'set_property `(chapter ,result)))))
 
-
 ;;; Radio
 
 (defun empv--play-radio-channel (channel &optional ask)
@@ -1388,7 +1373,6 @@ The display format is determined by the
     (empv--display-event "Playing %s" (car channel))
     (empv--play-radio-channel channel)))
 
-
 ;;; YouTube/Invidious
 
 (defun empv--format-yt-views (view-count)
@@ -1585,7 +1569,6 @@ download finishes with the path downloaded."
   (interactive "sLink: ")
   (empv-youtube-download link))
 
-
 ;;; Videos and music
 
 (defun empv--find-files-1 (path extensions &optional depth)
@@ -1654,7 +1637,6 @@ Limit directory treversal at most DEPTH levels.  By default it's
   (empv-play-or-enqueue
    (empv--select-file "Select an audio file:" empv-audio-dir empv-audio-file-extensions)))
 
-
 ;;; empv-youtube-results-mode
 
 (defvar empv-youtube-results-mode-map
@@ -1835,7 +1817,6 @@ nicely formatted buffer."
       (empv--youtube-item-extract-link)
       (empv-play-or-enqueue))))
 
-
 ;;; empv utility
 
 (defun empv-override-quit-key ()
@@ -1882,7 +1863,6 @@ path. No guarantees."
 
 (defalias 'empv-play-thing-at-point #'empv-play-media-at-point)
 
-
 ;; Lyrics manager
 
 (defvar empv-lyrics-display-mode-map
@@ -2037,7 +2017,6 @@ get the lyrics for currently playing/paused song, use
       (empv--lyrics-display nil song lyrics)
     (empv--lyrics-on-not-found song)))
 
-
 ;; Actions, mainly for embark but used in other places too
 
 (defun empv-playlist-play (item)
@@ -2071,7 +2050,6 @@ get the lyrics for currently playing/paused song, use
     (empv--display-event "URI copied: %s" (empv--clean-uri path))
     (kill-new (empv--clean-uri path))))
 
-
 ;; Embark integration
 
 (defvar embark-file-map)
@@ -2147,7 +2125,6 @@ learn more.  Supposed to be used like this:
   (define-key embark-url-map "e" 'empv-enqueue-next) ;; overrides eww
   (define-key embark-url-map "n" 'empv-enqueue))
 
-
 ;; Consult integration
 
 (declare-function consult--read "consult")
@@ -2202,7 +2179,6 @@ results to consult using NEXT."
       (empv--consult-get-input-with-suggestions prompt)
     (read-string prompt nil 'empv--youtube-search-history)))
 
-
 
 (provide 'empv)
 ;;; empv.el ends here
