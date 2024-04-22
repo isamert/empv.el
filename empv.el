@@ -1744,6 +1744,8 @@ Limit directory treversal at most DEPTH levels.  By default it's
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "j") #'next-line)
     (define-key map (kbd "k") #'previous-line)
+    (define-key map (kbd "h") #'tabulated-list-previous-column)
+    (define-key map (kbd "l") #'tabulated-list-next-column)
     (define-key map (kbd "P") #'empv-youtube-results-play-current)
     (define-key map (kbd "a") #'empv-youtube-results-enqueue-current)
     (define-key map (kbd "Y") #'empv-youtube-results-copy-current)
@@ -1751,7 +1753,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
     (define-key map (kbd "i") #'empv-youtube-results-inspect)
     (define-key map (kbd "d") #'empv-youtube-download-current)
     (define-key map (kbd "RET") #'empv-youtube-results-play-or-enqueue-current)
-    ;; TODO: add quick help for ? binding
+    (define-key map (kbd "?") #'describe-mode)
     map)
   "Keymap for `empv-youtube-results-mode'.")
 
