@@ -1769,9 +1769,9 @@ Limit directory treversal at most DEPTH levels.  By default it's
           ('.lengthSeconds (empv--format-yt-duration .lengthSeconds))
           ('.viewCount (empv--format-yt-views .viewCount))
           ((pred (equal empv-thumbnail-placeholder)) (propertize empv-thumbnail-placeholder 'help-echo .title))
-          (other (let ((value (empv--alist-path-get other (cdr it))))
+          (other (let ((value (or (empv--alist-path-get other (cdr it)) "N/A")))
                    (propertize
-                    (format "%s" (s-truncate (- (nth 1 col) 1) value))
+                    (s-truncate (- (nth 1 col) 1) (format "%s" value)  "…")
                     'help-echo value))))))
     headers)
    'vector))
