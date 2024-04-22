@@ -1642,7 +1642,7 @@ download finishes with the path downloaded."
          (default-directory (file-name-directory where))
          (buffer (generate-new-buffer " *empv-yt-dlp*")))
     (set-process-sentinel
-     (start-process buffer buffer "yt-dlp"
+     (start-process (buffer-name buffer) buffer "yt-dlp"
                     url "--extract-audio" "--audio-format=mp3" "--output"
                     (file-name-nondirectory (directory-file-name where)))
      (lambda (proc _)
@@ -1660,6 +1660,13 @@ download finishes with the path downloaded."
   "Download LINK to interactively selected path."
   (interactive "sLink: ")
   (empv-youtube-download link))
+
+(defun empv-download-current-item ()
+  (interactive)
+  (let* ((link (empv--youtube-item-extract-link
+                (or (empv-youtube-results--current-item)
+                    (car empv--last-youtube-candidates)))))
+    (empv-youtube-download link nil (lambda () (message "Download completed")))))
 
 ;;; Videos and music
 
@@ -1911,9 +1918,11 @@ nicely formatted buffer."
 (defalias 'empv-youtube-become-tabulated #'empv-youtube-tabulated-last-results)
 
 (defun empv-youtube-tabulated-last-results ()
-  "Show last search results in tabulated mode with thumbnails."
-  (interactive)
-  (empv--youtube-show-tabulated-results empv--last-youtube-candidates))
+    "Show last search results in tabulated mode with thumbnails."
+    (interactive)
+    (if empv--last-youtube-candidates
+        (empv--youtube-show-tabulated-results empv--last-youtube-candidates)
+      (call-interactively 'empv-youtube-tabulated)))
 
 (defun empv-youtube-last-results ()
   "Show and act on last search results."
@@ -2021,7 +2030,8 @@ path. No guarantees."
       (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\)" it)))
       (url-unhex-string)
       (empv--request-raw-sync)
-      (string-replace "" "")
+      (string-replace "
+" "")
       ;; Replace newlines so that regexes can work
       (string-replace "\n" "<newline>")
       ;; FIXME: The resulting string may be too long and regexes may
@@ -2043,7 +2053,8 @@ path. No guarantees."
                        ("</div>" . "")
                        ("\\" . "")
                        ("<newline>" . "\n")
-                       ("" . "\n")
+                       ("
+" . "\n")
                        ("\"" . "")
                        ("&#x27;" . "'")
                        ("&#039;" . "'")))
