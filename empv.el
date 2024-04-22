@@ -1879,9 +1879,8 @@ Limit directory treversal at most DEPTH levels.  By default it's
 (defun empv-youtube-results--current-item ()
   (save-excursion
     (beginning-of-line)
-    (tabulated-list-next-column)
-    (tabulated-list-next-column)
-    (get-text-property (point) 'empv-youtube-item)))
+    (prop-match-value
+     (text-property-search-forward 'empv-youtube-item))))
 
 (defun empv-youtube-results--current-item-url ()
   (empv--youtube-item-extract-link (empv-youtube-results--current-item)))
