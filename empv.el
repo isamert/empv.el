@@ -53,6 +53,10 @@
 ;;; Some helpful resources
 ;; - https://github.com/mpv-player/mpv/blob/master/DOCS/man/input.rst
 
+;;; Some constants
+
+(defconst empv-thumbnail-placeholder "<THUMBNAIL>")
+
 ;;; Customization
 
 (defgroup empv nil
@@ -434,8 +438,6 @@ can use a JSON-PATH like the following: .a.b.c"
   "Keymap for commonly used empv functions.
 It is not bound to any key by default.  Some keys are loosely
 modelled after default keys of mpv.")
-
-(defconst empv-thumbnail-placeholder "<THUMBNAIL>")
 
 ;;; Internal variables
 
