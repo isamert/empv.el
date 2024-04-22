@@ -1,9 +1,9 @@
 ;;; empv.el --- A multimedia player/manager, YouTube interface -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2022  Isa Mert Gurbuz
+;; Copyright (C) 2022-2024  Isa Mert Gurbuz
 
 ;; Author: Isa Mert Gurbuz <isamertgurbuz@gmail.com>
-;; Version: 4.1.0
+;; Version: 4.2.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
 ;; Package-Requires: ((emacs "28.1") (s "1.13.0") (compat "29.1.4.4"))
@@ -50,11 +50,13 @@
 (eval-when-compile
   (require 'subr-x))
 
-
 ;;; Some helpful resources
 ;; - https://github.com/mpv-player/mpv/blob/master/DOCS/man/input.rst
 
-
+;;; Some constants
+
+(defconst empv-thumbnail-placeholder "<THUMBNAIL>")
+
 ;;; Customization
 
 (defgroup empv nil
@@ -128,13 +130,13 @@ If it's nil, then downloading thumbnails are disabled."
 (defcustom empv-audio-dir (or (getenv "XDG_MUSIC_DIR") "~/Music")
   "The directory (or list of directories) that you keep your music in."
   :type '(choice (directory :tag "Audio directory")
-                 (list :tag "List of audio directories"))
+                 (repeat (directory :tag "Audio directory")))
   :group 'empv)
 
 (defcustom empv-video-dir (or (getenv "XDG_VIDEOS_DIR") "~/Videos")
   "The directory (or list of directories) that you keep your videos in."
   :type '(choice (directory :tag "Video directory")
-                 (list :tag "List of video directories"))
+                 (repeat (directory :tag "Video directory")))
   :group 'empv)
 
 (defcustom empv-playlist-dir (or (getenv "XDG_MUSIC_DIR") "~/Music")
@@ -316,7 +318,74 @@ string:
                         :value-type (string :tag "Template format")))
   :group 'empv)
 
-
+(defcustom empv-youtube-tabulated-video-headers
+  `(("Thumbnail" 15 nil ,empv-thumbnail-placeholder)
+    ("Title" 50 t .title)
+    ("Length" 15 t .lengthSeconds)
+    ("Views" 15 t .viewCountText)
+    ("Author" 15 t  .author)
+    ("Published" 15 t .publishedText))
+  "Headers to display in YouTube tabulated search result.
+
+By setting this variable, you can customize what the show inside
+YouTube tabulated search results.  By default \"Thumbnail, Title,
+Length, Views, Author, Published\" are shown.  You can simply delete or
+add to this list show extra or less information.  This variable is in
+the following form:
+
+    (HEADER-DEFINITION ...)
+
+A HEADER-DEFINITION is a list in the following form:
+
+    (TITLE COLUMN-LENGTH SORTABLE? ACCESSOR)
+
+- TITLE is simply the text shown in the header portion (a string).
+- COLUMN-LENGTH is the length of this column in the table (a number).
+- SORTABLE? defines if this column is sortable or not (t or nil).
+- ACCESSOR is a JSON-PATH like symbol that defines how to get the
+  value of this column.
+
+For example, to show how many views are there for a video, you can use
+the following HEADER-DEFINITION:
+
+    \\='(\"Views\" 15 t .viewCountText)
+
+This will create an 15 char-wide column named \"Views\" and it will get
+the viewCountText value from the Invidious response to display it as
+the value in a row.
+
+You can inspect a YouTube search result to learn it's
+JSON-PATH. To do so, do a tabulated search, focus on a
+video/playlist and then hit `i', or do
+\\[empv-youtube-results-inspect], and this will show you the raw
+Invidious response that is used to build the search result table.
+If the value you are looking for is inside another object, you
+can use a JSON-PATH like the following: .a.b.c"
+  :version "4.2.0"
+  :type '(repeat
+          (list (string :tag "Name of the column")
+                (integer :tag "Lenght of the column")
+                (boolean :tag "Is column sortable?")
+                (choice (symbol :tag "The path of the property in the response json")
+                        (string :tag "Constant text to show"))))
+  :group 'empv)
+
+(defcustom empv-youtube-tabulated-playlist-headers
+  `(("Thumbnail" 20 nil ,empv-thumbnail-placeholder)
+    ("Title" 60 t .title)
+    ("Author" 15 t .author)
+    ("Video Count" 13 t .videoCount))
+  "Like `empv-youtube-tabulated-video-headers' but for playlist search results."
+  :version "4.2.0"
+  :type '(repeat
+          (list (string :tag "Name of the column")
+                (integer :tag "Lenght of the column")
+                (boolean :tag "Is column sortable?")
+                (choice (symbol :tag "The path of the property in the response json")
+                        (string :tag "Constant text to show"))))
+  :group 'empv)
+
+
 ;;; Public variables
 
 ;;;###autoload
@@ -370,7 +439,6 @@ string:
 It is not bound to any key by default.  Some keys are loosely
 modelled after default keys of mpv.")
 
-
 ;;; Internal variables
 
 (defconst empv--title-sep "##"
@@ -432,7 +500,6 @@ Mainly used by embark actions defined in this package.")
 
 (defvar empv--youtube-search-history nil)
 
-
 ;;; Utility
 
 (defun empv-flipcall (fn x y)
@@ -446,6 +513,26 @@ Mainly used by embark actions defined in this package.")
 (defun empv-seq-find-index (fn seq)
   "Return the first index in SEQ for which FN evaluate to non-nil."
   (seq-position seq 'empv-dummy-item (lambda (it _) (funcall fn it))))
+
+(defun empv--alist-path-get-helper (path alist)
+  "Get the value associated with a specific PATH in ALIST.
+
+>> (let ((alist `((a . ((b . ((c . d)))))))
+         (path `(a b c)))
+    (empv--alist-path-get-helper path alist))
+=> d"
+  (if (eq (length path) 1)
+      (alist-get (car path) alist)
+    (empv--alist-path-get-helper (seq-drop path 1) (alist-get (car path) alist))))
+
+(defun empv--alist-path-get (path alist)
+  "Get the value associated with a specific PATH in ALIST.
+
+>> (let ((alist `((a . ((b . ((c . d)))))))
+         (path `.a.b.c))
+    (empv--alist-path-get path alist))
+=> d"
+  (empv--alist-path-get-helper (mapcar #'intern (string-split (symbol-name path) "\\." t)) alist))
 
 (cl-defmacro empv--wait-until-non-nil (place &rest forms)
   "Wait until PLACE is non-nil, after executing FORMS."
@@ -552,7 +639,6 @@ Mainly used by embark actions defined in this package.")
        (empv-start))
      ,@forms))
 
-
 ;;; Handlers
 
 (defun empv--sentinel (_proc msg)
@@ -604,7 +690,6 @@ the result.
        (split-string empv--process-buffer "\n"))))
     (setq empv--process-buffer "")))
 
-
 ;;; Process primitives
 
 (defun empv--make-process (&rest uris)
@@ -654,7 +739,6 @@ happens."
   (empv--wait-until-non-nil result
     (empv--send-command command (lambda (x) (setq result x)))))
 
-
 ;;; Essential macros
 
 (defmacro empv--cmd (cmd &optional args &rest forms)
@@ -712,7 +796,6 @@ happens."
         (empv--send-command (list "set_property" ,property new-val) #'ignore)
         (empv--display-event "%s is set to %s" (capitalize (symbol-name ,property)) new-val)))))
 
-
 ;;; User level helpers
 
 (defun empv-observe (property callback)
@@ -725,7 +808,6 @@ EVENT is a symbol representing the event name, see list of
 events: https://mpv.io/manual/stable/#list-of-events"
   (map-put! empv--callback-table (symbol-name event) (list :fn callback :event? t)))
 
-
 ;;; Essential functions
 
 ;;;###autoload
@@ -895,7 +977,6 @@ candidate, if given.  PROMPT passed to `completing-read' as is."
         (or (mapcar (lambda (it) (gethash it object-table)) selected) def)
       (gethash selected object-table (or def selected)))))
 
-
 ;;; Interactive - Basics
 
 ;;;###autoload
@@ -1123,7 +1204,6 @@ along with the log."
        nil empv-radio-log-file 'append)
       (message "%s" title))))
 
-
 ;;; Interactive - Playlist
 
 ;;;###autoload
@@ -1231,7 +1311,6 @@ Example:
         fname))))
   (empv--playlist-apply #'empv--playlist-save-to-file filename))
 
-
 ;;; Interactive - Misc
 
 (defun empv--format-clock (it)
@@ -1320,7 +1399,6 @@ The display format is determined by the
     (empv--display-event "URI copied: %s" (empv--clean-uri .path))
     (kill-new (empv--clean-uri .path))))
 
-
 ;;; Interactive - Chapters
 
 (defun empv-chapter-prev ()
@@ -1351,7 +1429,6 @@ The display format is determined by the
                      :sort? nil))))
       (empv--cmd 'set_property `(chapter ,result)))))
 
-
 ;;; Radio
 
 (defun empv--play-radio-channel (channel &optional ask)
@@ -1388,7 +1465,6 @@ The display format is determined by the
     (empv--display-event "Playing %s" (car channel))
     (empv--play-radio-channel channel)))
 
-
 ;;; YouTube/Invidious
 
 (defun empv--format-yt-views (view-count)
@@ -1591,7 +1667,7 @@ download finishes with the path downloaded."
                 (or (empv-youtube-results--current-item)
                     (car empv--last-youtube-candidates)))))
     (empv-youtube-download link nil (lambda () (message "Download completed")))))
-
+
 ;;; Videos and music
 
 (defun empv--find-files-1 (path extensions &optional depth)
@@ -1660,7 +1736,6 @@ Limit directory treversal at most DEPTH levels.  By default it's
   (empv-play-or-enqueue
    (empv--select-file "Select an audio file:" empv-audio-dir empv-audio-file-extensions)))
 
-
 ;;; empv-youtube-results-mode
 
 (defvar empv-youtube-results-mode-map
@@ -1685,48 +1760,64 @@ Limit directory treversal at most DEPTH levels.  By default it's
   (when (derived-mode-p 'empv-youtube-results-mode)
     (iimage-recenter)))
 
-(defun empv--youtube-results-mode-format-video (it)
-  (let-alist (cdr it)
-    (vector
-     "<THUMBNAIL>"
-     (propertize .title 'empv-youtube-item it)
-     (empv--format-yt-duration .lengthSeconds)
-     (empv--format-yt-views .viewCount))))
-
-(defun empv--youtube-results-mode-format-playlist (it)
-  (let-alist (cdr it)
-    (vector "<THUMBNAIL>" (propertize .title 'empv-youtube-item it) .author (format "%s" .videoCount))))
+(defun empv--youtube-results-mode-format (headers it)
+  (seq-into
+   (seq-map
+    (lambda (col)
+      (let-alist (cdr it)
+        (pcase (nth 3 col)
+          ;; I truncate the title (and `other' below) manually because
+          ;; when tabulated-list-mode does it, some columns gets
+          ;; misaligned for some reason
+          ('.title (propertize
+                    (s-truncate (- (nth 1 col) 1) .title "…")
+                    'empv-youtube-item it
+                    'help-echo .title))
+          ('.lengthSeconds (empv--format-yt-duration .lengthSeconds))
+          ('.viewCount (empv--format-yt-views .viewCount))
+          ((pred (equal empv-thumbnail-placeholder)) (propertize empv-thumbnail-placeholder 'help-echo .title))
+          (other (let ((value (or (empv--alist-path-get other (cdr it)) "N/A")))
+                   (propertize
+                    (s-truncate (- (nth 1 col) 1) (format "%s" value)  "…")
+                    'help-echo value))))))
+    headers)
+   'vector))
 
 (defun empv--youtube-show-tabulated-results (candidates)
-  (with-current-buffer (get-buffer-create "*empv-yt-results*")
-    (empv-youtube-results-mode)
-    (setq tabulated-list-format
-          (pcase (alist-get 'type (car candidates))
-            ("video" [("Thumbnail" 20 nil)
-                      ("Title" 60 t)
-                      ("Length"  10 t)
-                      ("Views" 10 t)])
-            ("playlist" [("Thumbnail" 20 nil)
-                         ("Title" 50 t)
-                         ("Author"  20 t)
-                         ("Video Count" 10 t)])))
-    (setq tabulated-list-entries
-          (seq-map-indexed
-           (lambda (it index)
-             (list index (funcall
-                          (pcase (alist-get 'type (car candidates))
-                            ("video" #'empv--youtube-results-mode-format-video)
-                            ("playlist" #'empv--youtube-results-mode-format-playlist))
-                          it)))
-           candidates))
-    (tabulated-list-init-header)
-    (when empv-youtube-thumbnail-quality
-      (empv--youtube-tabulated-load-thumbnails candidates))
-    (tabulated-list-print)
-    (back-to-indentation)
-    (pop-to-buffer-same-window (current-buffer))))
+  (let ((headers (pcase (alist-get 'type (car candidates))
+                   ("video" empv-youtube-tabulated-video-headers)
+                   ("playlist" empv-youtube-tabulated-playlist-headers))))
+    (with-current-buffer (get-buffer-create "*empv-yt-results*")
+      (empv-youtube-results-mode)
+      (setq
+       tabulated-list-format
+       (seq-into
+        (seq-map (lambda (it) (seq-take it 3)) headers)
+        'vector))
+      (setq tabulated-list-entries
+            (seq-map-indexed
+             (lambda (it index)
+               (list index (empv--youtube-results-mode-format headers it)))
+             candidates))
+      (tabulated-list-init-header)
+      (tabulated-list-print)
+      (when empv-youtube-thumbnail-quality
+        (empv--youtube-tabulated-load-thumbnails candidates))
+      (back-to-indentation)
+      (pop-to-buffer-same-window (current-buffer))
 
-(defun empv--youtube-tabulated-load-thumbnails (candidates)
+      ;; Enable help-at-pt so that video title is fully shown without
+      ;; being truncated
+      (setq-local help-at-pt-display-when-idle t)
+      (setq-local help-at-pt-timer-delay 0)
+      (help-at-pt-cancel-timer)
+      (help-at-pt-set-timer))))
+
+(cl-defun empv--youtube-tabulated-load-thumbnails (candidates)
+  (unless (save-excursion
+            (goto-char (point-min))
+            (re-search-forward empv-thumbnail-placeholder nil t))
+    (cl-return-from empv--youtube-tabulated-load-thumbnails))
   (let ((total-count (length candidates))
         (completed-count 0)
         (buffer (current-buffer)))
@@ -1741,7 +1832,6 @@ Limit directory treversal at most DEPTH levels.  By default it's
               (thumb-url (or
                           (alist-get 'playlistThumbnail info)
                           (thread-last
-                            info
                             (alist-get 'videoThumbnails info)
                             (seq-find (lambda (thumb)
                                         (equal empv-youtube-thumbnail-quality
@@ -1770,12 +1860,17 @@ Limit directory treversal at most DEPTH levels.  By default it's
             (with-current-buffer buffer
               (setf
                (elt (car (alist-get index tabulated-list-entries)) 0)
-               (format "[[%s]]" filename))
+               (propertize (format "[[%s]]" filename)
+                           'help-echo (alist-get 'title info)))
               (setq completed-count (1+ completed-count))
               (when (eq completed-count total-count)
                 (tabulated-list-print)
                 (iimage-mode)
-                (back-to-indentation)))))))
+                (back-to-indentation)
+                ;; Assuming thumbnail is the first column, jump to
+                ;; next one so that bindings work properly. Other wise
+                ;; iimage-mode bindings gets activated
+                (tabulated-list-next-column)))))))
      candidates)))
 
 (defun empv-youtube-results--current-item ()
@@ -1843,7 +1938,6 @@ nicely formatted buffer."
       (empv--youtube-item-extract-link)
       (empv-play-or-enqueue))))
 
-
 ;;; empv utility
 
 (defun empv-override-quit-key ()
@@ -1890,7 +1984,6 @@ path. No guarantees."
 
 (defalias 'empv-play-thing-at-point #'empv-play-media-at-point)
 
-
 ;; Lyrics manager
 
 (defvar empv-lyrics-display-mode-map
@@ -1937,7 +2030,8 @@ path. No guarantees."
       (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\)" it)))
       (url-unhex-string)
       (empv--request-raw-sync)
-      (string-replace "" "")
+      (string-replace "
+" "")
       ;; Replace newlines so that regexes can work
       (string-replace "\n" "<newline>")
       ;; FIXME: The resulting string may be too long and regexes may
@@ -1959,7 +2053,8 @@ path. No guarantees."
                        ("</div>" . "")
                        ("\\" . "")
                        ("<newline>" . "\n")
-                       ("" . "\n")
+                       ("
+" . "\n")
                        ("\"" . "")
                        ("&#x27;" . "'")
                        ("&#039;" . "'")))
@@ -2045,7 +2140,6 @@ get the lyrics for currently playing/paused song, use
       (empv--lyrics-display nil song lyrics)
     (empv--lyrics-on-not-found song)))
 
-
 ;; Actions, mainly for embark but used in other places too
 
 (defun empv-playlist-play (item)
@@ -2079,7 +2173,6 @@ get the lyrics for currently playing/paused song, use
     (empv--display-event "URI copied: %s" (empv--clean-uri path))
     (kill-new (empv--clean-uri path))))
 
-
 ;; Embark integration
 
 (defvar embark-file-map)
@@ -2155,7 +2248,6 @@ learn more.  Supposed to be used like this:
   (define-key embark-url-map "e" 'empv-enqueue-next) ;; overrides eww
   (define-key embark-url-map "n" 'empv-enqueue))
 
-
 ;; Consult integration
 
 (declare-function consult--read "consult")
@@ -2210,7 +2302,6 @@ results to consult using NEXT."
       (empv--consult-get-input-with-suggestions prompt)
     (read-string prompt nil 'empv--youtube-search-history)))
 
-
 
 (provide 'empv)
 ;;; empv.el ends here
