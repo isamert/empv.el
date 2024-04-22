@@ -1509,15 +1509,17 @@ object."
          (full-url (format "%s?%s" url url-params)))
     (url-retrieve
      full-url
-     (lambda (_status)
-       (let ((result (progn
-                       (goto-char (point-min))
-                       (re-search-forward "\n\n" nil t)
-                       (delete-region (point-min) (point))
-                       (decode-coding-string
-                        (buffer-substring-no-properties (point-min) (point-max)) 'utf-8))))
+     (lambda (status)
+       (empv--dbg "empv--request(%s, %s) → error: %s" url params (plist-get status :error))
+       (let ((headers (progn
+                        (goto-char (point-min))
+                        (re-search-forward "\n\n" nil t)
+                        (buffer-substring-no-properties (point-min) (point))))
+             (body (decode-coding-string
+                    (buffer-substring-no-properties (point) (point-max)) 'utf-8)))
+         (empv--dbg "empv--request(%s, %s) → headers: %s, body: %s" url params headers body)
          (kill-buffer)
-         (funcall callback (empv--read-result result)))))))
+         (funcall callback (empv--read-result body)))))))
 
 (defun empv--request-raw-sync (url)
   "Retrieve URL's body synchronously as string."
