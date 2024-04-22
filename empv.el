@@ -1918,11 +1918,11 @@ nicely formatted buffer."
 (defalias 'empv-youtube-become-tabulated #'empv-youtube-tabulated-last-results)
 
 (defun empv-youtube-tabulated-last-results ()
-    "Show last search results in tabulated mode with thumbnails."
-    (interactive)
-    (if empv--last-youtube-candidates
-        (empv--youtube-show-tabulated-results empv--last-youtube-candidates)
-      (call-interactively 'empv-youtube-tabulated)))
+  "Show last search results in tabulated mode with thumbnails."
+  (interactive)
+  (if empv--last-youtube-candidates
+      (empv--youtube-show-tabulated-results empv--last-youtube-candidates)
+    (call-interactively 'empv-youtube-tabulated)))
 
 (defun empv-youtube-last-results ()
   "Show and act on last search results."
@@ -2020,18 +2020,19 @@ path. No guarantees."
       ;; Find all the links in the response first
       (s-match-strings-all "https\\(://\\|%3A%2F%2F\\)[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]")
       (mapcar #'car)
-      (mapcar (lambda (it) (thread-last
-                             (string-trim-right it "&amp.*")
-                             (string-replace "%3A%2F%2F" "://")
-                             (string-replace "%2F" "/")
-                             (string-replace "%2D" "-")
-                             (string-replace "%2D" "+"))))
+      (mapcar
+       (lambda (it)
+         (thread-last
+           (string-trim-right it "&amp.*")
+           (string-replace "%3A%2F%2F" "://")
+           (string-replace "%2F" "/")
+           (string-replace "%2D" "-")
+           (string-replace "%2D" "+"))))
       ;; Then find the first sturmgeweiht|azlyrics|genius link
       (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\)" it)))
       (url-unhex-string)
       (empv--request-raw-sync)
-      (string-replace "
-" "")
+      (string-replace "" "")
       ;; Replace newlines so that regexes can work
       (string-replace "\n" "<newline>")
       ;; FIXME: The resulting string may be too long and regexes may
@@ -2053,8 +2054,7 @@ path. No guarantees."
                        ("</div>" . "")
                        ("\\" . "")
                        ("<newline>" . "\n")
-                       ("
-" . "\n")
+                       ("" . "\n")
                        ("\"" . "")
                        ("&#x27;" . "'")
                        ("&#039;" . "'")))
