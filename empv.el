@@ -1638,7 +1638,7 @@ download finishes with the path downloaded."
                          empv-audio-dir
                        (car empv-audio-dir))
                      nil nil
-                     (concat title ".mp3"))))
+                     (concat (string-clean-whitespace title) ".mp3"))))
          (default-directory (file-name-directory where))
          (buffer (generate-new-buffer " *empv-yt-dlp*")))
     (set-process-sentinel
@@ -1654,19 +1654,19 @@ download finishes with the path downloaded."
                  (message "Downloaded: %s to %s" url where)
                  (kill-new where))
                (empv-play-or-enqueue where)))
-         (empv--display-event "Failed to download: %s" url))))))
+         (empv--display-event "Failed to download: %s. See buffer %s for details." url (buffer-name buffer)))))))
 
 (defun empv-download-youtube (link)
   "Download LINK to interactively selected path."
   (interactive "sLink: ")
   (empv-youtube-download link))
 
-(defun empv-download-current-item ()
+(defun empv-youtube-download-current ()
   (interactive)
   (let* ((link (empv--youtube-item-extract-link
                 (or (empv-youtube-results--current-item)
                     (car empv--last-youtube-candidates)))))
-    (empv-youtube-download link nil (lambda () (message "Download completed")))))
+    (empv-youtube-download link nil (lambda (file) (empv--display-event "Download completed: %s" file)))))
 
 ;;; Videos and music
 
@@ -1747,6 +1747,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
     (define-key map (kbd "Y") #'empv-youtube-results-copy-current)
     (define-key map (kbd "c") #'empv-youtube-results-show-comments)
     (define-key map (kbd "i") #'empv-youtube-results-inspect)
+    (define-key map (kbd "d") #'empv-youtube-download-current)
     (define-key map (kbd "RET") #'empv-youtube-results-play-or-enqueue-current)
     ;; TODO: add quick help for ? binding
     map)
