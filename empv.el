@@ -46,6 +46,7 @@
 (require 's)
 (require 'consult nil t)
 (require 'compat)
+(require 'text-property-search)
 (eval-when-compile
   (require 'subr-x))
 
