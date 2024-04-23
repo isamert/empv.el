@@ -3,7 +3,7 @@
 ;; Copyright (C) 2022-2024  Isa Mert Gurbuz
 
 ;; Author: Isa Mert Gurbuz <isamertgurbuz@gmail.com>
-;; Version: 4.2.0
+;; Version: 4.3.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
 ;; Package-Requires: ((emacs "28.1") (s "1.13.0") (compat "29.1.4.4"))
@@ -109,6 +109,14 @@ Otherwise simply use `completing-read'.  You can still use
 `empv-youtube-tabulated' or `consult-empv-youtube-tabulated'
 commands if this variable is nil."
   :type 'boolean
+  :group 'empv)
+
+(defcustom empv-youtube-thumbnail-props `(:max-width 240 :max-height 180)
+  "Image properties for thumbnails.
+Please see `(elisp) Image Descriptors', specifically the PROPS
+part.  With this, you can manipulate the size of the thumbnails."
+  :version "4.3.0"
+  :type '(plist)
   :group 'empv)
 
 (defcustom empv-youtube-thumbnail-quality "default"
@@ -1860,7 +1868,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
             (with-current-buffer buffer
               (setf
                (elt (car (alist-get index tabulated-list-entries)) thumbnail-col-index)
-               (cons 'image `(:type png :file ,filename)))
+               (cons 'image `(:type png :file ,filename ,@empv-youtube-thumbnail-props)))
               (setq completed-count (1+ completed-count))
               (when (eq completed-count total-count)
                 (tabulated-list-print)
