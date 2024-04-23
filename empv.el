@@ -505,6 +505,11 @@ items.  See [1] for more information on this.
 (defvar empv--last-youtube-candidates '()
   "Latest candidates that are shown in a `completing-read' by empv.
 Mainly used by embark actions defined in this package.")
+(defvar empv--last-youtube-search nil
+  "Latest YouTube search params.
+It's a list in the form of (QUERY TYPE PAGE) where QUERY is the
+search query, TYPE is either video or playlist and PAGE is the
+latest page loaded.")
 (defvar empv--action-selection-default-title "Action"
   "The text displayed on action selection menus.")
 (defvar empv--inspect-buffer-name "*empv inspect*"
@@ -514,6 +519,8 @@ Mainly used by embark actions defined in this package.")
 
 (defconst empv--playlist-current-indicator (propertize "[CURRENT]" 'face '(:foreground "green"))
   "Simple text to show on the currently playing playlist item.")
+
+(defconst empv--youtube-results-buffer "*empv-yt-results*")
 
 (defvar empv--youtube-search-history nil)
 
@@ -1553,8 +1560,7 @@ object."
              (buffer-substring-no-properties (point-min) (point-max)))))
       result)))
 
-;; TODO: Add [NEXT] item to load next page of results
-(defun empv--youtube-search (term type callback)
+(defun empv--youtube-search (term type page callback)
   "Search TERM in YouTube.
 TYPE determines what to search for, it's either video or
 playlist.  By default it's video.  Call CALLBACK when request
@@ -1563,6 +1569,7 @@ finishes."
   (empv--request
    (format "%s/search" empv-invidious-instance)
    `(("q" . ,term)
+     ("page" . ,(number-to-string page))
      ("type" . ,type))
    callback))
 
@@ -1582,9 +1589,10 @@ finishes."
 See `empv--youtube-search' for TYPE."
   (let ((use-tabulated empv-youtube-use-tabulated-results))
     (empv--youtube-search
-     term type
+     term type 1
      (lambda (results)
        (setq empv--last-youtube-candidates results)
+       (setq empv--last-youtube-search (list term type 1))
        (if use-tabulated
            (empv-youtube-tabulated-last-results)
          (empv-youtube-last-results))))))
@@ -1768,6 +1776,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
     (define-key map (kbd "Y") #'empv-youtube-results-copy-current)
     (define-key map (kbd "c") #'empv-youtube-results-show-comments)
     (define-key map (kbd "i") #'empv-youtube-results-inspect)
+    (define-key map (kbd "m") #'empv-youtube-results-load-more)
     (define-key map (kbd "d") #'empv-youtube-download-current)
     (define-key map (kbd "RET") #'empv-youtube-results-play-or-enqueue-current)
     (define-key map (kbd "?") #'describe-mode)
@@ -1802,55 +1811,78 @@ Limit directory treversal at most DEPTH levels.  By default it's
    'vector))
 
 (defun empv--youtube-show-tabulated-results (candidates)
-  (let ((headers (pcase (alist-get 'type (car candidates))
-                   ("video" empv-youtube-tabulated-video-headers)
-                   ("playlist" empv-youtube-tabulated-playlist-headers))))
-    (with-current-buffer (get-buffer-create "*empv-yt-results*")
-      (empv-youtube-results-mode)
-      (setq
-       tabulated-list-format
-       (seq-into
-        (seq-map
-         (lambda (it)
-           (let ((name (nth 0 it))
-                 (len (nth 1 it))
-                 (sort (let ((sort (nth 2 it)))
-                         (if (functionp sort)
-                             (lambda (x y)
-                               (funcall
-                                sort
-                                (nth (car x) candidates)
-                                (nth (car y) candidates)))
-                           sort))))
-             (list name len sort)))
-         headers)
-        'vector))
+  (with-current-buffer (get-buffer-create empv--youtube-results-buffer)
+    (empv-youtube-results-mode)
+    (pop-to-buffer-same-window (current-buffer))
+    (empv--youtube-tabulated-entries-append candidates)
+    ;; Enable help-at-pt so that video title is fully shown without
+    ;; being truncated
+    (setq-local help-at-pt-display-when-idle t)
+    (setq-local help-at-pt-timer-delay 0)
+    (help-at-pt-cancel-timer)
+    (help-at-pt-set-timer)))
+
+(defun empv-youtube-results-load-more ()
+  "Load the next page of results."
+  (interactive nil empv-youtube-results-mode)
+  (empv--youtube-search
+   (nth 0 empv--last-youtube-search)
+   (nth 1 empv--last-youtube-search)
+   (1+ (nth 2 empv--last-youtube-search))
+   (lambda (results)
+     ;; Increase the current page
+     (setf (nth 2 empv--last-youtube-search) (1+ (nth 2 empv--last-youtube-search)))
+     (empv--youtube-tabulated-entries-append results (length empv--last-youtube-candidates))
+     (setq empv--last-youtube-candidates (append empv--last-youtube-candidates results)))))
+
+(defun empv--youtube-tabulated-entries-append (candidates &optional offset)
+  (setq offset (or offset 0))
+  (with-current-buffer empv--youtube-results-buffer
+    (let* ((headers (pcase (alist-get 'type (car candidates))
+                      ("video" empv-youtube-tabulated-video-headers)
+                      ("playlist" empv-youtube-tabulated-playlist-headers)))
+           (thumbnail-column (empv-seq-find-index (lambda (it) (equal empv-thumbnail-placeholder (nth 3 it))) headers)))
+      (unless tabulated-list-format
+        (setq
+         tabulated-list-format
+         (seq-into
+          (seq-map
+           (lambda (it)
+             (let ((name (nth 0 it))
+                   (len (nth 1 it))
+                   (sort (let ((sort (nth 2 it)))
+                           (if (functionp sort)
+                               (lambda (x y)
+                                 (funcall
+                                  sort
+                                  (nth (car x) candidates)
+                                  (nth (car y) candidates)))
+                             sort))))
+               (list name len sort)))
+           headers)
+          'vector))
+        (tabulated-list-init-header))
       (setq tabulated-list-entries
-            (seq-map-indexed
-             (lambda (it index)
-               (list index (empv--youtube-results-mode-format headers it)))
-             candidates))
-      (tabulated-list-init-header)
-      (tabulated-list-print)
-      (when empv-youtube-thumbnail-quality
+            (append
+             tabulated-list-entries
+             (seq-map-indexed
+              (lambda (it index)
+                (list (+ offset index) (empv--youtube-results-mode-format headers it)))
+              candidates)))
+      (tabulated-list-print t)
+      (back-to-indentation)
+      (when (and thumbnail-column empv-youtube-thumbnail-quality)
         (empv--youtube-tabulated-load-thumbnails
          candidates
-         (empv-seq-find-index (lambda (it) (equal empv-thumbnail-placeholder (nth 3 it))) headers)))
-      (back-to-indentation)
-      (pop-to-buffer-same-window (current-buffer))
-      ;; Enable help-at-pt so that video title is fully shown without
-      ;; being truncated
-      (setq-local help-at-pt-display-when-idle t)
-      (setq-local help-at-pt-timer-delay 0)
-      (help-at-pt-cancel-timer)
-      (help-at-pt-set-timer))))
+         thumbnail-column
+         offset)))))
 
-(cl-defun empv--youtube-tabulated-load-thumbnails (candidates thumbnail-col-index)
+(cl-defun empv--youtube-tabulated-load-thumbnails (candidates thumbnail-col-index &optional index-offset)
   (unless thumbnail-col-index
     (cl-return-from empv--youtube-tabulated-load-thumbnails))
   (let ((total-count (length candidates))
         (completed-count 0)
-        (buffer (current-buffer)))
+        (buffer (get-buffer empv--youtube-results-buffer)))
     (seq-do-indexed
      (lambda (video index)
        (let* ((info (cdr video))
@@ -1889,11 +1921,11 @@ Limit directory treversal at most DEPTH levels.  By default it's
             (empv--dbg "Download finished for image index=%s, url=%s, path=%s" index thumb-url filename)
             (with-current-buffer buffer
               (setf
-               (elt (car (alist-get index tabulated-list-entries)) thumbnail-col-index)
+               (elt (car (alist-get (+ (or index-offset 0) index) tabulated-list-entries)) thumbnail-col-index)
                (cons 'image `(:type png :file ,filename ,@empv-youtube-thumbnail-props)))
               (setq completed-count (1+ completed-count))
               (when (eq completed-count total-count)
-                (tabulated-list-print)
+                (tabulated-list-print t)
                 (back-to-indentation)))))))
      candidates)))
 
