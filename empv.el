@@ -46,7 +46,6 @@
 (require 's)
 (require 'consult nil t)
 (require 'compat)
-(require 'iimage)
 (eval-when-compile
   (require 'subr-x))
 
@@ -1761,10 +1760,6 @@ Limit directory treversal at most DEPTH levels.  By default it's
   "Major mode for interacting with YouTube results with thumbnails."
   (setq tabulated-list-padding 3))
 
-(defadvice tabulated-list-sort (after empv-tabulated-list-sort-after activate)
-  (when (derived-mode-p 'empv-youtube-results-mode)
-    (iimage-recenter)))
-
 (defun empv--youtube-results-mode-format (headers it)
   (seq-into
    (seq-map
@@ -1807,10 +1802,11 @@ Limit directory treversal at most DEPTH levels.  By default it's
       (tabulated-list-init-header)
       (tabulated-list-print)
       (when empv-youtube-thumbnail-quality
-        (empv--youtube-tabulated-load-thumbnails candidates))
+        (empv--youtube-tabulated-load-thumbnails
+         candidates
+         (empv-seq-find-index (lambda (it) (equal empv-thumbnail-placeholder (nth 3 it))) headers)))
       (back-to-indentation)
       (pop-to-buffer-same-window (current-buffer))
-
       ;; Enable help-at-pt so that video title is fully shown without
       ;; being truncated
       (setq-local help-at-pt-display-when-idle t)
@@ -1818,10 +1814,8 @@ Limit directory treversal at most DEPTH levels.  By default it's
       (help-at-pt-cancel-timer)
       (help-at-pt-set-timer))))
 
-(cl-defun empv--youtube-tabulated-load-thumbnails (candidates)
-  (unless (save-excursion
-            (goto-char (point-min))
-            (re-search-forward empv-thumbnail-placeholder nil t))
+(cl-defun empv--youtube-tabulated-load-thumbnails (candidates thumbnail-col-index)
+  (unless thumbnail-col-index
     (cl-return-from empv--youtube-tabulated-load-thumbnails))
   (let ((total-count (length candidates))
         (completed-count 0)
@@ -1864,18 +1858,12 @@ Limit directory treversal at most DEPTH levels.  By default it's
             (empv--dbg "Download finished for image index=%s, url=%s, path=%s" index thumb-url filename)
             (with-current-buffer buffer
               (setf
-               (elt (car (alist-get index tabulated-list-entries)) 0)
-               (propertize (format "[[%s]]" filename)
-                           'help-echo (alist-get 'title info)))
+               (elt (car (alist-get index tabulated-list-entries)) thumbnail-col-index)
+               (cons 'image `(:type png :file ,filename)))
               (setq completed-count (1+ completed-count))
               (when (eq completed-count total-count)
                 (tabulated-list-print)
-                (iimage-mode)
-                (back-to-indentation)
-                ;; Assuming thumbnail is the first column, jump to
-                ;; next one so that bindings work properly. Other wise
-                ;; iimage-mode bindings gets activated
-                (tabulated-list-next-column)))))))
+                (back-to-indentation)))))))
      candidates)))
 
 (defun empv-youtube-results--current-item ()
