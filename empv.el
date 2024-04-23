@@ -330,16 +330,16 @@ string:
   `(("Thumbnail" 15 nil ,empv-thumbnail-placeholder)
     ("Title" 50 t .title)
     ("Length" 15 t .lengthSeconds)
-    ("Views" 15 t .viewCountText)
-    ("Author" 15 t  .author)
-    ("Published" 15 t .publishedText))
+    ("Views" 15 (lambda (a b) (< (alist-get 'viewCount a) (alist-get 'viewCount b))) .viewCountText)
+    ("Author" 15 t .author)
+    ("Published" 15 (lambda (a b) (< (alist-get 'published a) (alist-get 'published b))) .publishedText))
   "Headers to display in YouTube tabulated search result.
 
 By setting this variable, you can customize what the show inside
 YouTube tabulated search results.  By default \"Thumbnail, Title,
-Length, Views, Author, Published\" are shown.  You can simply delete or
-add to this list show extra or less information.  This variable is in
-the following form:
+Length, Views, Author, Published\" are shown.  You can simply
+delete or add to this list show extra or less information.  This
+variable is in the following form:
 
     (HEADER-DEFINITION ...)
 
@@ -348,8 +348,16 @@ A HEADER-DEFINITION is a list in the following form:
     (TITLE COLUMN-LENGTH SORTABLE? ACCESSOR)
 
 - TITLE is simply the text shown in the header portion (a string).
+
 - COLUMN-LENGTH is the length of this column in the table (a number).
-- SORTABLE? defines if this column is sortable or not (t or nil).
+
+- SORTABLE? defines if this column is sortable or not (t or nil).  It
+  can also be a function that takes
+
+    (INVIDIOUS-RESPONSE1 INVIDIOUS-RESPONSE2)
+
+  as parameters.
+
 - ACCESSOR is a JSON-PATH like symbol that defines how to get the
   value of this column.
 
@@ -358,9 +366,9 @@ the following HEADER-DEFINITION:
 
     \\='(\"Views\" 15 t .viewCountText)
 
-This will create an 15 char-wide column named \"Views\" and it will get
-the viewCountText value from the Invidious response to display it as
-the value in a row.
+This will create an 15 char-wide column named \"Views\" and it
+will get the viewCountText value from the Invidious response to
+display it as the value in a row.
 
 You can inspect a YouTube search result to learn it's
 JSON-PATH. To do so, do a tabulated search, focus on a
@@ -373,7 +381,8 @@ can use a JSON-PATH like the following: .a.b.c"
   :type '(repeat
           (list (string :tag "Name of the column")
                 (integer :tag "Lenght of the column")
-                (boolean :tag "Is column sortable?")
+                (choice (boolean :tag "Is column sortable?")
+                        (function :tag "Sort function"))
                 (choice (symbol :tag "The path of the property in the response json")
                         (string :tag "Constant text to show"))))
   :group 'empv)
@@ -388,7 +397,8 @@ can use a JSON-PATH like the following: .a.b.c"
   :type '(repeat
           (list (string :tag "Name of the column")
                 (integer :tag "Lenght of the column")
-                (boolean :tag "Is column sortable?")
+                (choice (boolean :tag "Is column sortable?")
+                        (function :tag "Sort function"))
                 (choice (symbol :tag "The path of the property in the response json")
                         (string :tag "Constant text to show"))))
   :group 'empv)
@@ -1801,7 +1811,20 @@ Limit directory treversal at most DEPTH levels.  By default it's
       (setq
        tabulated-list-format
        (seq-into
-        (seq-map (lambda (it) (seq-take it 3)) headers)
+        (seq-map
+         (lambda (it)
+           (let ((name (nth 0 it))
+                 (len (nth 1 it))
+                 (sort (let ((sort (nth 2 it)))
+                         (if (functionp sort)
+                             (lambda (x y)
+                               (funcall
+                                sort
+                                (nth (car x) candidates)
+                                (nth (car y) candidates)))
+                           sort))))
+             (list name len sort)))
+         headers)
         'vector))
       (setq tabulated-list-entries
             (seq-map-indexed
