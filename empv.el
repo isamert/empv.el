@@ -106,8 +106,7 @@ https://invidious-example.com/api/v1"
   nil
   "Show YouTube results in a tabulated buffer with thumbnails if not nil.
 Otherwise simply use `completing-read'.  You can still use
-`empv-youtube-tabulated' or `consult-empv-youtube-tabulated'
-commands if this variable is nil."
+`empv-youtube-tabulated' command if this variable is nil."
   :type 'boolean
   :group 'empv)
 
@@ -330,9 +329,9 @@ string:
   `(("Thumbnail" 15 nil ,empv-thumbnail-placeholder)
     ("Title" 50 t .title)
     ("Length" 15 t .lengthSeconds)
-    ("Views" 15 (lambda (a b) (< (alist-get 'viewCount a) (alist-get 'viewCount b))) .viewCountText)
+    ("Views" 15 (lambda (a b) (< (alist-get 'viewCount a 0) (alist-get 'viewCount b 0))) .viewCountText)
     ("Author" 15 t .author)
-    ("Published" 15 (lambda (a b) (< (alist-get 'published a) (alist-get 'published b))) .publishedText))
+    ("Published" 15 (lambda (a b) (< (alist-get 'published a 0) (alist-get 'published b 0))) .publishedText))
   "Headers to display in YouTube tabulated search result.
 
 By setting this variable, you can customize what the show inside
