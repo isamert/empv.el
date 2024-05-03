@@ -1922,12 +1922,27 @@ Limit directory treversal at most DEPTH levels.  By default it's
             (with-current-buffer buffer
               (setf
                (elt (car (alist-get (+ (or index-offset 0) index) tabulated-list-entries)) thumbnail-col-index)
-               (cons 'image `(:type png :file ,filename ,@empv-youtube-thumbnail-props)))
+               (cons 'image `(:type ,(empv--get-image-type filename) :file ,filename ,@empv-youtube-thumbnail-props)))
               (setq completed-count (1+ completed-count))
               (when (eq completed-count total-count)
                 (tabulated-list-print t)
                 (back-to-indentation)))))))
      candidates)))
+
+(defun empv--get-image-type (file)
+  "Return image type of FILE.
+It is based on file extension.  See Info node `(elisp)Image Formats' for
+supported formats."
+  ;; (if (string-prefix-p
+  ;;      "\x89PNG\r\n\x1a\n"
+  ;;      (with-temp-buffer
+  ;;        (insert-file-contents-literally file nil 0 10)
+  ;;        (buffer-string)))
+  ;;     'png
+  ;;   'jpeg)
+  (pcase (intern (file-name-extension file))
+    ('jpg 'jpeg)
+    (other other)))
 
 (defun empv-youtube-results--current-item ()
   (save-excursion
