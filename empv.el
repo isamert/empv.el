@@ -112,7 +112,7 @@ Otherwise simply use `completing-read'.  You can still use
 
 (defcustom empv-youtube-thumbnail-props `(:max-width 240 :max-height 180)
   "Image properties for thumbnails.
-Please see `(elisp) Image Descriptors', specifically the PROPS
+See Info node `(elisp)Image Descriptors', specifically the PROPS
 part.  With this, you can manipulate the size of the thumbnails."
   :version "4.3.0"
   :type '(plist)
