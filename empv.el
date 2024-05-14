@@ -1814,7 +1814,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
   (with-current-buffer (get-buffer-create empv--youtube-results-buffer)
     (empv-youtube-results-mode)
     (pop-to-buffer-same-window (current-buffer))
-    (empv--youtube-tabulated-entries-append candidates)
+    (empv--youtube-tabulated-entries-put candidates)
     ;; Enable help-at-pt so that video title is fully shown without
     ;; being truncated
     (setq-local help-at-pt-display-when-idle t)
@@ -1832,11 +1832,10 @@ Limit directory treversal at most DEPTH levels.  By default it's
    (lambda (results)
      ;; Increase the current page
      (setf (nth 2 empv--last-youtube-search) (1+ (nth 2 empv--last-youtube-search)))
-     (empv--youtube-tabulated-entries-append results (length empv--last-youtube-candidates))
+     (empv--youtube-tabulated-entries-put results :append)
      (setq empv--last-youtube-candidates (append empv--last-youtube-candidates results)))))
 
-(defun empv--youtube-tabulated-entries-append (candidates &optional offset)
-  (setq offset (or offset 0))
+(defun empv--youtube-tabulated-entries-put (candidates &optional append?)
   (with-current-buffer empv--youtube-results-buffer
     (let* ((headers (pcase (alist-get 'type (car candidates))
                       ("video" empv-youtube-tabulated-video-headers)
@@ -1862,20 +1861,22 @@ Limit directory treversal at most DEPTH levels.  By default it's
            headers)
           'vector))
         (tabulated-list-init-header))
-      (setq tabulated-list-entries
-            (append
-             tabulated-list-entries
-             (seq-map-indexed
-              (lambda (it index)
-                (list (+ offset index) (empv--youtube-results-mode-format headers it)))
-              candidates)))
-      (tabulated-list-print t)
-      (back-to-indentation)
-      (when (and thumbnail-column empv-youtube-thumbnail-quality)
-        (empv--youtube-tabulated-load-thumbnails
-         candidates
-         thumbnail-column
-         offset)))))
+      (let* ((offset (if append? (length tabulated-list-entries) 0))
+             (new-entries (seq-map-indexed
+                           (lambda (it index)
+                             (list (+ offset index) (empv--youtube-results-mode-format headers it)))
+                           candidates)))
+        (setq tabulated-list-entries
+              (if append?
+                  (append tabulated-list-entries new-entries)
+                new-entries))
+        (tabulated-list-print t)
+        (back-to-indentation)
+        (when (and thumbnail-column empv-youtube-thumbnail-quality)
+          (empv--youtube-tabulated-load-thumbnails
+           candidates
+           thumbnail-column
+           offset))))))
 
 (cl-defun empv--youtube-tabulated-load-thumbnails (candidates thumbnail-col-index &optional index-offset)
   (unless thumbnail-col-index
