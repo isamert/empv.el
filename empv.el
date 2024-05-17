@@ -402,6 +402,19 @@ can use a JSON-PATH like the following: .a.b.c"
                         (string :tag "Constant text to show"))))
   :group 'empv)
 
+(defcustom empv-youtube-tabulated-new-entries-hook
+  '()
+  "Functions to be called when new entries are added to tabulated YouTube results.
+Each function is called with set of set of results being appended
+to the buffer.  The list contains the response from Invidious.
+For example, to print all video titles whenever they are being
+added, you can do the following:
+
+  (add-hook
+   'empv-youtube-tabulated-new-entries-hook
+   #'(lambda (entries &rest _)
+       (seq-do (lambda (it) (message (alist-get 'title it))) entries)))"
+  :type 'hook)
 
 ;;; Public variables
 
@@ -1842,6 +1855,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
 
 (defun empv--youtube-tabulated-entries-put (candidates &optional append?)
   (with-current-buffer empv--youtube-results-buffer
+    (seq-do (lambda (fn) (funcall fn candidates)) empv-youtube-tabulated-new-entries-hook)
     (let* ((headers (pcase (alist-get 'type (car candidates))
                       ("video" empv-youtube-tabulated-video-headers)
                       ("playlist" empv-youtube-tabulated-playlist-headers)))
