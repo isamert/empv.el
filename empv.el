@@ -1617,6 +1617,7 @@ Show results in a tabulated buffers with thumbnails."
   (interactive (list (empv--yt-suggest "Search in YouTube videos: ")))
   (empv--youtube term 'playlist))
 
+;;;###autoload
 (defun empv-youtube-show-current-comments ()
   "Show YouTube comments for currently playing (or paused) YouTube video."
   (interactive)
@@ -1624,6 +1625,8 @@ Show results in a tabulated buffers with thumbnails."
     (empv-youtube-show-comments .path)))
 
 (declare-function emojify-mode "emojify")
+
+;;;###autoload
 (defun empv-youtube-show-comments (video-id)
   "Show comments of a YouTube VIDEO-ID in a nicely formatted org buffer.
 VIDEO-ID can be either a YouTube URL or just a YouTube ID."
@@ -1683,11 +1686,13 @@ download finishes with the path downloaded."
                (empv-play-or-enqueue where)))
          (empv--display-event "Failed to download: %s. See buffer %s for details." url (buffer-name buffer)))))))
 
+;;;###autoload
 (defun empv-download-youtube (link)
   "Download LINK to interactively selected path."
   (interactive "sLink: ")
   (empv-youtube-download link))
 
+;;;###autoload
 (defun empv-youtube-download-current ()
   (interactive)
   (let* ((link (empv--youtube-item-extract-link
