@@ -112,7 +112,7 @@ Otherwise simply use `completing-read'.  You can still use
 
 (defcustom empv-youtube-thumbnail-props `(:max-width 240 :max-height 180)
   "Image properties for thumbnails.
-See Info node `(elisp)Image Descriptors', specifically the PROPS
+See Info node `(elisp) Image Descriptors', specifically the PROPS
 part.  With this, you can manipulate the size of the thumbnails."
   :version "4.3.0"
   :type '(plist)
@@ -379,7 +379,7 @@ can use a JSON-PATH like the following: .a.b.c"
   :version "4.2.0"
   :type '(repeat
           (list (string :tag "Name of the column")
-                (integer :tag "Lenght of the column")
+                (integer :tag "Length of the column")
                 (choice (boolean :tag "Is column sortable?")
                         (function :tag "Sort function"))
                 (choice (symbol :tag "The path of the property in the response json")
@@ -395,7 +395,7 @@ can use a JSON-PATH like the following: .a.b.c"
   :version "4.2.0"
   :type '(repeat
           (list (string :tag "Name of the column")
-                (integer :tag "Lenght of the column")
+                (integer :tag "Length of the column")
                 (choice (boolean :tag "Is column sortable?")
                         (function :tag "Sort function"))
                 (choice (symbol :tag "The path of the property in the response json")
@@ -454,12 +454,12 @@ can use a JSON-PATH like the following: .a.b.c"
     map)
   "Keymap for commonly used empv functions.
 It is not bound to any key by default.  Some keys are loosely
-modelled after default keys of mpv.")
+modeled after default keys of mpv.")
 
 ;;; Internal variables
 
 (defconst empv--title-sep "##"
-  "Seperator for seperating the URL and it's title.
+  "Separator for separating the URL and it's title.
 MPV does not provide a way to get media-title for a given item
 in the playlist.  This makes sense, because the item might be a
 YouTube link and a network request is required to fetch it's
@@ -602,7 +602,7 @@ latest page loaded.")
       (apply #'message formatted-msg))))
 
 (defun empv--read-result (result)
-  "Read JSON RESULT into an elisp structre."
+  "Read JSON RESULT into an elisp structure."
   (let* ((json-object-type 'alist)
          (json-array-type 'list)
          (json-key-type 'symbol)
@@ -674,7 +674,7 @@ latest page loaded.")
 (defvar empv--process-buffer ""
   "Temporary variable to hold the date returned from mpv process.
 
-If the returned result is sufficently long (like a very long
+If the returned result is sufficiently long (like a very long
 playlist), `empv--filter' might get called with incomplete
 JSON.  According to here[1], mpv terminates every result with
 `\n', so we simply wait until we see a newline before processing
@@ -1932,7 +1932,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
 
 (defun empv--get-image-type (file)
   "Return image type of FILE.
-It is based on file extension.  See Info node `(elisp)Image Formats' for
+It is based on file extension.  See Info node `(elisp) Image Formats' for
 supported formats."
   ;; (if (string-prefix-p
   ;;      "\x89PNG\r\n\x1a\n"
