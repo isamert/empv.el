@@ -1855,7 +1855,6 @@ Limit directory treversal at most DEPTH levels.  By default it's
 
 (defun empv--youtube-tabulated-entries-put (candidates &optional append?)
   (with-current-buffer empv--youtube-results-buffer
-    (seq-do (lambda (fn) (funcall fn candidates)) empv-youtube-tabulated-new-entries-hook)
     (let* ((headers (pcase (alist-get 'type (car candidates))
                       ("video" empv-youtube-tabulated-video-headers)
                       ("playlist" empv-youtube-tabulated-playlist-headers)))
@@ -1895,7 +1894,9 @@ Limit directory treversal at most DEPTH levels.  By default it's
           (empv--youtube-tabulated-load-thumbnails
            candidates
            thumbnail-column
-           offset))))))
+           offset))))
+    (seq-do (lambda (fn) (funcall fn candidates)) empv-youtube-tabulated-new-entries-hook)))
+
 
 (cl-defun empv--youtube-tabulated-load-thumbnails (candidates thumbnail-col-index &optional index-offset)
   (unless thumbnail-col-index
