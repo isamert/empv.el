@@ -50,14 +50,14 @@
 (eval-when-compile
   (require 'subr-x))
 
-;;; Some helpful resources
+;;;; Some helpful resources
 ;; - https://github.com/mpv-player/mpv/blob/master/DOCS/man/input.rst
 
-;;; Some constants
+;;;; Some constants
 
 (defconst empv-thumbnail-placeholder "<THUMBNAIL>")
 
-;;; Customization
+;;;; Customization
 
 (defgroup empv nil
   "A media player for Emacs."
@@ -411,12 +411,12 @@ For example, to print all video titles whenever they are being
 added, you can do the following:
 
   (add-hook
-   'empv-youtube-tabulated-new-entries-hook
-   #'(lambda (entries &rest _)
-       (seq-do (lambda (it) (message (alist-get 'title it))) entries)))"
+   \\='empv-youtube-tabulated-new-entries-hook
+   #\\='(lambda (entries &rest _)
+       (seq-do (lambda (it) (message (alist-get \\='title it))) entries)))"
   :type 'hook)
 
-;;; Public variables
+;;;; Public variables
 
 ;;;###autoload
 (defvar empv-map
@@ -469,7 +469,7 @@ added, you can do the following:
 It is not bound to any key by default.  Some keys are loosely
 modeled after default keys of mpv.")
 
-;;; Internal variables
+;;;; Internal variables
 
 (defconst empv--title-sep "##"
   "Separator for separating the URL and it's title.
@@ -537,7 +537,7 @@ latest page loaded.")
 
 (defvar empv--youtube-search-history nil)
 
-;;; Utility
+;;;; Utility
 
 (defun empv-flipcall (fn x y)
   "Flip arguments of given binary function FN and call it with Y and X."
@@ -676,7 +676,7 @@ latest page loaded.")
        (empv-start))
      ,@forms))
 
-;;; Handlers
+;;;; Handlers
 
 (defun empv--sentinel (_proc msg)
   "Clean up after connection closes with MSG."
@@ -727,7 +727,7 @@ the result.
        (split-string empv--process-buffer "\n"))))
     (setq empv--process-buffer "")))
 
-;;; Process primitives
+;;;; Process primitives
 
 (defun empv--make-process (&rest uris)
   "Create the MPV process with given URIs."
@@ -776,7 +776,7 @@ happens."
   (empv--wait-until-non-nil result
     (empv--send-command command (lambda (x) (setq result x)))))
 
-;;; Essential macros
+;;;; Essential macros
 
 (defmacro empv--cmd (cmd &optional args &rest forms)
   "Run CMD with ARGS and then call FORMS with the result."
@@ -833,7 +833,7 @@ happens."
         (empv--send-command (list "set_property" ,property new-val) #'ignore)
         (empv--display-event "%s is set to %s" (capitalize (symbol-name ,property)) new-val)))))
 
-;;; User level helpers
+;;;; User level helpers
 
 (defun empv-observe (property callback)
   "Observe PROPERTY and call CALLBACK when it does change."
@@ -845,7 +845,7 @@ EVENT is a symbol representing the event name, see list of
 events: https://mpv.io/manual/stable/#list-of-events"
   (map-put! empv--callback-table (symbol-name event) (list :fn callback :event? t)))
 
-;;; Essential functions
+;;;; Essential functions
 
 ;;;###autoload
 (defun empv-play-or-enqueue (uri)
@@ -980,7 +980,6 @@ This function also tries to disable sorting in `completing-read' function."
        (ignore item)
        ,@forms)))
 
-;;;###autoload
 (cl-defun empv--completing-read-object
     (prompt objects &key (formatter #'identity) category (sort? t) def multiple?)
   "`completing-read' with formatter and sort control.
@@ -1014,7 +1013,7 @@ candidate, if given.  PROMPT passed to `completing-read' as is."
         (or (mapcar (lambda (it) (gethash it object-table)) selected) def)
       (gethash selected object-table (or def selected)))))
 
-;;; Interactive - Basics
+;;;; Interactive - Basics
 
 ;;;###autoload
 (defun empv-play (uri)
@@ -1241,7 +1240,7 @@ along with the log."
        nil empv-radio-log-file 'append)
       (message "%s" title))))
 
-;;; Interactive - Playlist
+;;;; Interactive - Playlist
 
 ;;;###autoload
 (defun empv-enqueue (uri)
@@ -1348,7 +1347,7 @@ Example:
         fname))))
   (empv--playlist-apply #'empv--playlist-save-to-file filename))
 
-;;; Interactive - Misc
+;;;; Interactive - Misc
 
 (defun empv--format-clock (it)
   (format "%02d:%02d" (floor (/ it 60)) (% (floor it) 60)))
@@ -1436,7 +1435,7 @@ The display format is determined by the
     (empv--display-event "URI copied: %s" (empv--clean-uri .path))
     (kill-new (empv--clean-uri .path))))
 
-;;; Interactive - Chapters
+;;;; Interactive - Chapters
 
 (defun empv-chapter-prev ()
   "Seek to previous chapter in current media file."
@@ -1466,7 +1465,7 @@ The display format is determined by the
                      :sort? nil))))
       (empv--cmd 'set_property `(chapter ,result)))))
 
-;;; Radio
+;;;; Radio
 
 (defun empv--play-radio-channel (channel &optional ask)
   (let* ((data (list :title (car channel) :url (cdr channel) :radio t))
@@ -1502,7 +1501,77 @@ The display format is determined by the
     (empv--display-event "Playing %s" (car channel))
     (empv--play-radio-channel channel)))
 
-;;; YouTube/Invidious
+;;;; Videos and music
+
+(defun empv--find-files-1 (path extensions &optional depth)
+  "Find files with given EXTENSIONS under given PATH.
+PROMPT is shown when `completing-read' is called."
+  (let ((default-directory path))
+    (thread-last
+      extensions
+      (mapcar (lambda (ext) (format "-e '%s' " ext)))
+      (string-join)
+      (concat (format "%s . --absolute-path --max-depth %s "
+                      empv-fd-binary
+                      (or depth empv-max-directory-search-depth)))
+      (shell-command-to-string)
+      (empv-flipcall #'split-string "\n")
+      (empv-seq-init))))
+
+(defun empv--find-files (path extensions &optional depth)
+  "Like `empv--find-files-1' but PATH can be a list."
+  (if (listp path)
+      (seq-mapcat (lambda (it) (empv--find-files-1 it extensions depth)) (seq-filter (lambda (it) (file-directory-p it)) path))
+    (empv--find-files-1 path extensions depth)))
+
+(defun empv--select-file (prompt path extensions &optional depth)
+  "Select a file interactively under given PATH.
+
+Only searches for files with given EXTENSIONS.
+PROMPT is shown to user while selecting.
+Limit directory traversal at most DEPTH levels.  By default it's
+`empv-max-directory-search-depth'"
+  (expand-file-name
+   (empv--completing-read-object
+    prompt
+    (empv--find-files path extensions depth)
+    :formatter #'abbreviate-file-name
+    :category 'file)))
+
+(defun empv--select-files (prompt path extensions &optional depth)
+  "Select files interactively under given PATH.
+
+Only searches for files with given EXTENSIONS.
+PROMPT is shown to user while selecting.
+Limit directory treversal at most DEPTH levels.  By default it's
+`empv-max-directory-search-depth'"
+  (seq-map
+   (lambda (it) (expand-file-name it path))
+   (empv--completing-read-object
+    prompt
+    (empv--find-files path extensions depth)
+    :multiple? t
+    :formatter #'abbreviate-file-name
+    :category 'file)))
+
+;;;###autoload
+(defun empv-play-video ()
+  "Interactively select and play a video file from `empv-video-dir'."
+  (interactive)
+  (empv--with-video-enabled
+   (empv-play-or-enqueue
+    (empv--select-file "Select a video file" empv-video-dir empv-video-file-extensions))))
+
+;;;###autoload
+(defun empv-play-audio ()
+  "Interactively select and play an audio file from `empv-audio-dir'."
+  (interactive)
+  (empv-play-or-enqueue
+   (empv--select-file "Select an audio file:" empv-audio-dir empv-audio-file-extensions)))
+
+;;;; YouTube/Invidious
+
+;;;;; Formatters
 
 (defun empv--format-yt-views (view-count)
   (format "%.2sK views" (/ view-count 1000.0)))
@@ -1533,6 +1602,8 @@ The display format is determined by the
                                       'face
                                       'italic)
                           .title)))))
+
+;;;;; Request
 
 (defun empv--request-format-param (pair)
   "Format given PAIR into a URL parameter."
@@ -1610,6 +1681,8 @@ See `empv--youtube-search' for TYPE."
            (empv-youtube-tabulated-last-results)
          (empv-youtube-last-results))))))
 
+;;;;; Interactice
+
 ;;;###autoload
 (defun empv-youtube (term)
   "Search TERM in YouTube videos."
@@ -1664,6 +1737,8 @@ VIDEO-ID can be either a YouTube URL or just a YouTube ID."
           (alist-get 'comments result))
          (goto-char (point-min)))))))
 
+;;;;; YouTube download
+
 ;; TODO: Add video download support
 ;; TODO: Add audio format option (ogg etc.)
 (defun empv-youtube-download (link &optional path callback)
@@ -1713,75 +1788,7 @@ download finishes with the path downloaded."
                     (car empv--last-youtube-candidates)))))
     (empv-youtube-download link nil (lambda (file) (empv--display-event "Download completed: %s" file)))))
 
-;;; Videos and music
-
-(defun empv--find-files-1 (path extensions &optional depth)
-  "Find files with given EXTENSIONS under given PATH.
-PROMPT is shown when `completing-read' is called."
-  (let ((default-directory path))
-    (thread-last
-      extensions
-      (mapcar (lambda (ext) (format "-e '%s' " ext)))
-      (string-join)
-      (concat (format "%s . --absolute-path --max-depth %s "
-                      empv-fd-binary
-                      (or depth empv-max-directory-search-depth)))
-      (shell-command-to-string)
-      (empv-flipcall #'split-string "\n")
-      (empv-seq-init))))
-
-(defun empv--find-files (path extensions &optional depth)
-  "Like `empv--find-files-1' but PATH can be a list."
-  (if (listp path)
-      (seq-mapcat (lambda (it) (empv--find-files-1 it extensions depth)) (seq-filter (lambda (it) (file-directory-p it)) path))
-    (empv--find-files-1 path extensions depth)))
-
-(defun empv--select-file (prompt path extensions &optional depth)
-  "Select a file interactively under given PATH.
-
-Only searches for files with given EXTENSIONS.
-PROMPT is shown to user while selecting.
-Limit directory traversal at most DEPTH levels.  By default it's
-`empv-max-directory-search-depth'"
-  (expand-file-name
-   (empv--completing-read-object
-    prompt
-    (empv--find-files path extensions depth)
-    :formatter #'abbreviate-file-name
-    :category 'file)))
-
-(defun empv--select-files (prompt path extensions &optional depth)
-  "Select files interactively under given PATH.
-
-Only searches for files with given EXTENSIONS.
-PROMPT is shown to user while selecting.
-Limit directory treversal at most DEPTH levels.  By default it's
-`empv-max-directory-search-depth'"
-  (seq-map
-   (lambda (it) (expand-file-name it path))
-   (empv--completing-read-object
-    prompt
-    (empv--find-files path extensions depth)
-    :multiple? t
-    :formatter #'abbreviate-file-name
-    :category 'file)))
-
-;;;###autoload
-(defun empv-play-video ()
-  "Interactively select and play a video file from `empv-video-dir'."
-  (interactive)
-  (empv--with-video-enabled
-   (empv-play-or-enqueue
-    (empv--select-file "Select a video file" empv-video-dir empv-video-file-extensions))))
-
-;;;###autoload
-(defun empv-play-audio ()
-  "Interactively select and play an audio file from `empv-audio-dir'."
-  (interactive)
-  (empv-play-or-enqueue
-   (empv--select-file "Select an audio file:" empv-audio-dir empv-audio-file-extensions)))
-
-;;; empv-youtube-results-mode
+;;;;; empv-youtube-results-mode
 
 (defvar empv-youtube-results-mode-map
   (let ((map (make-sparse-keymap)))
@@ -1896,7 +1903,6 @@ Limit directory treversal at most DEPTH levels.  By default it's
            thumbnail-column
            offset))))
     (seq-do (lambda (fn) (funcall fn candidates)) empv-youtube-tabulated-new-entries-hook)))
-
 
 (cl-defun empv--youtube-tabulated-load-thumbnails (candidates thumbnail-col-index &optional index-offset)
   (unless thumbnail-col-index
@@ -2029,7 +2035,7 @@ nicely formatted buffer."
       (empv--youtube-item-extract-link)
       (empv-play-or-enqueue))))
 
-;;; empv utility
+;;;; empv utility
 
 (defun empv-override-quit-key ()
   "Override `q' key to \"pause and hide video\" action.
@@ -2059,7 +2065,7 @@ To make this behavior permanant, add the following to your init file:
 (defun empv-media-at-point ()
   "Return the potential media item at the point.
 It may be an absolute filepath, it may be a relative file
-path. No guarantees."
+path.  No guarantees."
   (or
    (when (eq major-mode 'org-mode)
      (ignore-errors (org-element-property :path (org-element-context))))
@@ -2075,7 +2081,7 @@ path. No guarantees."
 
 (defalias 'empv-play-thing-at-point #'empv-play-media-at-point)
 
-;; Lyrics manager
+;;;; Lyrics manager
 
 (defvar empv-lyrics-display-mode-map
   (let ((map (make-sparse-keymap)))
@@ -2231,7 +2237,7 @@ get the lyrics for currently playing/paused song, use
       (empv--lyrics-display nil song lyrics)
     (empv--lyrics-on-not-found song)))
 
-;; Actions, mainly for embark but used in other places too
+;;;; Actions, mainly for embark but used in other places too
 
 (defun empv-playlist-play (item)
   (empv--cmd-seq
@@ -2264,7 +2270,7 @@ get the lyrics for currently playing/paused song, use
     (empv--display-event "URI copied: %s" (empv--clean-uri path))
     (kill-new (empv--clean-uri path))))
 
-;; Embark integration
+;;;; Embark integration
 
 (defvar embark-file-map)
 (defvar embark-keymap-alist)
@@ -2339,7 +2345,7 @@ learn more.  Supposed to be used like this:
   (define-key embark-url-map "e" 'empv-enqueue-next) ;; overrides eww
   (define-key embark-url-map "n" 'empv-enqueue))
 
-;; Consult integration
+;;;; Consult integration
 
 (declare-function consult--read "consult")
 (declare-function consult--lookup-member "consult")
