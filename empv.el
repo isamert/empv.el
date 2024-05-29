@@ -1871,6 +1871,7 @@ SEARCH is type of `empv--yt-search'."
            (setf
             (empv--yt-search-page empv--buffer-youtube-search) (1+ (empv--yt-search-page empv--buffer-youtube-search))
             (empv--yt-search-results empv--buffer-youtube-search) (append old-results results)))
+         (setq empv--last-youtube-search empv--buffer-youtube-search)
          (empv--youtube-tabulated-entries-put results :append))))))
 
 (defun empv--youtube-tabulated-entries-put (candidates &optional append?)
