@@ -515,14 +515,8 @@ items.  See [1] for more information on this.
 (defvar empv--network-process nil)
 (defvar empv--callback-table (make-hash-table :test 'equal))
 (defvar empv--dbg nil)
-(defvar empv--last-youtube-candidates '()
-  "Latest candidates that are shown in a `completing-read' by empv.
-Mainly used by embark actions defined in this package.")
 (defvar empv--last-youtube-search nil
-  "Latest YouTube search params.
-It's a list in the form of (QUERY TYPE PAGE) where QUERY is the
-search query, TYPE is either video or playlist and PAGE is the
-latest page loaded.")
+  "Latest YouTube search, an `empv--yt-search' struct.")
 (defvar empv--action-selection-default-title "Action"
   "The text displayed on action selection menus.")
 (defvar empv--inspect-buffer-name "*empv inspect*"
@@ -533,7 +527,8 @@ latest page loaded.")
 (defconst empv--playlist-current-indicator (propertize "[CURRENT]" 'face '(:foreground "green"))
   "Simple text to show on the currently playing playlist item.")
 
-(defconst empv--youtube-results-buffer "*empv-yt-results*")
+(defvar-local empv--buffer-youtube-search nil
+  "YouTube search for this buffer, see `empv--yt-search'.")
 
 (defvar empv--youtube-search-history nil)
 
@@ -1675,8 +1670,7 @@ See `empv--youtube-search' for TYPE."
     (empv--youtube-search
      term type 1
      (lambda (results)
-       (setq empv--last-youtube-candidates results)
-       (setq empv--last-youtube-search (list term type 1))
+       (setq empv--last-youtube-search (empv--make-yt-search :query term :type type :results results))
        (if use-tabulated
            (empv-youtube-tabulated-last-results)
          (empv-youtube-last-results))))))
@@ -1784,11 +1778,17 @@ download finishes with the path downloaded."
 (defun empv-youtube-download-current ()
   (interactive)
   (let* ((link (empv--youtube-item-extract-link
-                (or (empv-youtube-results--current-item)
-                    (car empv--last-youtube-candidates)))))
+                (empv-youtube-results--current-item))))
     (empv-youtube-download link nil (lambda (file) (empv--display-event "Download completed: %s" file)))))
 
 ;;;;; empv-youtube-results-mode
+
+(cl-defstruct (empv--yt-search (:constructor empv--make-yt-search)
+                               (:copier nil))
+  (query nil :type 'string)
+  (type nil :type '(member 'video 'playlist))
+  (page 1 :type 'number)
+  (results '() :type 'list :documentation "List of search results as returned by Invidious."))
 
 (defvar empv-youtube-results-mode-map
   (let ((map (make-sparse-keymap)))
@@ -1811,6 +1811,14 @@ download finishes with the path downloaded."
 (define-derived-mode empv-youtube-results-mode tabulated-list-mode "empv-youtube-results-mode"
   "Major mode for interacting with YouTube results with thumbnails."
   (setq tabulated-list-padding 3))
+
+(defun empv--get-buffer-for-search (search)
+  "Get or create buffer for SEARCH.
+SEARCH is type of `empv--yt-search'."
+  (get-buffer-create
+   (format "*empv-youtube-%s-search: %s*"
+           (empv--yt-search-type search)
+           (empv--yt-search-query search))))
 
 (defun empv--youtube-results-mode-format (headers it)
   (seq-into
@@ -1835,11 +1843,12 @@ download finishes with the path downloaded."
     headers)
    'vector))
 
-(defun empv--youtube-show-tabulated-results (candidates)
-  (with-current-buffer (get-buffer-create empv--youtube-results-buffer)
+(defun empv--youtube-show-tabulated-results (search)
+  (with-current-buffer (empv--get-buffer-for-search search)
     (empv-youtube-results-mode)
     (pop-to-buffer-same-window (current-buffer))
-    (empv--youtube-tabulated-entries-put candidates)
+    (setq empv--buffer-youtube-search search)
+    (empv--youtube-tabulated-entries-put (empv--yt-search-results search))
     ;; Enable help-at-pt so that video title is fully shown without
     ;; being truncated
     (setq-local help-at-pt-display-when-idle t)
@@ -1850,66 +1859,75 @@ download finishes with the path downloaded."
 (defun empv-youtube-results-load-more ()
   "Load the next page of results."
   (interactive nil empv-youtube-results-mode)
-  (empv--youtube-search
-   (nth 0 empv--last-youtube-search)
-   (nth 1 empv--last-youtube-search)
-   (1+ (nth 2 empv--last-youtube-search))
-   (lambda (results)
-     ;; Increase the current page
-     (setf (nth 2 empv--last-youtube-search) (1+ (nth 2 empv--last-youtube-search)))
-     (empv--youtube-tabulated-entries-put results :append)
-     (setq empv--last-youtube-candidates (append empv--last-youtube-candidates results)))))
+  (let ((buff (current-buffer)))
+    (empv--youtube-search
+     (empv--yt-search-query empv--buffer-youtube-search)
+     (empv--yt-search-type empv--buffer-youtube-search)
+     (1+ (empv--yt-search-page empv--buffer-youtube-search))
+     (lambda (results)
+       (with-current-buffer buff
+         ;; Increase the current page
+         (let ((old-results (empv--yt-search-results empv--buffer-youtube-search)))
+           (setf
+            (empv--yt-search-page empv--buffer-youtube-search) (1+ (empv--yt-search-page empv--buffer-youtube-search))
+            (empv--yt-search-results empv--buffer-youtube-search) (append old-results results)))
+         (empv--youtube-tabulated-entries-put results :append))))))
 
 (defun empv--youtube-tabulated-entries-put (candidates &optional append?)
-  (with-current-buffer empv--youtube-results-buffer
-    (let* ((headers (pcase (alist-get 'type (car candidates))
-                      ("video" empv-youtube-tabulated-video-headers)
-                      ("playlist" empv-youtube-tabulated-playlist-headers)))
-           (thumbnail-column (empv-seq-find-index (lambda (it) (equal empv-thumbnail-placeholder (nth 3 it))) headers)))
-      (unless tabulated-list-format
-        (setq
-         tabulated-list-format
-         (seq-into
-          (seq-map
-           (lambda (it)
-             (let ((name (nth 0 it))
-                   (len (nth 1 it))
-                   (sort (let ((sort (nth 2 it)))
-                           (if (functionp sort)
-                               (lambda (x y)
-                                 (funcall
-                                  sort
-                                  (nth (car x) candidates)
-                                  (nth (car y) candidates)))
-                             sort))))
-               (list name len sort)))
-           headers)
-          'vector))
-        (tabulated-list-init-header))
-      (let* ((offset (if append? (length tabulated-list-entries) 0))
-             (new-entries (seq-map-indexed
-                           (lambda (it index)
-                             (list (+ offset index) (empv--youtube-results-mode-format headers it)))
-                           candidates)))
-        (setq tabulated-list-entries
-              (if append?
-                  (append tabulated-list-entries new-entries)
-                new-entries))
-        (tabulated-list-print t)
-        (back-to-indentation)
-        (when (and thumbnail-column empv-youtube-thumbnail-quality)
-          (empv--youtube-tabulated-load-thumbnails
-           candidates
-           thumbnail-column
-           offset))))
-    (seq-do (lambda (fn) (funcall fn candidates)) empv-youtube-tabulated-new-entries-hook)))
+  "Display CANDIDATES in the YouTube results buffer.
+If APPEND? is non-nil, add the CANDIDATES to the end of the
+table.
+
+This function should called within a `empv-youtube-results-mode'
+buffer."
+  (let* ((headers (cl-case (empv--yt-search-type empv--buffer-youtube-search)
+                    ('video empv-youtube-tabulated-video-headers)
+                    ('playlist empv-youtube-tabulated-playlist-headers)))
+         (thumbnail-column (empv-seq-find-index (lambda (it) (equal empv-thumbnail-placeholder (nth 3 it))) headers)))
+    (unless tabulated-list-format
+      (setq
+       tabulated-list-format
+       (seq-into
+        (seq-map
+         (lambda (it)
+           (let ((name (nth 0 it))
+                 (len (nth 1 it))
+                 (sort (let ((sort (nth 2 it)))
+                         (if (functionp sort)
+                             (lambda (x y)
+                               (funcall
+                                sort
+                                (nth (car x) candidates)
+                                (nth (car y) candidates)))
+                           sort))))
+             (list name len sort)))
+         headers)
+        'vector))
+      (tabulated-list-init-header))
+    (let* ((offset (if append? (length tabulated-list-entries) 0))
+           (new-entries (seq-map-indexed
+                         (lambda (it index)
+                           (list (+ offset index) (empv--youtube-results-mode-format headers it)))
+                         candidates)))
+      (setq tabulated-list-entries
+            (if append?
+                (append tabulated-list-entries new-entries)
+              new-entries))
+      (tabulated-list-print t)
+      (back-to-indentation)
+      (when (and thumbnail-column empv-youtube-thumbnail-quality)
+        (empv--youtube-tabulated-load-thumbnails
+         candidates
+         thumbnail-column
+         offset))))
+  (seq-do (lambda (fn) (funcall fn candidates)) empv-youtube-tabulated-new-entries-hook))
 
 (cl-defun empv--youtube-tabulated-load-thumbnails (candidates thumbnail-col-index &optional index-offset)
   (unless thumbnail-col-index
     (cl-return-from empv--youtube-tabulated-load-thumbnails))
   (let ((total-count (length candidates))
         (completed-count 0)
-        (buffer (get-buffer empv--youtube-results-buffer)))
+        (buffer (current-buffer)))
     (seq-do-indexed
      (lambda (video index)
        (let* ((info (cdr video))
@@ -2017,8 +2035,8 @@ nicely formatted buffer."
 (defun empv-youtube-tabulated-last-results ()
   "Show last search results in tabulated mode with thumbnails."
   (interactive)
-  (if empv--last-youtube-candidates
-      (empv--youtube-show-tabulated-results empv--last-youtube-candidates)
+  (if empv--last-youtube-search
+      (empv--youtube-show-tabulated-results empv--last-youtube-search)
     (call-interactively 'empv-youtube-tabulated)))
 
 (defun empv-youtube-last-results ()
@@ -2028,7 +2046,7 @@ nicely formatted buffer."
     (thread-last
       (empv--completing-read-object
        "YouTube results"
-       empv--last-youtube-candidates
+       (empv--yt-search-results empv--last-youtube-search)
        :formatter #'empv--format-yt-item
        :category 'empv-youtube-item
        :sort? nil)
