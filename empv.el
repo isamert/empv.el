@@ -2112,13 +2112,40 @@ path.  No guarantees."
 (define-derived-mode empv-lyrics-display-mode text-mode "empv-lyrics-display-mode"
   "Major mode for displaying lyrics of a given song.")
 
-(defun empv--lyrics-display (path title lyrics)
+(cl-defun empv--lyrics-display (path title lyrics &key url)
   (with-current-buffer (get-buffer-create "*empv-lyrics*")
     (empv-lyrics-display-mode)
     (erase-buffer)
     (insert lyrics)
     (setq header-line-format (format "Lyrics :: %s" title))
     (setq empv--current-file path)
+    (insert "\n\n")
+    (when url
+      (goto-char (point-max))
+      (insert-button
+       "Source"
+       'action
+       (lambda (_button)
+         (browse-url url))
+       'face custom-button
+       'follow-link t)
+      (when (and path (file-exists-p (expand-file-name path)))
+        (insert " ")
+        (insert-button
+         "Save to file metadata"
+         'action
+         (lambda (_button)
+           (call-interactively #'empv-lyrics-save))
+         'face custom-button
+         'follow-link t))
+      (insert " "))
+    (insert-button
+     "Search web"
+     'action
+     (lambda (_button)
+       (browse-url (empv--lyrics-make-search-url title)))
+     'face custom-button
+     'follow-link t)
     (goto-char (point-min))
     (unless (get-buffer-window (current-buffer))
       (switch-to-buffer-other-window (current-buffer)))))
@@ -2130,61 +2157,67 @@ path.  No guarantees."
 ;; TODO Make this async? Not quite sure if it does worth or not
 ;; This function is completely fucked up *and* it works, most of the time.
 (defun empv--lyrics-download (song)
-  (ignore-error wrong-type-argument
-    (thread-last
-      (empv--request-raw-sync (empv--lyrics-make-search-url song))
-      ;; Find all the links in the response first
-      (s-match-strings-all "https\\(://\\|%3A%2F%2F\\)[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]")
-      (mapcar #'car)
-      (mapcar
-       (lambda (it)
-         (thread-last
-           (string-trim-right it "&amp.*")
-           (string-replace "%3A%2F%2F" "://")
-           (string-replace "%2F" "/")
-           (string-replace "%2D" "-")
-           (string-replace "%2D" "+"))))
-      ;; Then find the first sturmgeweiht|azlyrics|genius link
-      ;; FIXME: Sort found URLs by their reliability first?
-      (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\|genius.com\\)" it)))
-      (url-unhex-string)
-      (empv--request-raw-sync)
-      (string-replace "" "")
-      ;; Replace newlines so that regexes can work
-      (string-replace "\n" "<newline>")
-      ;; FIXME: The resulting string may be too long and regexes may
-      ;; fail due to stack overflow errors
-      ((lambda (it)
-         (or
-          (s-match "<div class=\"inhalt\">\\(.*\\)<a href=\"" it) ;; sturmgeweiht
-          (s-match "Sorry about that\\. -->\\(.*\\)<!-- MxM banner -->" it) ;; azlyrics
-          (s-match "x-ref=\"lyric_text\">\\(.*\\)</p>" it) ;; lyrics.az
-          (s-match "<div class=\"main-panel-content\".*?>\\(.*\\)<div class=\"sharebar-wrapper\"" it) ;; flashlyrics
-          (s-match "class=\"Lyrics__Container.*?\">\\(.*?\\)</div>" it) ;; genius
-          )))
-      (nth 1)
-      (s-replace-all '(("<br>" . "\n")
-                       ("<br/>" . "\n")
-                       ("<br />" . "\n")
-                       ("\\n" . "\n")
-                       ("<div>" . "")
-                       ("</div>" . "")
-                       ("\\" . "")
-                       ("<newline>" . "\n")
-                       ("" . "\n")
-                       ("\"" . "")
-                       ("&quot;" . "\"")
-                       ("&#x27;" . "'")
-                       ("&#039;" . "'")))
-      (s-replace "\n\n" "\n")
-      (s-split "\n")
-      (mapcar #'s-trim)
-      ;; Remove some lines
-      (seq-filter (lambda (it) (not (s-contains? "adsbygoogle" it))))
-      (s-join "\n")
-      (s-trim)
-      ;; Clear all remaning html tags
-      (replace-regexp-in-string "<[^>]*>" ""))))
+  "Get lyrics for SONG from web and return a pair of source url and lyrics.
+Also see `empv-search-prefix'."
+  (let (url lyrics)
+    (ignore-error wrong-type-argument
+      (thread-last
+        (empv--request-raw-sync (empv--lyrics-make-search-url song))
+        ;; Find all the links in the response first
+        (s-match-strings-all "https\\(://\\|%3A%2F%2F\\)[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|]")
+        (mapcar #'car)
+        (mapcar
+         (lambda (it)
+           (thread-last
+             (string-trim-right it "&amp.*")
+             (string-replace "%3A%2F%2F" "://")
+             (string-replace "%2F" "/")
+             (string-replace "%2D" "-")
+             (string-replace "%2D" "+"))))
+        ;; Then find the first sturmgeweiht|azlyrics|genius link
+        ;; FIXME: Sort found URLs by their reliability first?
+        (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\|genius.com\\)" it)))
+        (url-unhex-string)
+        ((lambda (it) (setq url it) it))
+        (empv--request-raw-sync)
+        (string-replace "" "")
+        ;; Replace newlines so that regexes can work
+        (string-replace "\n" "<newline>")
+        ;; FIXME: The resulting string may be too long and regexes may
+        ;; fail due to stack overflow errors
+        ((lambda (it)
+           (or
+            (s-match "<div class=\"inhalt\">\\(.*\\)<a href=\"" it) ;; sturmgeweiht
+            (s-match "Sorry about that\\. -->\\(.*\\)<!-- MxM banner -->" it) ;; azlyrics
+            (s-match "x-ref=\"lyric_text\">\\(.*\\)</p>" it) ;; lyrics.az
+            (s-match "<div class=\"main-panel-content\".*?>\\(.*\\)<div class=\"sharebar-wrapper\"" it) ;; flashlyrics
+            (s-match "class=\"Lyrics__Container.*?\">\\(.*?\\)How to Format Lyrics" it) ;; genius
+            )))
+        (nth 1)
+        (s-replace-all '(("<br>" . "\n")
+                         ("<br/>" . "\n")
+                         ("<br />" . "\n")
+                         ("\\n" . "\n")
+                         ("<div>" . "")
+                         ("</div>" . "")
+                         ("\\" . "")
+                         ("<newline>" . "\n")
+                         ("" . "\n")
+                         ("\"" . "")
+                         ("&quot;" . "\"")
+                         ("&#x27;" . "'")
+                         ("&#039;" . "'")))
+        (s-replace "\n\n" "\n")
+        (s-split "\n")
+        (mapcar #'s-trim)
+        ;; Remove some lines
+        (seq-filter (lambda (it) (not (s-contains? "adsbygoogle" it))))
+        (s-join "\n")
+        (s-trim)
+        ;; Clear all remaning html tags
+        (replace-regexp-in-string "<[^>]*>" "")
+        (setq lyrics)))
+    (list url lyrics)))
 
 (defun empv--lyrics-from-metadata (metadata)
   "Fetch lyrics from METADATA.
@@ -2206,9 +2239,10 @@ This does not save lyrics to file.  Call `empv-lyrics-save' to
 really save."
   (interactive nil empv-lyrics-display-mode)
   (empv--with-media-info
-   (if-let ((lyrics (empv--lyrics-download .media-title)))
-       (empv--lyrics-display .path .media-title lyrics)
-     (empv--lyrics-on-not-found .media-title))))
+   (pcase-let ((`(,url ,lyrics) (empv--lyrics-download song)))
+     (if lyrics
+         (empv--lyrics-display nil song lyrics :url url)
+       (empv--lyrics-on-not-found song)))))
 
 (defun empv-lyrics-save (file lyrics)
   "Save LYRICS into FILEs ID3 lyrics tag.
@@ -2241,22 +2275,23 @@ if it can't find one then downloads it from the web."
   (empv--with-media-info
    (if-let ((metadata-lyrics (empv--lyrics-from-metadata .metadata)))
        (empv--lyrics-display .path .media-title metadata-lyrics)
-     (if-let* ((web-lyrics (empv--lyrics-download .media-title)))
-         (progn
-           (empv--lyrics-display .path .media-title web-lyrics)
-           (when (and empv-lyrics-save-automatically (file-exists-p (expand-file-name .path)))
-             (empv-lyrics-save .path web-lyrics)))
-       (empv--lyrics-on-not-found .media-title)))))
+     (pcase-let ((`(,url ,web-lyrics) (empv--lyrics-download .media-title)))
+       (if (not web-lyrics)
+           (empv--lyrics-on-not-found .media-title)
+         (empv--lyrics-display .path .media-title web-lyrics :url url)
+         (when (and empv-lyrics-save-automatically (file-exists-p (expand-file-name .path)))
+           (empv-lyrics-save .path web-lyrics)))))))
 
 (defun empv-lyrics-show (song)
-  "Show lyrics for SONG in a seperate buffer.
+  "Show lyrics for SONG in a separate buffer.
 This function searches the web for SONG lyrics.  If you want to
 get the lyrics for currently playing/paused song, use
 `empv-lyrics-current'."
   (interactive "sSong title: ")
-  (if-let ((lyrics (empv--lyrics-download song)))
-      (empv--lyrics-display nil song lyrics)
-    (empv--lyrics-on-not-found song)))
+  (pcase-let ((`(,url ,lyrics) (empv--lyrics-download song)))
+    (if lyrics
+        (empv--lyrics-display nil song lyrics :url url)
+      (empv--lyrics-on-not-found song))))
 
 ;;;; Actions, mainly for embark but used in other places too
 
