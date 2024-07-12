@@ -414,7 +414,9 @@ added, you can do the following:
    \\='empv-youtube-tabulated-new-entries-hook
    #\\='(lambda (entries &rest _)
        (seq-do (lambda (it) (message (alist-get \\='title it))) entries)))"
-  :type 'hook)
+  :version "4.3.0"
+  :type 'hook
+  :group 'empv)
 
 ;;;; Public variables
 
