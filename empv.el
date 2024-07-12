@@ -3,7 +3,7 @@
 ;; Copyright (C) 2022-2024  Isa Mert Gurbuz
 
 ;; Author: Isa Mert Gurbuz <isamertgurbuz@gmail.com>
-;; Version: 4.3.0
+;; Version: 4.4.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
 ;; Package-Requires: ((emacs "28.1") (s "1.13.0") (compat "29.1.4.4"))
@@ -416,6 +416,14 @@ added, you can do the following:
        (seq-do (lambda (it) (message (alist-get \\='title it))) entries)))"
   :version "4.3.0"
   :type 'hook
+  :group 'empv)
+
+(defcustom empv-use-consult-if-possible t
+  "Use consult for some flows like YouTube search term suggestions if it's installed.
+Setting this variable to t does not affect anything if you
+haven't installed consult."
+  :version "4.4.0"
+  :type 'boolean
   :group 'empv)
 
 ;;;; Public variables
@@ -2453,7 +2461,7 @@ results to consult using NEXT."
       (_ (funcall next action)))))
 
 (defun empv--yt-suggest (prompt)
-  (if (require 'consult nil t)
+  (if (and empv-use-consult-if-possible (require 'consult nil t))
       (empv--consult-get-input-with-suggestions prompt)
     (read-string prompt nil 'empv--youtube-search-history)))
 
