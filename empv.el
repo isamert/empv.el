@@ -3,7 +3,7 @@
 ;; Copyright (C) 2022-2024  Isa Mert Gurbuz
 
 ;; Author: Isa Mert Gurbuz <isamertgurbuz@gmail.com>
-;; Version: 4.4.0
+;; Version: 4.5.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
 ;; Package-Requires: ((emacs "28.1") (s "1.13.0") (compat "29.1.4.4"))
@@ -423,6 +423,19 @@ added, you can do the following:
 Setting this variable to t does not affect anything if you
 haven't installed consult."
   :version "4.4.0"
+  :type 'boolean
+  :group 'empv)
+
+(defcustom empv-ytdl-binary "yt-dlp"
+  "ytdl binary path."
+  :version "4.5.0"
+  :type 'boolean
+  :group 'empv)
+
+(defcustom empv-ytdl-download-options '("--extract-audio" "--audio-format=mp3" "--embed-metadata" "--embed-thumbnail")
+  "Options passed to yt-dlp program while calling `empv-youtube-download'.
+Also see `empv-youtube-ytdl-binary'."
+  :version "4.5.0"
   :type 'boolean
   :group 'empv)
 
@@ -1743,12 +1756,15 @@ VIDEO-ID can be either a YouTube URL or just a YouTube ID."
 
 ;;;;; YouTube download
 
-;; TODO: Add video download support
-;; TODO: Add audio format option (ogg etc.)
+;; TODO: Add a simple interface for manipulating `empv-youtube-ytdl-options'.
 (defun empv-youtube-download (link &optional path callback)
-  "Download given YouTube LINK to PATH as MP3 file.
+  "Download given YouTube LINK to PATH.
 If PATH is nil, then ask interactively.  Call CALLBACK after
-download finishes with the path downloaded."
+download finishes with the path downloaded.
+
+By default it downloads as MP3 file, please see
+`empv-youtube-ytdl-options' to change this behavior."
+  (interactive "sLink: ")
   (let* ((url (empv--clean-uri link))
          (title (or (plist-get (empv--extract-empv-metadata-from-path link) :title) ""))
          ;; For some reason, embark triggers this
@@ -1760,13 +1776,31 @@ download finishes with the path downloaded."
                          empv-audio-dir
                        (car empv-audio-dir))
                      nil nil
-                     (concat (string-clean-whitespace title) ".mp3"))))
+                     (concat
+                      (string-clean-whitespace title)
+                      "."
+                      ;; Try to detect the format from the
+                      ;; options. Otherwise simply default to .mp4.
+                      ;; Not the greatest solution but should cover
+                      ;; most cases.  Hopefully this part will be
+                      ;; removed completely when a UI for download is
+                      ;; shown in the future.
+                      (or (ignore-errors
+                            (cadr
+                             (s-split
+                              "="
+                              (--find
+                               (s-matches? "^--\\(audio-format\\|merge-output-format\\)" it)
+                               empv-ytdl-download-options))))
+                          "mp4")))))
          (default-directory (file-name-directory where))
          (buffer (generate-new-buffer " *empv-yt-dlp*")))
     (set-process-sentinel
-     (start-process (buffer-name buffer) buffer "yt-dlp"
-                    url "--extract-audio" "--audio-format=mp3" "--output"
-                    (file-name-nondirectory (directory-file-name where)))
+     (apply
+      #'start-process
+      (buffer-name buffer) buffer
+      empv-ytdl-binary url
+      `(,@empv-ytdl-download-options "--output" ,(file-name-nondirectory (directory-file-name where))))
      (lambda (proc _)
        (if (eq (process-exit-status proc) 0)
            (progn
@@ -1777,12 +1811,6 @@ download finishes with the path downloaded."
                  (kill-new where))
                (empv-play-or-enqueue where)))
          (empv--display-event "Failed to download: %s. See buffer %s for details." url (buffer-name buffer)))))))
-
-;;;###autoload
-(defun empv-download-youtube (link)
-  "Download LINK to interactively selected path."
-  (interactive "sLink: ")
-  (empv-youtube-download link))
 
 ;;;###autoload
 (defun empv-youtube-download-current ()
