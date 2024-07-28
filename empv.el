@@ -1756,14 +1756,14 @@ VIDEO-ID can be either a YouTube URL or just a YouTube ID."
 
 ;;;;; YouTube download
 
-;; TODO: Add a simple interface for manipulating `empv-youtube-ytdl-options'.
+;; TODO: Add a simple interface for manipulating `empv-ytdl-download-options'.
 (defun empv-youtube-download (link &optional path callback)
   "Download given YouTube LINK to PATH.
 If PATH is nil, then ask interactively.  Call CALLBACK after
 download finishes with the path downloaded.
 
 By default it downloads as MP3 file, please see
-`empv-youtube-ytdl-options' to change this behavior."
+`empv-ytdl-download-options' to change this behavior."
   (interactive "sLink: ")
   (let* ((url (empv--clean-uri link))
          (title (or (plist-get (empv--extract-empv-metadata-from-path link) :title) ""))
