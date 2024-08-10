@@ -1450,8 +1450,10 @@ The display format is determined by the
   "Copy the path of currently playing item."
   (interactive)
   (empv--let-properties '(path)
-    (empv--display-event "URI copied: %s" (empv--clean-uri .path))
-    (kill-new (empv--clean-uri .path))))
+    (if (not .path)
+        (user-error "Nothing is currently playing")
+      (empv--display-event "URI copied: %s" (empv--clean-uri .path))
+      (kill-new (empv--clean-uri .path)))))
 
 ;;;; Interactive - Chapters
 
