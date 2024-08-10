@@ -116,10 +116,12 @@ To enable extra embark integration, add the following to your init file:
 This is not automatically applied because it has some drawbacks, please refer to the documentation of ~empv-embark-initialize-extra-actions~.
 
 ** Viewing YouTube videos
-If you start playing a YouTube video, it'll start playing in background. You may be tempted to call =empv-toggle-video= to start watching the video itself but it'll not work. /mpv/ tries to be smart when it's in background and it only downloads the audio if it's possible. If you want to be able to watch YouTube videos whenever you want, you need to add something like this to your configuration to force-download videos:
+If you start playing a YouTube video, it'll start playing in background. You may be tempted to call =empv-toggle-video= to start watching the video itself but it'll not work. /mpv/ tries to be smart when it's in background and it only downloads the audio if it's possible. If you want to be able to watch YouTube videos whenever you want, you need to add something like this to your configuration to change the default ~--ytdl-format~ of mpv to force download videos:
 
 #+begin_src elisp
-  (add-to-list 'empv-mpv-args "--ytdl-format=best")
+  (add-to-list 'empv-mpv-args "--ytdl-format=bestvideo+bestaudio/best[ext=mp4]/best")
+  ;; It's bestvideo+bestaudio/best by default, we slightly change it to
+  ;; override the default no-video behavior.
 #+end_src
 
 See [[https://github.com/ytdl-org/youtube-dl/blob/master/README.md#format-selection][this page]] for how you can use =--ytdl-format= option.
