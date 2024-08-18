@@ -419,7 +419,7 @@ added, you can do the following:
   :group 'empv)
 
 (defcustom empv-use-consult-if-possible t
-  "Use consult for some flows like YouTube search term suggestions if it's installed.
+  "Use consult for some flows like YouTube search suggestions if it's installed.
 Setting this variable to t does not affect anything if you
 haven't installed consult."
   :version "4.4.0"
@@ -929,7 +929,8 @@ URI might be a string or a list of strings."
 Some metadata is encoded into PATH and this function tries to
 parse that and returns a form along the lines of:
 
-    \\='(:title \"...\" :uri \"the-real-uri-without-metadata\" :radio nil/t :youtube nil/t)
+    \\='(:title \"...\" :uri \"the-real-uri-without-metadata\"
+         :radio nil/t :youtube nil/t)
 
 :TITLE is the human readable name of the path. This function also
 checks if is there any cached name for this PATH.
@@ -1791,8 +1792,9 @@ By default it downloads as MP3 file, please see
                             (cadr
                              (s-split
                               "="
-                              (--find
-                               (s-matches? "^--\\(audio-format\\|merge-output-format\\)" it)
+                              (seq-find
+                               (lambda (it)
+                                 (s-matches? "^--\\(audio-format\\|merge-output-format\\)" it))
                                empv-ytdl-download-options))))
                           "mp4")))))
          (default-directory (file-name-directory where))
@@ -1921,7 +1923,7 @@ table.
 
 This function should called within a `empv-youtube-results-mode'
 buffer."
-  (let* ((headers (cl-case (empv--yt-search-type empv--buffer-youtube-search)
+  (let* ((headers (pcase (empv--yt-search-type empv--buffer-youtube-search)
                     ('video empv-youtube-tabulated-video-headers)
                     ('playlist empv-youtube-tabulated-playlist-headers)))
          (thumbnail-column (empv-seq-find-index (lambda (it) (equal empv-thumbnail-placeholder (nth 3 it))) headers)))
@@ -2282,10 +2284,10 @@ This does not save lyrics to file.  Call `empv-lyrics-save' to
 really save."
   (interactive nil empv-lyrics-display-mode)
   (empv--with-media-info
-   (pcase-let ((`(,url ,lyrics) (empv--lyrics-download song)))
+   (pcase-let ((`(,url ,lyrics) (empv--lyrics-download .media-title)))
      (if lyrics
-         (empv--lyrics-display nil song lyrics :url url)
-       (empv--lyrics-on-not-found song)))))
+         (empv--lyrics-display nil .media-title lyrics :url url)
+       (empv--lyrics-on-not-found .media-title)))))
 
 (defun empv-lyrics-save (file lyrics)
   "Save LYRICS into FILEs ID3 lyrics tag.
