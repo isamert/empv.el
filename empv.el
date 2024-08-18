@@ -2121,12 +2121,15 @@ To make this behavior permanant, add the following to your init file:
 (declare-function org-element-property "org")
 (declare-function org-element-context "org")
 (declare-function shr-url-at-point "shr")
+(declare-function dired-get-marked-files "dired")
 (defun empv-media-at-point ()
   "Return the potential media item at the point.
 It may be an absolute filepath, it may be a relative file
 path.  No guarantees."
   (or
-   (when (eq major-mode 'org-mode)
+   (when (derived-mode-p 'dired-mode)
+     (dired-get-marked-files))
+   (when (derived-mode-p 'org-mode)
      (ignore-errors (org-element-property :path (org-element-context))))
    (ignore-errors (shr-url-at-point nil))
    (thing-at-point 'url)
