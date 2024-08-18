@@ -2133,6 +2133,8 @@ path.  No guarantees."
      (dired-get-marked-files))
    (when (derived-mode-p 'org-mode)
      (ignore-errors (org-element-property :path (org-element-context))))
+   (when (derived-mode-p 'empv-youtube-results-mode)
+     (empv-youtube-results--current-item-url))
    (ignore-errors (shr-url-at-point nil))
    (thing-at-point 'url)
    (thing-at-point 'existing-filename)
