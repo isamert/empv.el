@@ -46,7 +46,7 @@
 (require 's)
 (require 'consult nil t)
 (require 'compat)
-(require 'text-property-search)
+(require 'vtable)
 (eval-when-compile
   (require 'subr-x))
 
@@ -1825,276 +1825,139 @@ By default it downloads as MP3 file, please see
 
 ;;;;; empv-youtube-results-mode
 
-(cl-defstruct (empv--yt-search (:constructor empv--make-yt-search)
-                               (:copier nil))
-  (query nil :type 'string)
-  (type nil :type '(member 'video 'playlist))
-  (page 1 :type 'number)
-  (results '() :type 'list :documentation "List of search results as returned by Invidious."))
+(defclass empv--yt ()
+  ((results :initarg :results :accessor empv--yt-results)
+   (table :initarg :table :accessor empv--yt-table)
+   (buffer :initarg :buffer :accessor empv--yt-buffer)
+   (page :initarg :page :accessor empv--yt-page)
+   (query :initarg :query :accessor empv--yt-query)
+   (type :initarg :type :accessor empv--yt-type))
+  "An object to hold the data for a YouTube search")
 
-(defvar empv-youtube-results-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "j") #'next-line)
-    (define-key map (kbd "k") #'previous-line)
-    (define-key map (kbd "h") #'tabulated-list-previous-column)
-    (define-key map (kbd "l") #'tabulated-list-next-column)
-    (define-key map (kbd "P") #'empv-youtube-results-play-current)
-    (define-key map (kbd "a") #'empv-youtube-results-enqueue-current)
-    (define-key map (kbd "Y") #'empv-youtube-results-copy-current)
-    (define-key map (kbd "c") #'empv-youtube-results-show-comments)
-    (define-key map (kbd "i") #'empv-youtube-results-inspect)
-    (define-key map (kbd "m") #'empv-youtube-results-load-more)
-    (define-key map (kbd "d") #'empv-youtube-download-current)
-    (define-key map (kbd "RET") #'empv-youtube-results-play-or-enqueue-current)
-    (define-key map (kbd "?") #'describe-mode)
-    map)
-  "Keymap for `empv-youtube-results-mode'.")
+(defun empv-youtube-tabulated (query)
+  (interactive "sQuery: ")
+  (let ((bname (format "*empv-yt: %s*" query)))
+    (when (get-buffer bname)
+      (kill-buffer bname))
+    (let ((yt (make-instance
+               'empv--yt
+               :query query
+               :page 1
+               :type 'video
+               :results '()
+               :table nil
+               :buffer (get-buffer-create bname))))
+      (empv--yt-load yt))))
 
-(define-derived-mode empv-youtube-results-mode tabulated-list-mode "empv-youtube-results-mode"
-  "Major mode for interacting with YouTube results with thumbnails."
-  (setq tabulated-list-padding 3))
+(defun empv--generate-youtube-table (yt)
+  (make-vtable
+   :objects (empv--yt-results yt)
+   ;; :row-colors (im-vtable--pretty-colors)
+   ;; :column-colors (im-vtable--pretty-colors)
+   :columns `((:name "Thumb" :width "100px"
+               :displayer
+               ,(lambda (object max-width table)
+                  (propertize
+                   "*" 'display
+                   (create-image
+                    (empv--yt-ensure-thumb
+                     object (lambda ()
+                              (when (buffer-live-p (empv--yt-buffer yt))
+                                (vtable-update-object table object))))
+                    nil nil :max-width max-width))))
+              "Title" "Length" "Views" "Published")
+   :use-header-line nil
+   :keymap (define-keymap
+             "m" (lambda ()
+                   (interactive)
+                   (empv--yt-load yt :next-page)))
+   :actions `("RET" (lambda (obj) (empv-play-or-enqueue (empv--youtube-item-extract-link obj)))
+              "i" (lambda (obj) (im-inspect obj)))
+   :getter (lambda (object column vtable)
+             (let-alist object
+               (pcase (vtable-column vtable column)
+                 ("Thumb" object)
+                 ("Title" .title)
+                 ("Length" .lengthSeconds)
+                 ("Views" .viewCountText)
+                 ("Published" .publishedText))))))
 
-(defun empv--get-buffer-for-search (search)
-  "Get or create buffer for SEARCH.
-SEARCH is type of `empv--yt-search'."
-  (get-buffer-create
-   (format "*empv-youtube-%s-search: %s*"
-           (empv--yt-search-type search)
-           (empv--yt-search-query search))))
+(defun empv--yt-load (yt &optional next-page? &rest _)
+  (interactive nil nil)
+  (empv--youtube-search
+   (empv--yt-query yt)
+   (empv--yt-type yt)
+   (if next-page?
+       (progn
+         (setf (empv--yt-page yt) (1+ (empv--yt-page yt)))
+         (empv--yt-page yt))
+     (empv--yt-page yt))
+   (lambda (results)
+     (setf (empv--yt-results yt) (append (empv--yt-results yt) results))
+     (with-current-buffer (empv--yt-buffer yt)
+       (read-only-mode)
+       (save-excursion
+         (let* ((inhibit-read-only t))
+           (if (empv--yt-table yt)
+               ;; Instead of updating all objects and reverting the
+               ;; table, we are inserting so that cursor stays at the
+               ;; same position.  vtable-revert can also save the
+               ;; cursor position but it fails to save the window
+               ;; scroll and creates a bad experience.
+               (seq-do
+                (apply-partially #'empv--vtable-insert-object (empv--yt-table yt))
+                results)
+             (setf (empv--yt-table yt) (empv--generate-youtube-table yt)))))
+       (unless next-page?
+         (switch-to-buffer (current-buffer)))))))
 
-(defun empv--youtube-results-mode-format (headers it)
-  (seq-into
-   (seq-map
-    (lambda (col)
-      (let-alist (cdr it)
-        (pcase (nth 3 col)
-          ;; I truncate the title (and `other' below) manually because
-          ;; when tabulated-list-mode does it, some columns gets
-          ;; misaligned for some reason
-          ('.title (propertize
-                    (s-truncate (- (nth 1 col) 1) .title "…")
-                    'empv-youtube-item it
-                    'help-echo .title))
-          ('.lengthSeconds (empv--format-yt-duration .lengthSeconds))
-          ('.viewCount (empv--format-yt-views .viewCount))
-          ((pred (equal empv-thumbnail-placeholder)) (propertize empv-thumbnail-placeholder 'help-echo .title))
-          (other (let ((value (or (empv--alist-path-get other (cdr it)) "N/A")))
-                   (propertize
-                    (s-truncate (- (nth 1 col) 1) (format "%s" value)  "…")
-                    'help-echo value))))))
-    headers)
-   'vector))
+(defun empv--yt-ensure-thumb (video callback)
+  "Generate thumb path and return for VIDEO.
+  If thumb is not downloaded already, download it and then callback."
+  (let* ((info (cdr video))
+         (id (or (alist-get 'videoId info) (alist-get 'playlistId info)))
+         (filename (format
+                    (expand-file-name "~/.cache/empv_%s_%s.jpg")
+                    id
+                    empv-youtube-thumbnail-quality))
+         (thumb-url (or
+                     (alist-get 'playlistThumbnail info)
+                     (thread-last
+                       (alist-get 'videoThumbnails info)
+                       (seq-find (lambda (thumb)
+                                   (equal empv-youtube-thumbnail-quality
+                                          (alist-get 'quality thumb))))
+                       (cdr)
+                       (alist-get 'url))))
+         (args (seq-filter
+                #'identity
+                (list
+                 "curl"
+                 (when empv-allow-insecure-connections "--insecure")
+                 "-L" "-o" filename thumb-url))))
+    (empv--dbg "Dowloading thumbnail using: '%s'" args)
+    (unless (file-exists-p filename)
+      (set-process-sentinel
+       (apply #'start-process
+              (format "empv-download-process-%s" id)
+              "*empv-thumbnail-downloads*"
+              args)
+       (lambda (_ _)
+         (funcall callback))))
+    filename))
 
-(defun empv--youtube-show-tabulated-results (search)
-  (with-current-buffer (empv--get-buffer-for-search search)
-    (empv-youtube-results-mode)
-    (pop-to-buffer-same-window (current-buffer))
-    (setq empv--buffer-youtube-search search)
-    (empv--youtube-tabulated-entries-put (empv--yt-search-results search))
-    ;; Enable help-at-pt so that video title is fully shown without
-    ;; being truncated
-    (setq-local help-at-pt-display-when-idle t)
-    (setq-local help-at-pt-timer-delay 0)
-    (help-at-pt-cancel-timer)
-    (help-at-pt-set-timer)))
-
-(defun empv-youtube-results-load-more ()
-  "Load the next page of results."
-  (interactive nil empv-youtube-results-mode)
-  (let ((buff (current-buffer)))
-    (empv--youtube-search
-     (empv--yt-search-query empv--buffer-youtube-search)
-     (empv--yt-search-type empv--buffer-youtube-search)
-     (1+ (empv--yt-search-page empv--buffer-youtube-search))
-     (lambda (results)
-       (with-current-buffer buff
-         ;; Increase the current page
-         (let ((old-results (empv--yt-search-results empv--buffer-youtube-search)))
-           (setf
-            (empv--yt-search-page empv--buffer-youtube-search) (1+ (empv--yt-search-page empv--buffer-youtube-search))
-            (empv--yt-search-results empv--buffer-youtube-search) (append old-results results)))
-         (setq empv--last-youtube-search empv--buffer-youtube-search)
-         (empv--youtube-tabulated-entries-put results :append))))))
-
-(defun empv--youtube-tabulated-entries-put (candidates &optional append?)
-  "Display CANDIDATES in the YouTube results buffer.
-If APPEND? is non-nil, add the CANDIDATES to the end of the
-table.
-
-This function should called within a `empv-youtube-results-mode'
-buffer."
-  (let* ((headers (pcase (empv--yt-search-type empv--buffer-youtube-search)
-                    ('video empv-youtube-tabulated-video-headers)
-                    ('playlist empv-youtube-tabulated-playlist-headers)))
-         (thumbnail-column (empv-seq-find-index (lambda (it) (equal empv-thumbnail-placeholder (nth 3 it))) headers)))
-    (unless tabulated-list-format
-      (setq
-       tabulated-list-format
-       (seq-into
-        (seq-map
-         (lambda (it)
-           (let ((name (nth 0 it))
-                 (len (nth 1 it))
-                 (sort (let ((sort (nth 2 it)))
-                         (if (functionp sort)
-                             (lambda (x y)
-                               (funcall
-                                sort
-                                (nth (car x) candidates)
-                                (nth (car y) candidates)))
-                           sort))))
-             (list name len sort)))
-         headers)
-        'vector))
-      (tabulated-list-init-header))
-    (let* ((offset (if append? (length tabulated-list-entries) 0))
-           (new-entries (seq-map-indexed
-                         (lambda (it index)
-                           (list (+ offset index) (empv--youtube-results-mode-format headers it)))
-                         candidates)))
-      (setq tabulated-list-entries
-            (if append?
-                (append tabulated-list-entries new-entries)
-              new-entries))
-      (tabulated-list-print t)
-      (back-to-indentation)
-      (when (and thumbnail-column empv-youtube-thumbnail-quality)
-        (empv--youtube-tabulated-load-thumbnails
-         candidates
-         thumbnail-column
-         offset))))
-  (seq-do (lambda (fn) (funcall fn candidates)) empv-youtube-tabulated-new-entries-hook))
-
-(cl-defun empv--youtube-tabulated-load-thumbnails (candidates thumbnail-col-index &optional index-offset)
-  (unless thumbnail-col-index
-    (cl-return-from empv--youtube-tabulated-load-thumbnails))
-  (let ((total-count (length candidates))
-        (completed-count 0)
-        (buffer (current-buffer)))
-    (seq-do-indexed
-     (lambda (video index)
-       (let* ((info (cdr video))
-              (id (or (alist-get 'videoId info) (alist-get 'playlistId info)))
-              (filename (format
-                         (expand-file-name "~/.cache/empv_%s_%s.jpg")
-                         id
-                         empv-youtube-thumbnail-quality))
-              (thumb-url (or
-                          (alist-get 'playlistThumbnail info)
-                          (thread-last
-                            (alist-get 'videoThumbnails info)
-                            (seq-find (lambda (thumb)
-                                        (equal empv-youtube-thumbnail-quality
-                                               (alist-get 'quality thumb))))
-                            (cdr)
-                            (alist-get 'url))))
-              (args (seq-filter
-                     #'identity
-                     (list
-                      (if (file-exists-p filename)
-                          "printf" "curl")
-                      (if empv-allow-insecure-connections
-                          "--insecure" nil)
-                      "-L"
-                      "-o"
-                      filename
-                      thumb-url))))
-         (empv--dbg "Dowloading thumbnail using: '%s'" args)
-         (set-process-sentinel
-          (apply #'start-process
-                 (format "empv-download-process-%s" id)
-                 "*empv-thumbnail-downloads*"
-                 args)
-          (lambda (_ _)
-            (empv--dbg "Download finished for image index=%s, url=%s, path=%s" index thumb-url filename)
-            (with-current-buffer buffer
-              (setf
-               (elt (car (alist-get (+ (or index-offset 0) index) tabulated-list-entries)) thumbnail-col-index)
-               (cons 'image `(:type ,(empv--get-image-type filename) :file ,filename ,@empv-youtube-thumbnail-props)))
-              (setq completed-count (1+ completed-count))
-              (when (eq completed-count total-count)
-                (tabulated-list-print t)
-                (back-to-indentation)))))))
-     candidates)))
-
-(defun empv--get-image-type (file)
-  "Return image type of FILE.
-It is based on file extension.  See Info node `(elisp) Image Formats' for
-supported formats."
-  ;; (if (string-prefix-p
-  ;;      "\x89PNG\r\n\x1a\n"
-  ;;      (with-temp-buffer
-  ;;        (insert-file-contents-literally file nil 0 10)
-  ;;        (buffer-string)))
-  ;;     'png
-  ;;   'jpeg)
-  (pcase (intern (file-name-extension file))
-    ('jpg 'jpeg)
-    (other other)))
-
-(defun empv-youtube-results--current-item ()
-  (save-excursion
-    (beginning-of-line)
-    (prop-match-value
-     (text-property-search-forward 'empv-youtube-item))))
-
-(defun empv-youtube-results--current-item-url ()
-  (empv--youtube-item-extract-link (empv-youtube-results--current-item)))
-
-(defun empv-youtube-results-play-current ()
-  "Play the currently selected video in `empv-youtube-results-mode'."
-  (interactive)
-  (empv-play (empv-youtube-results--current-item-url)))
-
-(defun empv-youtube-results-enqueue-current ()
-  "Enqueue the currently selected video in `empv-youtube-results-mode'."
-  (interactive)
-  (empv-enqueue (empv-youtube-results--current-item-url)))
-
-(defun empv-youtube-results-play-or-enqueue-current ()
-  "Play or enqueue the currently selected video in `empv-youtube-results-mode'."
-  (interactive)
-  (empv-play-or-enqueue (empv-youtube-results--current-item-url)))
-
-(defun empv-youtube-results-copy-current ()
-  "Copy the URL of the currently selected video in `empv-youtube-results-mode'."
-  (interactive)
-  (empv-youtube-copy-link (empv-youtube-results--current-item-url)))
-
-(defun empv-youtube-results-show-comments ()
-  "Show comments of the currently selected video in `empv-youtube-results-mode'."
-  (interactive)
-  (empv-youtube-show-comments (empv-youtube-results--current-item-url)))
-
-(defun empv-youtube-results-inspect ()
-  "Inspect the currently selected video in `empv-youtube-results-mode'.
-This simply shows the data returned by the invidious API in a
-nicely formatted buffer."
-  (interactive)
-  (empv--inspect-obj (empv-youtube-results--current-item)))
-
-(defalias 'empv-youtube-become-tabulated #'empv-youtube-tabulated-last-results)
-
-(defun empv-youtube-tabulated-last-results ()
-  "Show last search results in tabulated mode with thumbnails."
-  (interactive)
-  (if empv--last-youtube-search
-      (empv--youtube-show-tabulated-results empv--last-youtube-search)
-    (call-interactively 'empv-youtube-tabulated)))
-
-(defun empv-youtube-last-results ()
-  "Show and act on last search results."
-  (interactive)
-  (ignore-error (quit minibuffer-quit)
-    (thread-last
-      (empv--completing-read-object
-       "YouTube results"
-       (empv--yt-search-results empv--last-youtube-search)
-       :formatter #'empv--format-yt-item
-       :category 'empv-youtube-item
-       :sort? nil)
-      (empv--youtube-item-extract-link)
-      (empv-play-or-enqueue))))
+;; vtable-insert-object fails to capture keymap properly, this fixes
+;; that.
+(defun empv--vtable-insert-object (table object)
+  (let ((keymap (save-excursion
+                  (vtable-goto-table table)
+                  (forward-line 1)
+                  (get-text-property (point) 'keymap)))
+        (start (save-excursion
+                 (vtable-end-of-table)
+                 (point))))
+    (vtable-insert-object table object)
+    (add-text-properties start (point) (list 'keymap keymap 'vtable table))))
 
 ;;;; empv utility
 
