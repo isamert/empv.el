@@ -594,10 +594,10 @@ items.  See [1] for more information on this.
   (declare (indent 1))
   `(let (,place (try-count 0))
      ,@forms
-     (while (and (not result) (< try-count 500))
+     (while (and (not ,place) (< try-count 500))
        (setq try-count (1+ try-count))
        (sleep-for 0.01))
-     result))
+     ,place))
 
 (cl-defmacro empv--try-until-non-nil (place &rest forms)
   "Run FORMS until PLACE becomes non-nil."
