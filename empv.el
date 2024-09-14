@@ -791,8 +791,12 @@ happens."
 
 (defun empv--send-command-sync (command)
   "Send COMMAND to mpv process and return the result."
-  (empv--wait-until-non-nil result
-    (empv--send-command command (lambda (x) (setq result x)))))
+  (let ((result nil))
+    (empv--wait-until-non-nil finished
+        (empv--send-command command (lambda (x)
+                                      (setq result x)
+                                      (setq finished t))))
+    result))
 
 ;;;; Essential macros
 
