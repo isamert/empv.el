@@ -594,10 +594,10 @@ items.  See [1] for more information on this.
   (declare (indent 1))
   `(let (,place (try-count 0))
      ,@forms
-     (while (and (not result) (< try-count 500))
+     (while (and (not ,place) (< try-count 500))
        (setq try-count (1+ try-count))
        (sleep-for 0.01))
-     result))
+     ,place))
 
 (cl-defmacro empv--try-until-non-nil (place &rest forms)
   "Run FORMS until PLACE becomes non-nil."
@@ -791,8 +791,12 @@ happens."
 
 (defun empv--send-command-sync (command)
   "Send COMMAND to mpv process and return the result."
-  (empv--wait-until-non-nil result
-    (empv--send-command command (lambda (x) (setq result x)))))
+  (let ((result nil))
+    (empv--wait-until-non-nil finished
+        (empv--send-command command (lambda (x)
+                                      (setq result x)
+                                      (setq finished t))))
+    result))
 
 ;;;; Essential macros
 
