@@ -1585,7 +1585,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
   (interactive)
   (empv--with-video-enabled
    (empv-play-or-enqueue
-    (empv--select-file "Select a video file" empv-video-dir empv-video-file-extensions))))
+    (empv--select-file "Select a video file:" empv-video-dir empv-video-file-extensions))))
 
 ;;;###autoload
 (defun empv-play-audio ()
