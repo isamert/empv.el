@@ -1242,7 +1242,8 @@ window."
 
 ;;;###autoload
 (defun empv-toggle-event-display ()
-  "Toggle debug mode."
+  "Toggle displaying events.
+See `empv-display-events' for details."
   (interactive)
   (setq empv-display-events (not empv-display-events))
   (empv--display-event "Display event mode is %s" empv-display-events))
