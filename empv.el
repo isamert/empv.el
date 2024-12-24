@@ -745,7 +745,7 @@ the result.
          ;; a loop if an error occurs on the callback function
          (when (not (plist-get callback :event?))
            (map-delete empv--callback-table request-id))
-         (when-let ((cb-fn (plist-get callback :fn)))
+         (when-let* ((cb-fn (plist-get callback :fn)))
            (ignore-error (quit minibuffer-quit)
              (if (or request-id id)
                  (funcall cb-fn (cdr (assoc 'data json-data)))
@@ -805,9 +805,9 @@ happens."
   "Send COMMAND to mpv process and return the result."
   (let ((result nil))
     (empv--wait-until-non-nil finished
-        (empv--send-command command (lambda (x)
-                                      (setq result x)
-                                      (setq finished t))))
+      (empv--send-command command (lambda (x)
+                                    (setq result x)
+                                    (setq finished t))))
     result))
 
 ;;;; Essential macros
@@ -969,11 +969,11 @@ documentation."
   ;; for radio streams, see `empv-radio-channels' and
   ;; `empv--play-radio-channel')
   (pcase-let* ((`(,uri ,data) (split-string (or path "") empv--title-sep)))
-    (if-let ((parsed
-              (and data
-                   (string-prefix-p "(" data)
-                   (string-suffix-p ")" data)
-                   (ignore-errors (read data)))))
+    (if-let* ((parsed
+               (and data
+                    (string-prefix-p "(" data)
+                    (string-suffix-p ")" data)
+                    (ignore-errors (read data)))))
         `(,@parsed :uri ,uri)
       (list
        :uri uri
@@ -1264,8 +1264,8 @@ When CAPTURE? is non-nil, also ask user for extra input to save
 along with the log."
   (interactive "P")
   (empv--let-properties '(metadata path)
-    (when-let ((title (alist-get 'icy-title .metadata))
-               (empv-metadata (empv--extract-empv-metadata-from-path .path)))
+    (when-let* ((title (alist-get 'icy-title .metadata))
+                (empv-metadata (empv--extract-empv-metadata-from-path .path)))
       (write-region
        (thread-last
          empv-radio-log-format
@@ -2306,9 +2306,9 @@ Also see `empv-search-prefix'."
   "Fetch lyrics from METADATA.
 Tries to find a key in METADATA that contains \"lyrics\" as there
 is no standard key for lyrics."
-  (when-let ((lyrics-key (seq-find
-                          (lambda (key) (string-match-p "lyrics" (symbol-name key)))
-                          (map-keys metadata))))
+  (when-let* ((lyrics-key (seq-find
+                           (lambda (key) (string-match-p "lyrics" (symbol-name key)))
+                           (map-keys metadata))))
     (map-elt metadata lyrics-key)))
 
 (defun empv--lyrics-on-not-found (song)
@@ -2356,7 +2356,7 @@ This tries to extract the lyrics from the file metada first and
 if it can't find one then downloads it from the web."
   (interactive)
   (empv--with-media-info
-   (if-let ((metadata-lyrics (empv--lyrics-from-metadata .metadata)))
+   (if-let* ((metadata-lyrics (empv--lyrics-from-metadata .metadata)))
        (empv--lyrics-display .path .media-title metadata-lyrics)
      (pcase-let ((`(,url ,web-lyrics) (empv--lyrics-download .media-title)))
        (if (not web-lyrics)
