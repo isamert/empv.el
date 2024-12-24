@@ -444,37 +444,48 @@ Also see `empv-youtube-ytdl-binary'."
 ;;;###autoload
 (defvar empv-map
   (let ((map (make-sparse-keymap)))
-    ;; TODO: Add loop on/off
-
+    ;; Play/pause etc.
     (define-key map "o" 'empv-play-or-enqueue)
     (define-key map "f" 'empv-play-file)
     (define-key map "d" 'empv-play-directory)
     (define-key map "v" 'empv-play-video)
     (define-key map "a" 'empv-play-audio)
+
+    ;; Utility
     (define-key map "i" 'empv-display-current)
     (define-key map "c" 'empv-copy-path)
 
+    ;; Toggling
+    (define-key map "8" 'empv-toggle-current-loop)
+    (define-key map "e" 'empv-toggle-event-display)
+
+    ;; Video
     (define-key map "t" 'empv-toggle)
     (define-key map "_" 'empv-toggle-video)
 
+    ;; Radio
     (define-key map "r" 'empv-play-radio)
     (define-key map "R" 'empv-play-random-channel)
     (define-key map "l" 'empv-log-current-radio-song-name)
 
+    ;; Speed
     (define-key map "[" 'empv-playback-speed-down)
     (define-key map "]" 'empv-playback-speed-up)
     (put 'empv-playback-speed-up 'repeat-map 'empv-map)
     (put 'empv-playback-speed-down 'repeat-map 'empv-map)
 
+    ;; Chapters
     (define-key map "x" 'empv-chapter-select)
     (define-key map "(" 'empv-chapter-prev)
     (define-key map ")" 'empv-chapter-next)
 
+    ;; Volume
     (define-key map "9" 'empv-volume-down)
     (define-key map "0" 'empv-volume-up)
     (put 'empv-volume-up 'repeat-map 'empv-map)
     (put 'empv-volume-down 'repeat-map 'empv-map)
 
+    ;; Playlist
     (define-key map "p" 'empv-playlist-select)
     (define-key map "s" 'empv-playlist-shuffle)
     (define-key map "C" 'empv-playlist-clear)
@@ -483,6 +494,7 @@ Also see `empv-youtube-ytdl-binary'."
     (put 'empv-playlist-next 'repeat-map 'empv-map)
     (put 'empv-playlist-prev 'repeat-map 'empv-map)
 
+    ;; Youtube
     (define-key map "y" 'empv-youtube)
     (define-key map "Y" 'empv-youtube-last-results)
 
