@@ -1849,13 +1849,6 @@ By default it downloads as MP3 file, please see
                (empv-play-or-enqueue where)))
          (empv--display-event "Failed to download: %s. See buffer %s for details." url (buffer-name buffer)))))))
 
-;;;###autoload
-(defun empv-youtube-download-current ()
-  (interactive)
-  (let* ((link (empv--youtube-item-extract-link
-                (empv-youtube-results--current-item))))
-    (empv-youtube-download link nil (lambda (file) (empv--display-event "Download completed: %s" file)))))
-
 ;;;;; empv-youtube-results-mode
 
 (cl-defstruct (empv--yt-search (:constructor empv--make-yt-search)
@@ -1877,7 +1870,7 @@ By default it downloads as MP3 file, please see
     (define-key map (kbd "c") #'empv-youtube-results-show-comments)
     (define-key map (kbd "i") #'empv-youtube-results-inspect)
     (define-key map (kbd "m") #'empv-youtube-results-load-more)
-    (define-key map (kbd "d") #'empv-youtube-download-current)
+    (define-key map (kbd "d") #'empv-youtube-results-download-current)
     (define-key map (kbd "RET") #'empv-youtube-results-play-or-enqueue-current)
     (define-key map (kbd "?") #'describe-mode)
     map)
@@ -2100,6 +2093,12 @@ supported formats."
   (empv-youtube-show-comments
    (empv-youtube-results--current-item-url)
    (empv-youtube-results--current-item)))
+
+(defun empv-youtube-results-download-current ()
+  (interactive)
+  (let* ((link (empv--youtube-item-extract-link
+                (empv-youtube-results--current-item))))
+    (empv-youtube-download link nil (lambda (file) (empv--display-event "Download completed: %s" file)))))
 
 (defun empv-youtube-results-inspect ()
   "Inspect the currently selected video in `empv-youtube-results-mode'.
