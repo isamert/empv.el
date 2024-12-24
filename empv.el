@@ -2105,23 +2105,25 @@ nicely formatted buffer."
 (defun empv-override-quit-key ()
   "Override `q' key to \"pause and hide video\" action.
 
-This function overrides the `q' key so that you dont accidentaly
-quit mpv, resulting in a loss of your current playlist.
+This function overrides the `q' key so that you don't accidentally quit
+mpv, resulting in a loss of your current playlist.
 
-Instead of quitting mpv, it hides the video view (just like the
-`_' binding) and pauses the playback.  If you want to hide the
-video view, without pausing you can still use `_' key binding.  To
-really exit, you can still use `empv-exit' function.
+Instead of quitting mpv, it hides the video view (just like the `_'
+binding) and pauses the playback.  If you want to hide the video view,
+without pausing you can still use `_' key binding.  To really exit, you
+can still use `empv-exit' function.
 
 To make this behavior permanant, add the following to your init file:
 
-    (add-hook \\='empv-init-hook #\\='empv-override-quit-key)"
+    (add-hook \\='empv-init-hook #\\='empv-override-quit-key)
+
+Also see `empv-reset-playback-speed-on-quit' for resetting playback
+speed to 1 after quitting the video view."
   (empv--cmd
    'keybind `("q" ,(format "set pause yes;%s cycle video"
                            (if empv-reset-playback-speed-on-quit
                                "set speed 1;"
                              "")))))
-
 
 (defvar org-link-any-re)
 (declare-function org-element-property "org")
