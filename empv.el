@@ -1365,7 +1365,7 @@ Example:
   "Save the current playlist to FILENAME."
   (interactive
    (list
-    (let ((fname (read-file-name "Save playlist to: " (file-name-as-directory empv-playlist-dir))))
+    (let ((fname (read-file-name "Save playlist to (extension must be .m3u): " (file-name-as-directory empv-playlist-dir) "")))
       (when (and fname (not (string-empty-p fname)))
         fname))))
   (empv--playlist-apply #'empv--playlist-save-to-file filename))
