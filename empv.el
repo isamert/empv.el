@@ -2076,27 +2076,27 @@ supported formats."
 
 (defun empv-youtube-results-play-current ()
   "Play the currently selected video in `empv-youtube-results-mode'."
-  (interactive)
+  (interactive nil empv-youtube-results-mode)
   (empv-play (empv-youtube-results--current-item-url)))
 
 (defun empv-youtube-results-enqueue-current ()
   "Enqueue the currently selected video in `empv-youtube-results-mode'."
-  (interactive)
+  (interactive nil empv-youtube-results-mode)
   (empv-enqueue (empv-youtube-results--current-item-url)))
 
 (defun empv-youtube-results-play-or-enqueue-current ()
   "Play or enqueue the currently selected video in `empv-youtube-results-mode'."
-  (interactive)
+  (interactive nil empv-youtube-results-mode)
   (empv-play-or-enqueue (empv-youtube-results--current-item-url)))
 
 (defun empv-youtube-results-copy-current ()
   "Copy the URL of the currently selected video in `empv-youtube-results-mode'."
-  (interactive)
+  (interactive nil empv-youtube-results-mode)
   (empv-youtube-copy-link (empv-youtube-results--current-item-url)))
 
 (defun empv-youtube-results-show-comments ()
   "Show comments of the currently selected video in `empv-youtube-results-mode'."
-  (interactive)
+  (interactive nil empv-youtube-results-mode)
   (empv-youtube-show-comments
    (empv-youtube-results--current-item-url)
    (empv-youtube-results--current-item)))
@@ -2105,7 +2105,7 @@ supported formats."
   "Inspect the currently selected video in `empv-youtube-results-mode'.
 This simply shows the data returned by the invidious API in a
 nicely formatted buffer."
-  (interactive)
+  (interactive nil empv-youtube-results-mode)
   (empv--inspect-obj (empv-youtube-results--current-item)))
 
 (defalias 'empv-youtube-become-tabulated #'empv-youtube-tabulated-last-results)
