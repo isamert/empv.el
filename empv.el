@@ -1750,10 +1750,16 @@ Show results in a tabulated buffers with thumbnails."
 (declare-function emojify-mode "emojify")
 
 ;;;###autoload
-(defun empv-youtube-show-comments (video-id)
+(defun empv-youtube-show-comments (video-id &optional video-info)
   "Show comments of a YouTube VIDEO-ID in a nicely formatted org buffer.
-VIDEO-ID can be either a YouTube URL or just a YouTube ID."
+VIDEO-ID can be either a YouTube URL or just a YouTube ID.  If
+VIDEO-INFO is non-nil, then add video metadata to beginning of the
+buffer."
   (interactive "sURL or ID: ")
+  (unless video-info
+    (when-let* ((metadata (empv--extract-empv-metadata-from-path video-id))
+                (_ (plist-get metadata :youtube)))
+      (setq video-info (empv--plist-to-alist metadata))))
   (setq video-id (replace-regexp-in-string "^.*v=\\([A-Za-z0-9_-]+\\).*" "\\1" video-id))
   (empv--request
    (format "%s/comments/%s" empv-invidious-instance video-id)
@@ -1766,6 +1772,16 @@ VIDEO-ID can be either a YouTube URL or just a YouTube ID."
          (org-mode)
          (when (require 'emojify nil t)
            (emojify-mode))
+         (when video-info
+           (let-alist video-info
+             (insert (format "#+title: \"%s\" comments\n\n" .title))
+             (unless (s-blank? .description)
+               (insert .description "\n\n"))
+             (insert (format "- View Count :: %s
+- Published :: %s"
+                             .viewCountText
+                             .publishedText))
+             (insert "\n\n-----\n")))
          (seq-map
           (lambda (comment)
             (let-alist comment
@@ -2081,7 +2097,9 @@ supported formats."
 (defun empv-youtube-results-show-comments ()
   "Show comments of the currently selected video in `empv-youtube-results-mode'."
   (interactive)
-  (empv-youtube-show-comments (empv-youtube-results--current-item-url)))
+  (empv-youtube-show-comments
+   (empv-youtube-results--current-item-url)
+   (empv-youtube-results--current-item)))
 
 (defun empv-youtube-results-inspect ()
   "Inspect the currently selected video in `empv-youtube-results-mode'.
