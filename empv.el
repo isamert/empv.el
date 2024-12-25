@@ -2237,8 +2237,6 @@ path.  No guarantees."
   "Generate a search URL for the given SONG."
   (url-encode-url (format "%s%s lyrics" empv-search-prefix song)))
 
-;; TODO Make this async? Not quite sure if it does worth or not
-;; This function is completely fucked up *and* it works, most of the time.
 (defun empv--lyrics-download (song)
   "Get lyrics for SONG from web and return a pair of source url and lyrics.
 Also see `empv-search-prefix'."
@@ -2261,35 +2259,41 @@ Also see `empv-search-prefix'."
         ;; FIXME: Sort found URLs by their reliability first?
         (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\|genius.com\\)" it)))
         (url-unhex-string)
-        ((lambda (it) (setq url it) it))
+        (funcall (lambda (it) (setq url it) it))
         (empv--request-raw-sync)
         (string-replace "" "")
         ;; Replace newlines so that regexes can work
         (string-replace "\n" "<newline>")
         ;; FIXME: The resulting string may be too long and regexes may
         ;; fail due to stack overflow errors
-        ((lambda (it)
+        (funcall
+         (lambda (it)
            (or
-            (s-match "<div class=\"inhalt\">\\(.*\\)<a href=\"" it) ;; sturmgeweiht
-            (s-match "Sorry about that\\. -->\\(.*\\)<!-- MxM banner -->" it) ;; azlyrics
-            (s-match "x-ref=\"lyric_text\">\\(.*\\)</p>" it) ;; lyrics.az
-            (s-match "<div class=\"main-panel-content\".*?>\\(.*\\)<div class=\"sharebar-wrapper\"" it) ;; flashlyrics
-            (s-match "class=\"Lyrics__Container.*?\">\\(.*?\\)How to Format Lyrics" it) ;; genius
-            )))
+            ;; sturmgeweiht
+            (s-match "<div class=\"inhalt\">\\(.*\\)<a href=\"" it)
+            ;; azlyrics
+            (s-match "Sorry about that\\. -->\\(.*\\)<!-- MxM banner -->" it)
+            ;; lyrics.az
+            (s-match "x-ref=\"lyric_text\">\\(.*\\)</p>" it)
+            ;; flashlyrics
+            (s-match "<div class=\"main-panel-content\".*?>\\(.*\\)<div class=\"sharebar-wrapper\"" it)
+            ;; genius
+            (s-match "data-lyrics-container=\"true\"\\(.*?\\)How to Format Lyrics" it))))
         (nth 1)
-        (s-replace-all '(("<br>" . "\n")
-                         ("<br/>" . "\n")
-                         ("<br />" . "\n")
-                         ("\\n" . "\n")
-                         ("<div>" . "")
-                         ("</div>" . "")
-                         ("\\" . "")
-                         ("<newline>" . "\n")
-                         ("" . "\n")
-                         ("\"" . "")
-                         ("&quot;" . "\"")
-                         ("&#x27;" . "'")
-                         ("&#039;" . "'")))
+        (s-replace-all
+         '(("<br>" . "\n")
+           ("<br/>" . "\n")
+           ("<br />" . "\n")
+           ("\\n" . "\n")
+           ("<div>" . "")
+           ("</div>" . "")
+           ("\\" . "")
+           ("<newline>" . "\n")
+           ("" . "\n")
+           ("\"" . "")
+           ("&quot;" . "\"")
+           ("&#x27;" . "'")
+           ("&#039;" . "'")))
         (s-replace "\n\n" "\n")
         (s-split "\n")
         (mapcar #'s-trim)
