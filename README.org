@@ -4,7 +4,7 @@
 
 An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this package provides somewhat comprehensive interface to mpv with bunch of convenient functionality like an embedded radio manager, YouTube interface, local music/video library manager, lyrics manager etc.
 
-Scroll to bottom of the page to see the *screenshots*.
+Scroll to bottom of the page to see the [[#screenshots][screenshots]].
 
 /empv/ is mostly focused on audio but it also provides some means to manage videos. It also supports YouTube searches for consuming audios or videos.
 
@@ -66,7 +66,13 @@ Some keys are repeatable in this keymap. Continuing with the example above, you 
 When you invoke one of the functions that triggers playing a media, you'll be automatically presented with some options that asks you whether you want to /play directly/, /enqueue next/ or /enqueue last/. By default this uses ~read-multiple-choice~ to ask you about your choices. You can change this to use ~completing-read~ based interface if you want by setting ~empv-action-handler~ variable to ~completing-read~. See the variable documentation for more information.
 
 * Extra functionality and configuration
-Do =M-x= and then search for =empv-= to list all available functions. Currently there are ~66 interactive functions. Also check out all configuration options by doing =M-x customize-group empv RET=. I'll go over some extra configuration options that you may want to use:
+Do =M-x= and then search for =empv-= to list all available functions. Currently there are ~66 interactive functions. Also check out all configuration options by doing =M-x customize-group empv RET=. I'll go over some extra configuration options that you may want to use.
+
+#+begin_quote
+[!TIP]
+
+Also take a look at [[https://github.com/isamert/dotfiles/blob/59c2eeae4869917922eed2d8abeb44026d6053ab/emacs/init.el#L8646][my /empv.el/ configuration]] after reading down below to see how they are applied.
+#+end_quote
 
 ** General YouTube configuration
 /empv.el/ lets you search in YouTube videos/playlists and play them in background or just play the video itself. It also let's you view YouTube comments of a video in a nicely formatted org buffer. This is done through [[https://github.com/iv-org/invidious][invidious]] API. It's a privacy respecting front-end (and API) for YouTube. To be able to use these features, you need to set an invidious instance manually, like:
@@ -77,13 +83,29 @@ Do =M-x= and then search for =empv-= to list all available functions. Currently 
 
 You can select an invidious instance from [[https://api.invidious.io/][here]].
 
+#+begin_quote
+[!IMPORTANT]
+
+/empv.el/ doesn't use Invidious to play videos; it redirects YouTube links that it gathers from Invidious directly to MPV. This is beneficial, especially given [[https://github.com/iv-org/invidious/issues/4734][this issue]] affecting Invidious. Since /empv.el/ only utilizes Invidious for metadata retrieval, the issue doesn't impact playback. But it's important to note this distinction for privacy considerations.
+#+end_quote
+
 The entry-point function is ~empv-youtube~ which asks your input to search in YouTube videos. If you have ~consult~ installed, it'll also show you search suggestions while you are typing.
 
-Thumbnails greatly help to identify the right video in a search. Using ~completing-read~ may sometimes fall short here and for that you can use ~empv-youtube-tabulated~. This function searches given term in YouTube and display them in a buffer with video thumbnails.
+Thumbnails greatly help to identify the right video in a search. Using ~completing-read~ may sometimes fall short here and for that you can do ~M-x empv-toggle-youtube-tabulated-results~ to switch to a tabulated search result interface with video thumbnails in a dedicated buffer. To make this behavior permanent set ~empv-youtube-use-tabulated-results~ to a non-nil value to make YouTube commands use the tabulated interface by default at all times.
 
-You can also set ~empv-youtube-use-tabulated-results~ to a non-nil value to make YouTube commands use the tabulated interface by default at all times.
+There is also functions for reopening the last YouTube search results: ~empv-youtube-last-results~ and ~empv-youtube-tabulated-last-results~ which helps if you accidentally close the search results or you did a ~completing-read~ search and you actually wanted to see thumbnails with the tabulated results. (There is also an /embark/ action named ~empv-youtube-become-tabulated~ which does the same thing, but without closing the ~completing-read~ first.)
 
-There is also functions for reopening the last YouTube search results: ~empv-youtube-last-results~ and ~empv-youtube-tabulated-last-results~ which helps if you accidentally close the search results or you did a ~completing-read~ search and you actually wanted to see thumbnails with the tabulated results.
+#+begin_quote
+[!TIP]
+
+[[https://github.com/minad/consult][Consult]] and [[https://github.com/oantolin/embark][embark]] are essential part of YouTube workflow in /empv.el/. See the  [[#embark-and-consult][Embark and Consult integration]] down below.
+#+end_quote
+
+*** YouTube Channel & Playlist search
+empv also supports YouTube /playlists/ and /channels/:
+
+- Do ~empv-youtube-channel~ to search for YouTube channels. After that, you can select a channel to list it's videos (sorted by either popular or newest order), or you can directly enqueue all videos of the channel (by issuing ~empv-play~ /embark/ action in completing-read interface or by hitting ~P~ (~empv-youtube-results-play-current~) in tabulated results mode).
+- Do ~empv-youtube-playlist~ to search for YouTube playlists. After that you can enqueue all playlist items by selecting a playlist. Then you can use normal playlist functions (i.e. ~empv-playlist-select~ etc.).
 
 ** Local media management
 ~empv-play-audio~ and ~empv-play-video~ functions let's you quickly select a local media file found on your computer through ~completing-read~ and play it. This works by finding all files under ~empv-audio-dir~ or ~empv-video-dir~ (Also see ~empv-video-file-extensions~, ~empv-audio-file-extensions~ and ~empv-max-directory-search-depth~ variables). You can even enqueue multiple files at the same time by using ~embark~. See down below to learn how you can configure embark support.
@@ -105,6 +127,9 @@ You can still use ~empv-play-file~ to select and play files using classic ~read-
 Now you can use ~empv-play-radio~ to select and play one of these streams. You can also use ~empv-play-random-channel~ to start playing one of these channels randomly. There is also ~empv-log-current-radio-song-name~ which logs the current song/media title to a file in the specified format. This is useful for quickly capturing name of the song you liked that is currently playing on the selected radio (See ~empv-radio-log-file~ and ~empv-radio-log-format~ variables and their documentations).
 
 ** Embark and Consult integration
+:PROPERTIES:
+:CUSTOM_ID: embark-and-consult
+:END:
 If you have [[https://github.com/minad/consult][consult]] and [[https://github.com/oantolin/embark][embark]] installed on your Emacs, ~empv.el~ will automatically integrate itself with them. If you have ~consult~ installed, you get search suggestions during YouTube searches (~empv-youtube~) and if you have embark installed you get embark actions for playing/enqueueing selected media. This makes it easy to enqueue bunch of media results using ~embark-act-all~, or you can call ~embark-act~ on a file inside a ~dired~ buffer and you'll see options to play or enqueue given file or folder.
 
 To enable extra embark integration, add the following to your init file:
@@ -163,6 +188,9 @@ If you have applied the workaround above, you can set the following option to no
 This is useful if you watch videos on higher speeds but you want to quickly restore the playback speed after being done with the video.
 
 * Screenshots
+:PROPERTIES:
+:CUSTOM_ID: screenshots
+:END:
 
 | Actions                                                                                                   |
 |-----------------------------------------------------------------------------------------------------------|
