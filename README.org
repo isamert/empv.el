@@ -107,6 +107,12 @@ empv also supports YouTube /playlists/ and /channels/:
 - Do ~empv-youtube-channel~ to search for YouTube channels. After that, you can select a channel to list it's videos (sorted by either popular or newest order), or you can directly enqueue all videos of the channel (by issuing ~empv-play~ /embark/ action in completing-read interface or by hitting ~P~ (~empv-youtube-results-play-current~) in tabulated results mode).
 - Do ~empv-youtube-playlist~ to search for YouTube playlists. After that you can enqueue all playlist items by selecting a playlist. Then you can use normal playlist functions (i.e. ~empv-playlist-select~ etc.).
 
+*** YouTube Comments
+
+Just hit ~c~ (or do ~empv-youtube-results-show-comments~) in a tabulated search results buffer to show comments (and a little details) of the selected video. Or use ~empv-youtube-show-comments~ embark action to show comments in a completing-read results buffer.
+
+You can use ~empv-youtube-show-current-comments~ to show comments of currently playing YouTube video.
+
 ** Local media management
 ~empv-play-audio~ and ~empv-play-video~ functions let's you quickly select a local media file found on your computer through ~completing-read~ and play it. This works by finding all files under ~empv-audio-dir~ or ~empv-video-dir~ (Also see ~empv-video-file-extensions~, ~empv-audio-file-extensions~ and ~empv-max-directory-search-depth~ variables). You can even enqueue multiple files at the same time by using ~embark~. See down below to learn how you can configure embark support.
 
