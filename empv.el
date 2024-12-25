@@ -50,8 +50,17 @@
 (eval-when-compile
   (require 'subr-x))
 
-;;;; Some helpful resources
+;;;; Development
+
+;; * mpv
+;;
 ;; - https://github.com/mpv-player/mpv/blob/master/DOCS/man/input.rst
+;;
+;; * Testing
+;;
+;; There are tests, a few...  In the comments of some functions.  You
+;; can use `doctest' package to run them.  Not very useful tests
+;; though.
 
 ;;;; Some constants
 
@@ -427,7 +436,7 @@ haven't installed consult."
   :group 'empv)
 
 (defcustom empv-ytdl-binary "yt-dlp"
-  "ytdl binary path."
+  "`ytdl' binary path."
   :version "4.5.0"
   :type 'boolean
   :group 'empv)
@@ -600,6 +609,23 @@ items.  See [1] for more information on this.
     (empv--alist-path-get path alist))
 => d"
   (empv--alist-path-get-helper (mapcar #'intern (string-split (symbol-name path) "\\." t)) alist))
+
+(defun empv--plist-to-alist (plist)
+  "Convert PLIST to an alist.
+Taken from transient.el.
+
+>> (empv--plist-to-alist (quote (:a 1 :b 2 :c (3 4 5))))
+=> ((a . 1) (b . 2) (c . (3 4 5)))"
+  (let (alist)
+    (while plist
+      (push (cons (let* ((symbol (pop plist))
+                         (name (symbol-name symbol)))
+                    (if (eq (aref name 0) ?:)
+                        (intern (substring name 1))
+                      symbol))
+                  (pop plist))
+            alist))
+    (nreverse alist)))
 
 (cl-defmacro empv--wait-until-non-nil (place &rest forms)
   "Wait until PLACE is non-nil, after executing FORMS."
@@ -781,7 +807,6 @@ Blocks until mpv process establishes it's socket interface."
                                         :sentinel #'empv--sentinel
                                         :filter #'empv--filter))))))
 
-
 (defun empv--send-command (command &optional callback event?)
   "Send COMMAND to mpv and call CALLBACK when mpv responds.
 If EVENT? is non-nil, then the command is treated as an event
@@ -844,7 +869,8 @@ happens."
       ,props)))
 
 (defmacro empv--with-media-info (&rest body)
-  "Gives you a context containing `.media-title', `.path' `.metadata'"
+  "Gives you a context containing `.media-title', `.path' `.metadata'.
+Executes BODY with this context."
   `(empv--let-properties '(metadata media-title path)
      (let ((.media-title (empv--create-media-summary-for-notification .metadata .path .media-title)))
        ,@body)))
@@ -912,7 +938,9 @@ URI might be a string or a list of strings."
     (genre  . ,(empv--metadata-get data 'genre 'icy-genre))))
 
 (defun empv--create-media-summary-for-notification (metadata path &optional fallback)
-  "Generate a formatted media title like \"Song name - Artist\" from given METADATA."
+  "Generate a formatted media title like \"Song name - Artist\" from given METADATA.
+Use FALLBACK as fallback title in case song/artist name not found.
+PATH is the path of the media file."
   (let-alist (empv--extract-metadata metadata)
     (if .title
         (format "%s %s %s"
@@ -948,17 +976,29 @@ parse that and returns a form along the lines of:
     \\='(:title \"...\" :uri \"the-real-uri-without-metadata\"
          :radio nil/t :youtube nil/t)
 
-:TITLE is the human readable name of the path. This function also
+:title is the human readable name of the path.  This function also
 checks if is there any cached name for this PATH.
 
-:URI is the PATH but without the encoded metadata. Clean version
+:uri is the PATH but without the encoded metadata.  Clean version
 of the PATH.
 
-:RADIO indicates if this PATH is a radio stream or not (only true
+:radio indicates if this PATH is a radio stream or not (only true
 if invoked by `empv-play-radio' etc.)
 
-:YOUTUBE indicates if this PATH is a YouTube path or not (only
+:youtube indicates if this PATH is a YouTube path or not (only
 true if invoked by `empv-youtube' family of functions.)
+
+:author gives you the YouTube channel name or not (only true if invoked
+by `empv-youtube' family of functions.)
+
+:authorId gives you the YouTube channel id or not (only true if invoked
+by `empv-youtube' family of functions.)
+
+Names of these properties are inherited from Invidious response to
+ensure consistency. See `empv--youtube-item-extract-link' function for
+further details.
+
+Use FALLBACK as fallback title in case nothing in URL is found.
 
 Also see `empv--title-sep' and `empv--media-title-cache'
 documentation."
@@ -2194,6 +2234,8 @@ path.  No guarantees."
 
 (define-derived-mode empv-lyrics-display-mode text-mode "empv-lyrics-display-mode"
   "Major mode for displaying lyrics of a given song.")
+
+(defvar custom-button)
 
 (cl-defun empv--lyrics-display (path title lyrics &key url)
   (with-current-buffer (get-buffer-create "*empv-lyrics*")
