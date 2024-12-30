@@ -596,15 +596,15 @@ items.  See [1] for more information on this.
 
 ;;;; Utility
 
-(defun empv-flipcall (fn x y)
+(defun empv--flipcall (fn x y)
   "Flip arguments of given binary function FN and call it with Y and X."
   (funcall fn y x))
 
-(defun empv-seq-init (seq)
+(defun empv--seq-init (seq)
   "Return the SEQ without the last element."
   (seq-subseq seq 0 (1- (seq-length seq))))
 
-(defun empv-seq-find-index (fn seq)
+(defun empv--seq-find-index (fn seq)
   "Return the first index in SEQ for which FN evaluate to non-nil."
   (seq-position seq 'empv-dummy-item (lambda (it _) (funcall fn it))))
 
@@ -1352,7 +1352,7 @@ along with the log."
   (interactive "sEnter an URI to play: ")
   (empv--let-properties '(playlist)
     (let ((len (length .playlist))
-          (idx (empv-seq-find-index (lambda (it) (alist-get 'current it)) .playlist)))
+          (idx (empv--seq-find-index (lambda (it) (alist-get 'current it)) .playlist)))
       (empv-enqueue uri)
       (empv--cmd 'playlist-move `(,len ,(1+ idx))))))
 
@@ -1593,7 +1593,7 @@ The display format is determined by the
                    empv-radio-channels
                    (length)
                    (random)
-                   (empv-flipcall #'nth empv-radio-channels))))
+                   (empv--flipcall #'nth empv-radio-channels))))
     (empv--display-event "Playing %s" (car channel))
     (empv--play-radio-channel channel)))
 
@@ -1611,8 +1611,8 @@ PROMPT is shown when `completing-read' is called."
                       empv-fd-binary
                       (or depth empv-max-directory-search-depth)))
       (shell-command-to-string)
-      (empv-flipcall #'split-string "\n")
-      (empv-seq-init))))
+      (empv--flipcall #'split-string "\n")
+      (empv--seq-init))))
 
 (defun empv--find-files (path extensions &optional depth)
   "Like `empv--find-files-1' but PATH can be a list."
@@ -1919,7 +1919,7 @@ buffer."
                     ('video empv-youtube-tabulated-video-headers)
                     ('playlist empv-youtube-tabulated-playlist-headers)
                     ('channel empv-youtube-tabulated-channel-headers)))
-         (thumbnail-column (empv-seq-find-index (lambda (it) (equal empv-thumbnail-placeholder (nth 3 it))) headers)))
+         (thumbnail-column (empv--seq-find-index (lambda (it) (equal empv-thumbnail-placeholder (nth 3 it))) headers)))
     (unless tabulated-list-format
       (empv--youtube-format-tabulated-list headers))
     (let* ((offset (if append? (length tabulated-list-entries) 0))
