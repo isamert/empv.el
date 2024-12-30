@@ -690,13 +690,14 @@ Taken from transient.el.
 
 (defun empv--read-result (result)
   "Read JSON RESULT into an elisp structure."
-  (let* ((json-object-type 'alist)
-         (json-array-type 'list)
-         (json-key-type 'symbol)
-         (json (condition-case nil
-                   (json-read-from-string result)
-                 (error (empv--dbg "Error while reading JSON :: %s" result) nil))))
-    json))
+  (condition-case nil
+      (json-parse-string
+       result
+       :object-type 'alist
+       :array-type 'list
+       :false-object :json-false
+       :null-object result)
+    (error (empv--dbg "Error while reading JSON :: %s" result) nil)))
 
 (defvar empv--request-id 0)
 (defun empv--new-request-id ()
