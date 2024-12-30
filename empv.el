@@ -1698,7 +1698,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
 ;;;###autoload
 (defun empv-youtube (term)
   "Search TERM in YouTube videos."
-  (interactive (list (empv--yt-suggest "Search in YouTube videos: ")))
+  (interactive (list (empv--youtube-suggest "Search in YouTube videos: ")))
   (empv--youtube term 'video))
 
 (defalias 'empv-youtube-search #'empv-youtube)
@@ -1731,7 +1731,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
 ;;;###autoload
 (defun empv-youtube-playlist (term)
   "Search TERM in YouTube playlists."
-  (interactive (list (empv--yt-suggest "Search in YouTube playlists: ")))
+  (interactive (list (empv--youtube-suggest "Search in YouTube playlists: ")))
   (empv--youtube term 'playlist))
 
 (defalias 'empv-youtube-playlist-search #'empv-youtube-playlist)
@@ -1739,7 +1739,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
 ;;;###autoload
 (defun empv-youtube-channel (term)
   "Search TERM in YouTube playlists."
-  (interactive (list (empv--yt-suggest "Search in YouTube channels: ")))
+  (interactive (list (empv--youtube-suggest "Search in YouTube channels: ")))
   (empv--youtube term 'channel))
 
 (defalias 'empv-youtube-channel-search #'empv-youtube-channel)
@@ -2812,50 +2812,47 @@ learn more.  Supposed to be used like this:
 (declare-function consult--async-throttle "consult")
 (declare-function consult--async-split "consult")
 
+(defun empv--consult-async-generator (request mapper)
+  (thread-first
+    (consult--async-sink)
+    (consult--async-refresh-immediate)
+    ((lambda (next)
+       (lambda (action)
+         (pcase action
+           ((pred stringp)
+            (when (not (string-empty-p (string-trim action)))
+              (funcall
+               request
+               action
+               (lambda (result)
+                 (funcall next 'flush)
+                 (funcall next (funcall mapper result))))))
+           (_ (funcall next action))))))
+    (consult--async-throttle)
+    (consult--async-split)))
+
 (defun empv--consult-get-input-with-suggestions (prompt)
   "Get an input from user, using YouTube search suggestions.
 PROMPT is passed to `completing-read' as-is."
   (consult--read
-   (empv--consult-yt-search-generator)
+   (empv--consult-async-generator
+    (lambda (action on-result)
+      (empv--request
+       (format "%s/search/suggestions" empv-invidious-instance)
+       `(("q" . ,action))
+       on-result))
+    (lambda (result)
+      (alist-get 'suggestions result)))
    :prompt prompt
    :category 'empv-youtube
-   :lookup (lambda (selected &rest _)
-             (string-trim-left selected (consult--async-split-initial "")))
-   :initial (consult--async-split-initial "")
    :sort nil
    :history 'empv--youtube-search-history
    :require-match nil))
 
-(defun empv--consult-yt-search-generator ()
-  (thread-first
-    (consult--async-sink)
-    (consult--async-refresh-immediate)
-    (empv--consult-async-search)
-    (consult--async-throttle)
-    (consult--async-split)))
-
-(defun empv--consult-async-search (next)
-  "Async search provider for `consult-empv'.
-This gets the suggestions based on the current action and returns
-results to consult using NEXT."
-  (lambda (action)
-    (pcase action
-      ((pred stringp)
-       (when (not (string-empty-p (string-trim action)))
-         (empv--request
-          (format "%s/search/suggestions" empv-invidious-instance)
-          `(("q" . ,action))
-          (lambda (result)
-            (funcall next 'flush)
-            (when result
-              (funcall next (alist-get 'suggestions result)))))))
-      (_ (funcall next action)))))
-
-(defun empv--yt-suggest (prompt)
+(defun empv--youtube-suggest (prompt)
   (if (and empv-use-consult-if-possible (require 'consult nil t))
       (empv--consult-get-input-with-suggestions prompt)
     (read-string prompt nil 'empv--youtube-search-history)))
-
 
 (provide 'empv)
 ;;; empv.el ends here
