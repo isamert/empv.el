@@ -3,7 +3,7 @@
 ;; Copyright (C) 2022-2024  Isa Mert Gurbuz
 
 ;; Author: Isa Mert Gurbuz <isamertgurbuz@gmail.com>
-;; Version: 4.6.0
+;; Version: 4.9.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
 ;; Package-Requires: ((emacs "28.1") (s "1.13.0") (compat "29.1.4.4"))
@@ -26,7 +26,8 @@
 ;; An Emacs media player, based on mpv.  More precisely this package
 ;; provides somewhat comprehensive interface to mpv with bunch of
 ;; convenient functionality like an embedded radio manager, YouTube
-;; interface, local music/video library manager etc.
+;; interface, Subsonic/Navidrome client, local music/video library
+;; manager etc.
 
 ;; Lots of interactive functions are at your disposal.  To view the
 ;; most essential ones, type `M-x describe-keymap empv-map`.  It is
@@ -55,6 +56,15 @@
 ;; * mpv
 ;;
 ;; - https://github.com/mpv-player/mpv/blob/master/DOCS/man/input.rst
+;;
+;; * Subsonic
+;;
+;; - https://www.subsonic.org/pages/api.jsp
+;; - https://git.sr.ht/~amk/subsonic.el
+;;
+;; * Invidious
+;;
+;; - https://docs.invidious.io/api/
 ;;
 ;; * Testing
 ;;
@@ -466,6 +476,34 @@ Also see `empv-youtube-ytdl-binary'."
   :type 'boolean
   :group 'empv)
 
+(defcustom empv-subsonic-username nil
+  "Subsonic user name."
+  :group 'empv
+  :version "4.9.0")
+
+(defcustom empv-subsonic-password nil
+  "Subsonic password."
+  :group 'empv
+  :type 'string
+  :version "4.9.0")
+
+(defcustom empv-subsonic-url nil
+  "Subsonic URL."
+  :group 'empv
+  :type 'string
+  :version "4.9.0")
+
+(defcustom empv-subsonic-result-count "50"
+  "Max Subsonic result count.
+This only applies if the endpoint has a count or size parameter.  For
+example, `empv-subsonic-artists' will return all artists no matter what
+this value is.
+
+Maximum possible value is 500. "
+  :type 'string
+  :group 'empv
+  :version "4.9.0")
+
 ;;;; Public variables
 
 ;;;###autoload
@@ -761,6 +799,21 @@ Taken from transient.el.
      (unless (empv--running?)
        (empv-start))
      ,@forms))
+
+(defun empv--with-text-properties (str &rest props)
+  (let ((str-copy (copy-sequence str)))
+    (add-text-properties
+     0 1
+     (seq-mapcat
+      #'identity
+      (seq-map
+       (lambda (prop) (cons (intern (concat "empv--" (string-trim-left (symbol-name (car prop)) ":"))) (cdr prop)))
+       (seq-partition props 2)))
+     str-copy)
+    str-copy))
+
+(defun empv--get-text-property (str prop)
+  (get-text-property 0 (intern (concat "empv--" (string-trim-left (symbol-name prop) ":"))) str))
 
 ;;;; Utility: Url/Path/Metadata
 
@@ -2522,6 +2575,277 @@ PROMPT is passed to `completing-read' as-is."
       (empv--consult-get-input-with-suggestions prompt)
     (read-string prompt nil 'empv--youtube-search-history)))
 
+;;;; Subsonic
+
+(defvar empv--subsonic-client-name "emacs-empv")
+(defvar empv--subsonic-api-version "1.16.0")
+(defvar empv--subsonic-salt-length 10)
+(defvar empv--subsonic-search-prompt "Subsonic search: ")
+
+;;;;; Requests & builders
+
+(defun empv--subsonic-build-url (endpoint &rest params)
+  (let* ((salt (empv--random-string empv--subsonic-salt-length))
+         (token (md5 (concat empv-subsonic-password salt))))
+    (empv--build-url
+     (concat empv-subsonic-url "/rest/" endpoint)
+     `(("u" . ,empv-subsonic-username)
+       ("s" . ,salt)
+       ("t" . ,token)
+       ("v" . ,empv--subsonic-api-version)
+       ("c" . ,empv--subsonic-client-name)
+       ("f" . "json")
+       ,@(empv--plist-to-alist params)))))
+
+(defun empv--subsonic-build-stream-url-for (object)
+  "Build streamable url for given Subsonic OBJECT."
+  (empv--url-with-magic-info
+   (empv--subsonic-build-url "stream.view" :id (alist-get 'id object))
+   :title (substring-no-properties (empv--subsonic-format-candidate object))
+   :subsonic t))
+
+(defun empv--subsonic-request (endpoint &rest rest)
+  "Make a request to ENDPOINT.
+REST are URL params.  If last of REST is a function, then it is used as
+the callback function.  Otherwise the request is made synchronously and
+resulting object is returned.
+
+This function does not return subsonic responses verbatim.  It processes
+them so that responses are easier to work with."
+  (when (seq-some #'s-blank? (list empv-subsonic-url empv-subsonic-username empv-subsonic-password))
+    (user-error "Please configure Subsonic first"))
+  (let* ((callback (when-let* ((last (empv--seq-last rest))
+                               (_ (functionp last)))
+                     last))
+         (params (if callback
+                     (ignore-errors (empv--seq-init rest))
+                   rest))
+         (handler
+          (lambda (result)
+            ;; I know this is horrible but Subsonic responses are much worse.
+            (let-alist result
+              (unless (equal "ok" .subsonic-response.status)
+                (empv--dbg "empv--subsonic-request failed :: endpoint=%s, rest=%s, response=%s" endpoint rest result)
+                (error "Request to subsonic failed."))
+              (let ((result (or
+                             (alist-get
+                              (thread-last
+                                endpoint
+                                (s-split "\\.")
+                                (car)
+                                (s-chop-prefix "get")
+                                (s-lower-camel-case)
+                                (intern))
+                              .subsonic-response)
+                             ;; FIXME: This does not look good
+                             ;; This is the only non-conforming result object.
+                             .subsonic-response.searchResult3)))
+                (let ((info '())
+                      (results '())
+                      (result-fields '(artist album song playlist genre)))
+                  ;; TODO: Document what is going on here
+                  (seq-do
+                   (lambda (key)
+                     (let ((val (alist-get key result)))
+                       (if (listp val)
+                           (setq results (append results (seq-map (lambda (x) (map-insert x 'empvType key)) val)))
+                         (setq info (map-insert info key val)))))
+                   result-fields)
+                  (seq-do
+                   (lambda (key)
+                     (setq info (map-insert info key (alist-get key result))))
+                   (seq-difference (map-keys result) result-fields))
+                  ;; Also handle /getIndexes and /getArtists responses and flatten them
+                  (when-let* ((index (alist-get 'index result)))
+                    (setq
+                     results
+                     (seq-mapcat
+                      (lambda (index)
+                        (let ((index-name (alist-get 'name index)))
+                          (seq-map
+                           (lambda (val)
+                             (thread-first
+                               val
+                               (map-insert 'indexName index-name)
+                               (map-insert 'empvType 'artist)))
+                           (alist-get 'artist index))))
+                      index)))
+                  (let ((all `(,@info (results . ,results))))
+                    (if callback
+                        (funcall callback all)
+                      all))))))))
+    (if callback
+        (empv--request (apply #'empv--subsonic-build-url endpoint params) nil handler)
+      (funcall handler (empv--request (apply #'empv--subsonic-build-url endpoint params) nil)))))
+
+(defun empv--subsonic-format-candidate (cand)
+  (empv--with-text-properties
+   (pcase (alist-get 'empvType cand)
+     ('artist (alist-get 'name cand))
+     ('album (format
+              "%s - %s"
+              (propertize (alist-get 'artist cand) 'face 'italic)
+              (propertize (alist-get 'name cand) 'face 'bold)))
+     ('song (format
+             "%s - %s"
+             (propertize (alist-get 'artist cand) 'face 'italic)
+             (propertize (alist-get 'title cand) 'face 'bold)))
+     ('genre (format
+              "%s %s"
+              (propertize (alist-get 'value cand) 'face 'bold)
+              (propertize (format "[%s songs]" (alist-get 'songCount cand)) 'face 'italic)))
+     (other (error "empv--subsonic-format-candidate :: No formatter found for: %s" cand)))
+   :obj cand))
+
+(defun empv--subsonic-result-handler (prompt)
+  (lambda (results)
+    (setq results (alist-get 'results results))
+    (empv--subsonic-act-on-candidate
+     (empv--completing-read-object
+      prompt
+      results
+      :formatter #'empv--subsonic-format-candidate
+      ;; FIXME(LmUpoql): Needs to be set per object but there is no
+      ;; way to do it with completing-read? This simply selects the
+      ;; first item's type as the category. Fine for single category
+      ;; views but does not work well with `empv-subsonic-search'.
+      :category (intern (format "empv-subsonic-%s-item" (alist-get 'empvType (seq-first results))))
+      :group (lambda (object)
+               (or (alist-get 'indexName object)
+                   (s-titleize (symbol-name (alist-get 'empvType object)))))
+      :sort? nil))))
+
+(defun empv--subsonic-consult-search ()
+  (empv--subsonic-act-on-candidate
+   (consult--read
+    (empv--consult-async-generator
+     (lambda (action on-result)
+       (empv--subsonic-request
+        "search3.view"
+        :query action
+        :artistCount empv-subsonic-result-count
+        :albumCount empv-subsonic-result-count
+        :songCount empv-subsonic-result-count
+        on-result))
+     (lambda (result)
+       (mapcar #'empv--subsonic-format-candidate (alist-get 'results result))))
+    :prompt empv--subsonic-search-prompt
+    ;; FIXME(LmUpoql): Same problem. But we can use consult--multi I guess?
+    :category 'empv-subsonic-song-item
+    :lookup (lambda (selected candidates &rest _)
+              (empv--get-text-property (car (member selected candidates)) :obj))
+    :sort nil
+    :group
+    (lambda (cand transform)
+      (if transform
+          cand
+        (s-titleize (symbol-name (alist-get 'empvType (empv--get-text-property cand :obj))))))
+    :history 'empv--subsonic-search-history
+    ;; TODO: :narrow ...?
+    :require-match t)))
+
+(defun empv--subsonic-completing-read-search ()
+  (empv--subsonic-request
+   "search3.view"
+   :query (read-string "Query: " nil 'empv--subsonic-search-history)
+   :artistCount empv-subsonic-result-count
+   :albumCount empv-subsonic-result-count
+   :songCount empv-subsonic-result-count
+   (empv--subsonic-result-handler empv--subsonic-search-prompt)))
+
+(defun empv--subsonic-act-on-candidate (selected)
+  (empv--dbg "empv--subsonic-act-on-candidate :: %s" selected)
+  (let* ((id (alist-get 'id selected)))
+    (pcase (alist-get 'empvType selected)
+      ('song
+       (empv-play-or-enqueue
+        ;; TODO: Move this into a function
+        (empv--subsonic-build-stream-url-for selected)))
+      ('album
+       (empv--subsonic-request
+        "getAlbum.view"
+        :id id
+        (empv--subsonic-result-handler (format "Select song from '%s':" (alist-get 'name selected)))))
+      ('artist
+       (empv--subsonic-request
+        "getArtist.view"
+        :id id
+        (empv--subsonic-result-handler (format "Select song of '%s':" (alist-get 'name selected)))))
+      ('genre
+       (empv--subsonic-request
+        "getSongsByGenre.view"
+        :genre (alist-get 'value selected)
+        :count empv-subsonic-result-count
+        (empv--subsonic-result-handler (format "Select song from '%s' genre:" (alist-get 'value selected)))))
+      (other (error "Not found %s" other)))))
+
+(defun empv--subsonic-select-genre-sync ()
+  "Select a genre using `completing-read', sync."
+  (alist-get
+   'value
+   (funcall
+    (empv--subsonic-result-handler "Select genre:")
+    (empv--subsonic-request "getGenres.view"))))
+
+;;;;; Interactive functions
+
+;;;###autoload
+(defun empv-subsonic-search ()
+  "Search for artists/songs/albums in Subsonic."
+  (interactive)
+  (if (empv--use-consult?)
+      (empv--subsonic-consult-search)
+    (empv--subsonic-completing-read-search)))
+
+;;;###autoload
+(defun empv-subsonic-artists ()
+  "List all Subsonic artists and act."
+  (interactive)
+  (empv--subsonic-request
+   "getArtists.view"
+   (empv--subsonic-result-handler "Select artist:")))
+
+;;;###autoload
+(defun empv-subsonic-songs ()
+  "List songs by a filter and act."
+  (interactive)
+  (let ((handler (empv--subsonic-result-handler "Select song:")))
+    (empv--select-action "Get songs: "
+      "Random" →
+      (empv--subsonic-request
+       "getRandomSongs.view"
+       :size empv-subsonic-result-count
+       handler)
+      "Random by genre" →
+      (empv--subsonic-request
+       "getRandomSongs.view"
+       :size empv-subsonic-result-count
+       :genre (empv--subsonic-select-genre-sync) handler)
+      "By genre" →
+      (empv--subsonic-request
+       "getSongsByGenre.view"
+       :count empv-subsonic-result-count
+       :genre (empv--subsonic-select-genre-sync) handler))))
+
+;;;###autoload
+(defun empv-subsonic-albums ()
+  "List albums by a filter and act."
+  (interactive)
+  (let ((get-type (empv--select-action "Get albums: "
+                    "Random" → "random"
+                    "Recently played" → "recent"
+                    "Newest" → "newest"
+                    "Frequently played" → "frequent"
+                    "Starred" → "starred"
+                    "By genre" → "byGenre")))
+    (empv--subsonic-request
+     "getAlbumList2.view"
+     :type get-type
+     :genre (when (equal get-type "byGenre")
+              (empv--subsonic-select-genre-sync))
+     :size empv-subsonic-result-count
+     (empv--subsonic-result-handler "Select album:"))))
+
 ;;;; empv utility
 
 (defun empv-override-quit-key ()
@@ -2820,6 +3144,9 @@ get the lyrics for currently playing/paused song, use
   "Extract the YouTube URL from TARGET without changing it's TYPE."
   (cons type (empv--youtube-item-extract-link (get-text-property 0 'empv-item target))))
 
+(defun empv--embark-subsonic-song-item-transformer (type target)
+  (cons type (empv--subsonic-build-stream-url-for (get-text-property 0 'empv-item target))))
+
 (defun empv--embark-radio-item-transformer (type target)
   "Extract the radio URL from TARGET without changing it's TYPE."
   (cons type (cdr (get-text-property 0 'empv-item target))))
@@ -2860,13 +3187,16 @@ get the lyrics for currently playing/paused song, use
     "C" #'empv-youtube-show-channel-videos
     "t" #'empv-youtube-become-tabulated)
 
+  ;; TODO: Maybe add actions for: empv-subsonic-{artist,genre,album}-item
   (add-to-list 'embark-keymap-alist '(empv-playlist-item . empv-playlist-item-action-map))
   (add-to-list 'embark-keymap-alist '(empv-radio-item . empv-radio-item-action-map))
   (add-to-list 'embark-keymap-alist '(empv-youtube-item . empv-youtube-item-action-map))
+  (add-to-list 'embark-keymap-alist '(empv-subsonic-song-item . empv-radio-item-action-map))
 
   (setf (alist-get 'empv-playlist-item embark-transformer-alist) #'empv--embark-playlist-item-transformer)
   (setf (alist-get 'empv-radio-item embark-transformer-alist) #'empv--embark-radio-item-transformer)
-  (setf (alist-get 'empv-youtube-item embark-transformer-alist) #'empv--embark-youtube-item-transformer))
+  (setf (alist-get 'empv-youtube-item embark-transformer-alist) #'empv--embark-youtube-item-transformer)
+  (setf (alist-get 'empv-subsonic-song-item embark-transformer-alist) #'empv--embark-subsonic-song-item-transformer))
 
 (defun empv-embark-initialize-extra-actions ()
   "Add empv actions like play, enqueue etc. to embark file and url actions.
