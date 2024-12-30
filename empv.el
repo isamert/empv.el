@@ -62,7 +62,7 @@
 ;; can use `doctest' package to run them.  Not very useful tests
 ;; though.
 
-;;;; Some constants
+;;;; Constants
 
 (defconst empv-thumbnail-placeholder "<THUMBNAIL>")
 
@@ -594,7 +594,7 @@ items.  See [1] for more information on this.
 
 (defvar empv--youtube-search-history nil)
 
-;;;; Utility
+;;;; Utility: Lists
 
 (defun empv--flipcall (fn x y)
   "Flip arguments of given binary function FN and call it with Y and X."
@@ -655,6 +655,8 @@ Taken from transient.el.
             alist))
     (nreverse alist)))
 
+;;;; Utility: Execution
+
 (cl-defmacro empv--wait-until-non-nil (place &rest forms)
   "Wait until PLACE is non-nil, after executing FORMS."
   (declare (indent 1))
@@ -675,6 +677,8 @@ Taken from transient.el.
        (sleep-for 0.01)
        ,@forms)
      result))
+
+;;;; Utility: empv
 
 (defun empv--running? ()
   "Return if there is an mpv instance running or not."
@@ -751,15 +755,81 @@ Taken from transient.el.
   (unless (get-buffer-window empv--inspect-buffer-name)
     (switch-to-buffer-other-window empv--inspect-buffer-name)))
 
-(defun empv--clean-uri (it)
-  (car (split-string it empv--title-sep)))
-
 (defmacro empv--run (&rest forms)
   "Start if mpv is not running already and then run FORMS."
   `(progn
      (unless (empv--running?)
        (empv-start))
      ,@forms))
+
+;;;; Utility: Url/Path/Metadata
+
+(defun empv--clean-uri (it)
+  (car (split-string it empv--title-sep)))
+
+(defun empv--url-with-magic-info (url &rest info)
+  "Return URL, but with magic info attached into it.
+Magic info is just a PLIST (the INFO) that is added end of the URL, see
+`empv--title-sep' for more details."
+  (format
+   "%s%s%s"
+   url
+   empv--title-sep
+   (prin1-to-string info)))
+
+(defun empv--extract-empv-metadata-from-path (path &optional fallback)
+  "Extract the metadata encoded in PATH.
+Some metadata is encoded into PATH and this function tries to
+parse that and returns a form along the lines of:
+
+    \\='(:title \"...\" :uri \"the-real-uri-without-metadata\"
+         :radio nil/t :youtube nil/t)
+
+:title is the human readable name of the path.  This function also
+checks if is there any cached name for this PATH.
+
+:uri is the PATH but without the encoded metadata.  Clean version
+of the PATH.
+
+:radio indicates if this PATH is a radio stream or not (only true
+if invoked by `empv-play-radio' etc.)
+
+:subsonic indicates that this PATH is a Subsonic stream.
+
+:youtube indicates if this PATH is a YouTube path or not (only
+true if invoked by `empv-youtube' family of functions.)
+
+:author gives you the YouTube channel name or not (only true if invoked
+by `empv-youtube' family of functions.)
+
+:authorId gives you the YouTube channel id or not (only true if invoked
+by `empv-youtube' family of functions.)
+
+Names of these properties are inherited from Invidious response to
+ensure consistency. See `empv--youtube-item-extract-link' function for
+further details.
+
+Use FALLBACK as fallback title in case nothing in URL is found.
+
+Also see `empv--title-sep' and `empv--media-title-cache'
+documentation."
+  ;; First try the URL encoded title and then check for the
+  ;; media-title cache.  Cache may contain last playing media's title
+  ;; for a stream, not the name for the stream itself. URL encoded
+  ;; title probably has the stream's title. (At least this is the case
+  ;; for radio streams, see `empv-radio-channels' and
+  ;; `empv--play-radio-channel')
+  (pcase-let* ((`(,uri ,data) (split-string (or path "") empv--title-sep)))
+    (if-let* ((parsed
+               (and data
+                    (string-prefix-p "(" data)
+                    (string-suffix-p ")" data)
+                    (ignore-errors (read data)))))
+        `(,@parsed :uri ,uri)
+      (list
+       :uri uri
+       :title (gethash uri empv--media-title-cache
+                       (or fallback (abbreviate-file-name uri)))))))
 
 ;;;; Handlers
 
@@ -996,58 +1066,6 @@ PATH is the path of the media file."
     (empv--make-network-process)
     (empv-observe 'metadata #'empv--handle-metadata-change)
     (run-hooks 'empv-init-hook)))
-
-(defun empv--extract-empv-metadata-from-path (path &optional fallback)
-  "Extract the metadata encoded in PATH.
-Some metadata is encoded into PATH and this function tries to
-parse that and returns a form along the lines of:
-
-    \\='(:title \"...\" :uri \"the-real-uri-without-metadata\"
-         :radio nil/t :youtube nil/t)
-
-:title is the human readable name of the path.  This function also
-checks if is there any cached name for this PATH.
-
-:uri is the PATH but without the encoded metadata.  Clean version
-of the PATH.
-
-:radio indicates if this PATH is a radio stream or not (only true
-if invoked by `empv-play-radio' etc.)
-
-:youtube indicates if this PATH is a YouTube path or not (only
-true if invoked by `empv-youtube' family of functions.)
-
-:author gives you the YouTube channel name or not (only true if invoked
-by `empv-youtube' family of functions.)
-
-:authorId gives you the YouTube channel id or not (only true if invoked
-by `empv-youtube' family of functions.)
-
-Names of these properties are inherited from Invidious response to
-ensure consistency. See `empv--youtube-item-extract-link' function for
-further details.
-
-Use FALLBACK as fallback title in case nothing in URL is found.
-
-Also see `empv--title-sep' and `empv--media-title-cache'
-documentation."
-  ;; First try the URL encoded title and then check for the
-  ;; media-title cache.  Cache may contain last playing media's title
-  ;; for a stream, not the name for the stream itself. URL encoded
-  ;; title probably has the stream's title. (At least this is the case
-  ;; for radio streams, see `empv-radio-channels' and
-  ;; `empv--play-radio-channel')
-  (pcase-let* ((`(,uri ,data) (split-string (or path "") empv--title-sep)))
-    (if-let* ((parsed
-               (and data
-                    (string-prefix-p "(" data)
-                    (string-suffix-p ")" data)
-                    (ignore-errors (read data)))))
-        `(,@parsed :uri ,uri)
-      (list
-       :uri uri
-       :title (gethash uri empv--media-title-cache
-                       (or fallback (abbreviate-file-name uri)))))))
 
 (cl-defmacro empv--with-empv-metadata (&rest forms)
   "Gives you a context containing `empv-metadata' and execute FORMS.
@@ -1587,8 +1605,9 @@ The display format is determined by the
 ;;;; Radio
 
 (defun empv--play-radio-channel (channel &optional ask)
-  (let* ((data (list :title (car channel) :url (cdr channel) :radio t))
-         (url (format "%s%s%s" (cdr channel) empv--title-sep (prin1-to-string data))))
+  (let* ((url (empv--url-with-magic-info
+               (cdr channel)
+               :title (car channel) :url (cdr channel) :radio t)))
     (if ask
         (empv-play-or-enqueue url)
       (empv-play url))))
@@ -2450,20 +2469,17 @@ parameter."
   (let ((video-id (alist-get 'videoId item))
         (playlist-id (alist-get 'playlistId item))
         (author-id (alist-get 'authorId item)))
-    (concat
-     "https://youtube.com/"
-     (cond
-      (video-id (concat "watch?v=" video-id))
-      (playlist-id (concat "playlist?list=" playlist-id))
-      (author-id (concat "channel/" author-id)))
-     empv--title-sep
-     (prin1-to-string
-      (let-alist item
-        (list
-         :title (or .title .author)
-         :youtube t
-         :authorId .authorId
-         :author .author))))))
+    (let-alist item
+      (empv--url-with-magic-info
+       (concat "https://youtube.com/"
+               (cond
+                (video-id (concat "watch?v=" video-id))
+                (playlist-id (concat "playlist?list=" playlist-id))
+                (author-id (concat "channel/" author-id))))
+       :title (or .title .author)
+       :youtube t
+       :authorId .authorId
+       :author .author))))
 
 (defun empv--youtube (term type)
   "Search TERM in YouTube.
@@ -2496,7 +2512,7 @@ PROMPT is passed to `completing-read' as-is."
     (lambda (result)
       (alist-get 'suggestions result)))
    :prompt prompt
-   :category 'empv-youtube
+   :category 'empv-youtube-suggestion-item
    :sort nil
    :history 'empv--youtube-search-history
    :require-match nil))
