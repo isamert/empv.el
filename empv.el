@@ -1075,12 +1075,18 @@ This function also tries to disable sorting in `completing-read' function."
        ,@forms)))
 
 (cl-defun empv--completing-read-object
-    (prompt objects &key (formatter #'identity) category (sort? t) def multiple?)
+    (prompt objects &key (formatter #'identity) category group (sort? t) def multiple?)
   "`completing-read' with formatter and sort control.
 Applies FORMATTER to every object in OBJECTS and propertizes
 candidates with the actual object so that they can be retrieved
-later by embark actions.  Also adds category metadata to each
-candidate, if given.  PROMPT passed to `completing-read' as is."
+later by embark actions.
+
+Also adds CATEGORY as metadata to each candidate, if given.
+
+PROMPT passed to `completing-read' as is.
+
+GROUP is the grouping function called with the each object and should
+return a group string."
   (let* ((object-table
           (make-hash-table :test 'equal :size (length objects)))
          (object-strings
@@ -1098,6 +1104,12 @@ candidate, if given.  PROMPT passed to `completing-read' as is."
              (if (eq action 'metadata)
                  `(metadata
                    ,(when category (cons 'category category))
+                   ,(when group
+                      (cons 'group-function
+                            (lambda (cand transform)
+                              (if transform
+                                  cand
+                                (funcall group (gethash cand object-table def))))))
                    ,@(unless sort?
                        '((display-sort-function . identity)
                          (cycle-sort-function . identity))))
