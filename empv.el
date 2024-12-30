@@ -604,9 +604,19 @@ items.  See [1] for more information on this.
   "Return the SEQ without the last element."
   (seq-subseq seq 0 (1- (seq-length seq))))
 
+(defun empv--seq-last (seq)
+  "Return the last element of SEQ."
+  (seq-elt seq (1- (seq-length seq))))
+
 (defun empv--seq-find-index (fn seq)
   "Return the first index in SEQ for which FN evaluate to non-nil."
   (seq-position seq 'empv-dummy-item (lambda (it _) (funcall fn it))))
+
+(defun empv--random-string (len)
+  "Create a random string that is LEN chars long."
+  (let* ((charset "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+         (charset-len (length charset)))
+    (apply #'string (mapcar (lambda (x) (elt charset (random charset-len))) (number-sequence 0 len)))))
 
 (defun empv--alist-path-get-helper (path alist)
   "Get the value associated with a specific PATH in ALIST.
