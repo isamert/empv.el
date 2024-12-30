@@ -1688,6 +1688,38 @@ Limit directory treversal at most DEPTH levels.  By default it's
   (empv-play-or-enqueue
    (empv--select-file "Select an audio file:" empv-audio-dir empv-audio-file-extensions)))
 
+;;;; Consult integration
+
+(declare-function consult--read "consult")
+(declare-function consult--lookup-member "consult")
+(declare-function consult--async-split-initial "consult")
+(declare-function consult--async-sink "consult")
+(declare-function consult--async-refresh-immediate "consult")
+(declare-function consult--async-throttle "consult")
+(declare-function consult--async-split "consult")
+
+(defun empv--consult-async-generator (request mapper)
+  (thread-first
+    (consult--async-sink)
+    (consult--async-refresh-immediate)
+    ((lambda (next)
+       (lambda (action)
+         (pcase action
+           ((pred stringp)
+            (when (not (string-empty-p (string-trim action)))
+              (funcall
+               request
+               action
+               (lambda (result)
+                 (funcall next 'flush)
+                 (funcall next (funcall mapper result))))))
+           (_ (funcall next action))))))
+    (consult--async-throttle)
+    (consult--async-split)))
+
+(defun empv--use-consult? ()
+  (and empv-use-consult-if-possible (require 'consult nil t)))
+
 ;;;; YouTube/Invidious
 
 ;; I don't have good feelings about `tabulated-list-mode'.
@@ -2441,6 +2473,31 @@ See `empv--youtube-search' for TYPE."
          (empv-youtube-tabulated-last-results)
        (empv-youtube-last-results)))))
 
+;;;;; Consult integration
+
+(defun empv--consult-get-input-with-suggestions (prompt)
+  "Get an input from user, using YouTube search suggestions.
+PROMPT is passed to `completing-read' as-is."
+  (consult--read
+   (empv--consult-async-generator
+    (lambda (action on-result)
+      (empv--request
+       (format "%s/search/suggestions" empv-invidious-instance)
+       `(("q" . ,action))
+       on-result))
+    (lambda (result)
+      (alist-get 'suggestions result)))
+   :prompt prompt
+   :category 'empv-youtube
+   :sort nil
+   :history 'empv--youtube-search-history
+   :require-match nil))
+
+(defun empv--youtube-suggest (prompt)
+  (if (empv--use-consult?)
+      (empv--consult-get-input-with-suggestions prompt)
+    (read-string prompt nil 'empv--youtube-search-history)))
+
 ;;;; empv utility
 
 (defun empv-override-quit-key ()
@@ -2801,58 +2858,6 @@ learn more.  Supposed to be used like this:
   (define-key embark-url-map "p" 'empv-play)
   (define-key embark-url-map "e" 'empv-enqueue-next) ;; overrides eww
   (define-key embark-url-map "n" 'empv-enqueue))
-
-;;;; Consult integration
-
-(declare-function consult--read "consult")
-(declare-function consult--lookup-member "consult")
-(declare-function consult--async-split-initial "consult")
-(declare-function consult--async-sink "consult")
-(declare-function consult--async-refresh-immediate "consult")
-(declare-function consult--async-throttle "consult")
-(declare-function consult--async-split "consult")
-
-(defun empv--consult-async-generator (request mapper)
-  (thread-first
-    (consult--async-sink)
-    (consult--async-refresh-immediate)
-    ((lambda (next)
-       (lambda (action)
-         (pcase action
-           ((pred stringp)
-            (when (not (string-empty-p (string-trim action)))
-              (funcall
-               request
-               action
-               (lambda (result)
-                 (funcall next 'flush)
-                 (funcall next (funcall mapper result))))))
-           (_ (funcall next action))))))
-    (consult--async-throttle)
-    (consult--async-split)))
-
-(defun empv--consult-get-input-with-suggestions (prompt)
-  "Get an input from user, using YouTube search suggestions.
-PROMPT is passed to `completing-read' as-is."
-  (consult--read
-   (empv--consult-async-generator
-    (lambda (action on-result)
-      (empv--request
-       (format "%s/search/suggestions" empv-invidious-instance)
-       `(("q" . ,action))
-       on-result))
-    (lambda (result)
-      (alist-get 'suggestions result)))
-   :prompt prompt
-   :category 'empv-youtube
-   :sort nil
-   :history 'empv--youtube-search-history
-   :require-match nil))
-
-(defun empv--youtube-suggest (prompt)
-  (if (and empv-use-consult-if-possible (require 'consult nil t))
-      (empv--consult-get-input-with-suggestions prompt)
-    (read-string prompt nil 'empv--youtube-search-history)))
 
 (provide 'empv)
 ;;; empv.el ends here
