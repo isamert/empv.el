@@ -2306,18 +2306,28 @@ nicely formatted buffer."
   "Format given PAIR into a URL parameter."
   (format "%s=%s" (car pair) (url-hexify-string (cdr pair))))
 
+(defun empv--build-url (url params)
+  "Build a url with URL and url PARAMS."
+  (let ((url-params
+         (string-join
+          (thread-last
+            params
+            (seq-filter (lambda (it) (not (null (cdr  it)))))
+            (mapcar #'empv--request-format-param))
+          "&")))
+    (format "%s%s"
+            url
+            (if (s-blank? url-params)
+                ""
+              (concat "?" url-params)))))
+
 (defun empv--request (url params callback)
   "Send a GET request to given URL and return the response body.
 PARAMS should be an alist.  CALLBACK is called with the resulting JSON
 object."
-  (let* ((url-params
-          (string-join
-           (thread-last
-             params
-             (seq-filter (lambda (it) (not (null (cdr  it)))))
-             (mapcar #'empv--request-format-param))
-           "&"))
-         (full-url (format "%s%s" url (when url-params (concat "?" url-params)))))
+  (let* ((full-url (empv--build-url url params))
+         (url-request-extra-headers '(("User-Agent" . "curl/8.9.1")
+                                      ("Accept" . "*/*"))))
     (url-retrieve
      full-url
      (lambda (status)
