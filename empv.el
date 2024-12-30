@@ -1720,6 +1720,69 @@ Limit directory treversal at most DEPTH levels.  By default it's
 (defun empv--use-consult? ()
   (and empv-use-consult-if-possible (require 'consult nil t)))
 
+;;;; Request utils
+
+(defun empv--request-format-param (pair)
+  "Format given PAIR into a URL parameter."
+  (format "%s=%s" (car pair) (url-hexify-string (cdr pair))))
+
+(defun empv--build-url (url params)
+  "Build a url with URL and url PARAMS."
+  (let ((url-params
+         (string-join
+          (thread-last
+            params
+            (seq-filter (lambda (it) (not (null (cdr  it)))))
+            (mapcar #'empv--request-format-param))
+          "&")))
+    (format "%s%s"
+            url
+            (if (s-blank? url-params)
+                ""
+              (concat "?" url-params)))))
+
+(defun empv--request (url &optional params callback)
+  "Send a GET request to given URL and return the response body.
+PARAMS should be an alist.  CALLBACK is called with the resulting JSON
+object.  If no callback is given, request is made synchronously and
+resulting object is returned."
+  (let* ((full-url (empv--build-url url params))
+         (url-request-extra-headers '(("Accept" . "*/*")))
+         (handler
+          (lambda (status)
+            (empv--dbg "empv--request(%s, %s) → error: %s" url params (plist-get status :error))
+            (let ((headers (progn
+                             (goto-char (point-min))
+                             (re-search-forward "\n\n" nil t)
+                             (buffer-substring-no-properties (point-min) (point))))
+                  (body (decode-coding-string
+                         (buffer-substring-no-properties (point) (point-max)) 'utf-8)))
+              (empv--dbg "empv--request(%s, %s) → headers: %s, body: %s" url params headers body)
+              (kill-buffer)
+              (let ((parsed (empv--read-result body)))
+                (if callback
+                    (funcall callback parsed)
+                  parsed))))))
+    (if callback
+        (url-retrieve full-url handler)
+      (with-current-buffer (url-retrieve-synchronously full-url)
+        (funcall handler :ok)))))
+
+(defun empv--request-raw-sync (url)
+  "Retrieve URL's body synchronously as string."
+  (when (string-empty-p url)
+    (error 'wrong-type-argument))
+  (with-current-buffer (url-retrieve-synchronously url)
+    (let ((result
+           (progn
+             (goto-char (point-min))
+             (re-search-forward "\n\n" nil t)
+             (delete-region (point-min) (point))
+             (set-buffer-multibyte t)
+             (decode-coding-region (point-min) (point-max) 'utf-8)
+             (buffer-substring-no-properties (point-min) (point-max)))))
+      result)))
+
 ;;;; YouTube/Invidious
 
 ;; I don't have good feelings about `tabulated-list-mode'.
@@ -2355,61 +2418,6 @@ nicely formatted buffer."
         (s-truncate 100 (propertize (or .description "") 'face 'italic)))))))
 
 ;;;;;; Request
-
-(defun empv--request-format-param (pair)
-  "Format given PAIR into a URL parameter."
-  (format "%s=%s" (car pair) (url-hexify-string (cdr pair))))
-
-(defun empv--build-url (url params)
-  "Build a url with URL and url PARAMS."
-  (let ((url-params
-         (string-join
-          (thread-last
-            params
-            (seq-filter (lambda (it) (not (null (cdr  it)))))
-            (mapcar #'empv--request-format-param))
-          "&")))
-    (format "%s%s"
-            url
-            (if (s-blank? url-params)
-                ""
-              (concat "?" url-params)))))
-
-(defun empv--request (url params callback)
-  "Send a GET request to given URL and return the response body.
-PARAMS should be an alist.  CALLBACK is called with the resulting JSON
-object."
-  (let* ((full-url (empv--build-url url params))
-         (url-request-extra-headers '(("User-Agent" . "curl/8.9.1")
-                                      ("Accept" . "*/*"))))
-    (url-retrieve
-     full-url
-     (lambda (status)
-       (empv--dbg "empv--request(%s, %s) → error: %s" url params (plist-get status :error))
-       (let ((headers (progn
-                        (goto-char (point-min))
-                        (re-search-forward "\n\n" nil t)
-                        (buffer-substring-no-properties (point-min) (point))))
-             (body (decode-coding-string
-                    (buffer-substring-no-properties (point) (point-max)) 'utf-8)))
-         (empv--dbg "empv--request(%s, %s) → headers: %s, body: %s" url params headers body)
-         (kill-buffer)
-         (funcall callback (empv--read-result body)))))))
-
-(defun empv--request-raw-sync (url)
-  "Retrieve URL's body synchronously as string."
-  (when (string-empty-p url)
-    (error 'wrong-type-argument))
-  (with-current-buffer (url-retrieve-synchronously url)
-    (let ((result
-           (progn
-             (goto-char (point-min))
-             (re-search-forward "\n\n" nil t)
-             (delete-region (point-min) (point))
-             (set-buffer-multibyte t)
-             (decode-coding-region (point-min) (point-max) 'utf-8)
-             (buffer-substring-no-properties (point-min) (point-max)))))
-      result)))
 
 (defun empv--youtube-search (term type page callback)
   "Search TERM in YouTube.
