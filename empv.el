@@ -1856,6 +1856,7 @@ By default it downloads as MP3 file, please see
   (kind nil :type '(member 'search 'channel-videos))
   (results '() :type 'list :documentation "List of search results as returned by Invidious.")
   ;; Channel videos
+  (channel-id nil :type 'string)
   (sort-by nil :type '(member 'newest 'popular))
   (continuation nil :type 'string :documentation "A continuation token to get the next chunk of items."))
 
@@ -2190,7 +2191,7 @@ nicely formatted buffer."
         callback))
       ('channel-videos
        (empv--youtube-channel-videos
-        (empv--yt-search-query empv--buffer-youtube-search)
+        (empv--yt-search-channel-id empv--buffer-youtube-search)
         (empv--yt-search-sort-by empv--buffer-youtube-search)
         (empv--yt-search-continuation empv--buffer-youtube-search)
         (lambda (result)
@@ -2226,6 +2227,7 @@ nicely formatted buffer."
          (setq empv--last-youtube-search
                (empv--make-yt-search
                 :query channel-name
+                :channel-id channel-id
                 :type 'video
                 :kind 'channel-videos
                 :page 1
