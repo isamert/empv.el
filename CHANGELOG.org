@@ -1,3 +1,17 @@
+* 4.9.0
+
+- Subsonic support!
+  - Here are the functions that you can use:
+    - empv-subsonic-search
+    - empv-subsonic-songs
+    - empv-subsonic-albums
+    - empv-subsonic-artists
+  - and here are the customization options:
+    - empv-subsonic-url
+    - empv-subsonic-username
+    - empv-subsonic-password
+- Various codebase improvements.
+
 * 4.6.0
 
 - YouTube channels support
