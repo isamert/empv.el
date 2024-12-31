@@ -2,7 +2,7 @@
 
 [[https://melpa.org/#/empv][file:https://melpa.org/packages/empv-badge.svg]]
 
-An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this package provides somewhat comprehensive interface to mpv with bunch of convenient functionality like an embedded radio manager, YouTube interface, local music/video library manager, lyrics manager etc.
+An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this package provides somewhat comprehensive interface to mpv with bunch of convenient functionality like an embedded radio manager, YouTube interface, Subsonic/Navidrome client, local music/video library manager, lyrics manager etc.
 
 Scroll to bottom of the page to see the [[#screenshots][screenshots]].
 
@@ -98,7 +98,7 @@ There is also functions for reopening the last YouTube search results: ~empv-you
 #+begin_quote
 [!TIP]
 
-[[https://github.com/minad/consult][Consult]] and [[https://github.com/oantolin/embark][embark]] are essential part of YouTube workflow in /empv.el/. See the  [[#embark-and-consult][Embark and Consult integration]] down below.
+[[https://github.com/minad/consult][Consult]] and [[https://github.com/oantolin/embark][embark]] are essential part of YouTube workflow in /empv.el/. See the [[#embark-and-consult-integration][Embark and Consult integration]] down below.
 #+end_quote
 
 *** YouTube Channel & Playlist search
@@ -132,9 +132,25 @@ You can still use ~empv-play-file~ to select and play files using classic ~read-
 
 Now you can use ~empv-play-radio~ to select and play one of these streams. You can also use ~empv-play-random-channel~ to start playing one of these channels randomly. There is also ~empv-log-current-radio-song-name~ which logs the current song/media title to a file in the specified format. This is useful for quickly capturing name of the song you liked that is currently playing on the selected radio (See ~empv-radio-log-file~ and ~empv-radio-log-format~ variables and their documentations).
 
+** Subsonic/Navidrome integration
+/empv/ has couple functions to interact with [[https://www.subsonic.org/][Subsonic]] and [[https://www.navidrome.org/][Navidrome]] (or any other compatible API):
+
+- empv-subsonic-search :: Interactively search for artists/albums/songs. With [[#embark-and-consult-integration][consult integration]], this let's you view results in real time.
+- ~empv-subsonic-songs~ :: Retrieve songs that are {random, random by genre, or specific to a genre}.
+- ~empv-subsonic-albums~ :: Retrieve albums that are {random, recently played, frequently played, newest, starred, or specific to a genre}.
+- empv-subsonic-artists :: Get all artists and their albums/songs.
+
+Configure ~empv-subsonic-username~, ~empv-subsonic-password~, ~empv-subsonic-url~ and you are ready to use Subsonic functions.
+
+#+begin_quote
+[!TIP]
+
+With [[#embark-and-consult-integration][embark integration]], you can bulk enqueue search results. For example, doing ~M-x empv-subsonic-songs~ and then hitting ~r~ will bring up 50 random songs in a completing read window. To enqueue them all, use ~embark-act-all~ and then select ~empv-enqueue~. If you want to just enqueue couple of items from the list, do ~C-u embark-act~ and then select the ~empv-enqueue~ (or ~empv-play~) action. This will enqueue/play the selected item and will keep the ~completing-read~ window open for you to act on different items. This is not limited to Subsonic integration but every ~completing-read~ like interface that /empv/ offers can be used in this way.
+#+end_quote
+
 ** Embark and Consult integration
 :PROPERTIES:
-:CUSTOM_ID: embark-and-consult
+:CUSTOM_ID: embark-and-consult-integration
 :END:
 If you have [[https://github.com/minad/consult][consult]] and [[https://github.com/oantolin/embark][embark]] installed on your Emacs, ~empv.el~ will automatically integrate itself with them. If you have ~consult~ installed, you get search suggestions during YouTube searches (~empv-youtube~) and if you have embark installed you get embark actions for playing/enqueueing selected media. This makes it easy to enqueue bunch of media results using ~embark-act-all~, or you can call ~embark-act~ on a file inside a ~dired~ buffer and you'll see options to play or enqueue given file or folder.
 
