@@ -1,3 +1,36 @@
+* 4.6.0
+
+- YouTube channels support
+  - Now you can hit ~C~ (or call ~empv-youtube-results-open-current-channel~) on a video result and it will show you videos of corresponding channel (it will ask if you want to sort by newest or most popular before listing the videos).
+  - You can also search for channels using ~empv-youtube-channel~. Selecting a channel will trigger the workflow I mentioned above.
+- Various quality of life improvements.
+- ~empv-play-media-at-point~ supports more things. Try it on things that looks like a media file/stream!
+
+* 4.5.0
+
+- Add ~empv-ytdl-download-options~
+
+* 4.4.0
+
+- Now tabulated YouTube searches will have their own buffer, instead of reusing a single buffer
+- Add ability to load more results in YouTube results mode. You can hit ~m~ and there will be more results.
+- Add ~empv-youtube-tabulated-new-entries-hook~, which is called after loading candidates to the buffer
+- Make ~youtube-tabulated-mode~ headers fully customizable. See variables ~empv-youtube-tabulated-video-headers~, ~empv-youtube-tabulated-playlist-headers~.
+- Overall YouTube enchantments
+- Various fixes
+
+* 4.1.0
+
+- Add ~empv-youtube-download~.
+- Add ~empv-event~ to observe mpv generated events.
+- Make ~empv-start~ take multiple URIs.
+- Add ~empv-fd-binary~ to provide flexibility with the fd executable.
+- Now you can edit ~empv-display-current-format~ to change how ~empv-display-current~ displays information.
+- Ask user if they want to search for the web if lyrics is not found
+- Add ~empv-youtube-become-tabulated~ embark action. Now you can convert your ~completing-read~ query to a tabulated one mid-query with this action.
+- Make ~empv-play-or-enqueue~ default binding for playing media. Now empv asks you to play given media directly or enqueue it.
+- Some bug fixes.
+
 * 4.0.0
 
 - Various fixes.
