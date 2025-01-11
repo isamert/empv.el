@@ -1766,31 +1766,33 @@ Limit directory treversal at most DEPTH levels.  By default it's
 ;;;; Consult integration
 
 (declare-function consult--read "consult")
-(declare-function consult--lookup-member "consult")
-(declare-function consult--async-split-initial "consult")
-(declare-function consult--async-sink "consult")
-(declare-function consult--async-refresh-immediate "consult")
+(declare-function consult--async-pipeline "consult")
+(declare-function consult--async-refresh "consult")
+(declare-function consult--async-indicator "consult")
 (declare-function consult--async-throttle "consult")
 (declare-function consult--async-split "consult")
 
 (defun empv--consult-async-generator (request mapper)
-  (thread-first
-    (consult--async-sink)
-    (consult--async-refresh-immediate)
-    ((lambda (next)
-       (lambda (action)
-         (pcase action
-           ((pred stringp)
-            (when (not (string-empty-p (string-trim action)))
-              (funcall
-               request
-               action
-               (lambda (result)
-                 (funcall next 'flush)
-                 (funcall next (funcall mapper result))))))
-           (_ (funcall next action))))))
-    (consult--async-throttle)
-    (consult--async-split)))
+  (lambda (next)
+    (lambda (action)
+      (pcase action
+        ((pred stringp)
+         (when (not (string-empty-p (string-trim action)))
+           (funcall
+            request
+            action
+            (lambda (result)
+              (funcall next 'flush)
+              (funcall next (funcall mapper result))))))
+        (_ (funcall next action))))))
+
+(defun empv--consult-async-wrapper (async)
+  (consult--async-pipeline
+   (consult--async-split)
+   (consult--async-throttle)
+   async
+   (consult--async-indicator)
+   (consult--async-refresh)))
 
 (defun empv--use-consult? ()
   (and empv-use-consult-if-possible (require 'consult nil t)))
@@ -2571,7 +2573,8 @@ PROMPT is passed to `completing-read' as-is."
    :category 'empv-youtube-suggestion-item
    :sort nil
    :history 'empv--youtube-search-history
-   :require-match nil))
+   :require-match nil
+   :async-wrap #'empv--consult-async-wrapper))
 
 (defun empv--youtube-suggest (prompt)
   (if (empv--use-consult?)
@@ -2740,7 +2743,8 @@ them so that responses are easier to work with."
         (s-titleize (symbol-name (alist-get 'empvType (empv--get-text-property cand :item))))))
     :history 'empv--subsonic-search-history
     ;; TODO: :narrow ...?
-    :require-match t)))
+    :require-match t
+    :async-wrap #'empv--consult-async-wrapper)))
 
 (defun empv--subsonic-completing-read-search ()
   (empv--subsonic-request
