@@ -807,13 +807,13 @@ Taken from transient.el.
      (seq-mapcat
       #'identity
       (seq-map
-       (lambda (prop) (cons (intern (concat "empv--" (string-trim-left (symbol-name (car prop)) ":"))) (cdr prop)))
+       (lambda (prop) (cons (intern (concat "empv-" (string-trim-left (symbol-name (car prop)) ":"))) (cdr prop)))
        (seq-partition props 2)))
      str-copy)
     str-copy))
 
 (defun empv--get-text-property (str prop)
-  (get-text-property 0 (intern (concat "empv--" (string-trim-left (symbol-name prop) ":"))) str))
+  (get-text-property 0 (intern (concat "empv-" (string-trim-left (symbol-name prop) ":"))) str))
 
 ;;;; Utility: Url/Path/Metadata
 
@@ -1065,18 +1065,9 @@ events: https://mpv.io/manual/stable/#list-of-events"
 URI might be a string or a list of strings."
   (interactive "sEnter an URI to play: ")
   (empv--select-action _
-    "Play" → (cond
-              ((stringp uri) (empv-play uri))
-              ((listp uri) (empv--cmd
-                            'stop nil
-                            (seq-do #'empv-enqueue uri)
-                            (empv-resume))))
-    "Enqueue last" → (cond
-                      ((stringp uri) (empv-enqueue uri))
-                      ((listp uri) (seq-do #'empv-enqueue uri)))
-    "Enqueue next" → (cond
-                      ((stringp uri) (empv-enqueue-next uri))
-                      ((listp uri) (seq-do #'empv-enqueue-next uri)))))
+    "Play" → (empv-play uri)
+    "Enqueue last" → (empv-enqueue uri)
+    "Enqueue next" → (empv-enqueue-next uri)))
 
 (defun empv--metadata-get (alist main fallback)
   "Get MAIN from ALIST, if it's nill get FALLBACK from ALIST."
@@ -1205,20 +1196,26 @@ return a group string."
 ;;;###autoload
 (defun empv-play (uri)
   "Play given URI.
-Add given URI to end of the current playlist and immediately
-switch to it"
+Add given URI to end of the current playlist and immediately switch to
+it.  URI also might be a list of URIs.  In that case all items are
+enqueued and the first one starts playing."
   (interactive "sEnter an URI to play: ")
-  (when (file-exists-p uri)
-    (setq uri (expand-file-name uri)))
-  (if (empv--running?)
-      (empv--cmd-seq
-       ('loadfile (list uri 'append))
-       ('get_property 'playlist-count)
-       ('playlist-play-index (1- it))
-       ('set_property '(pause :json-false)))
-    (empv-start uri))
-  (when (called-interactively-p 'interactive)
-    (empv--display-event "Playing %s" uri)))
+  (if (listp uri)
+      (empv--cmd
+       'stop nil
+       (seq-do #'empv-enqueue uri)
+       (empv-resume))
+    (when (file-exists-p uri)
+      (setq uri (expand-file-name uri)))
+    (if (empv--running?)
+        (empv--cmd-seq
+         ('loadfile (list uri 'append))
+         ('get_property 'playlist-count)
+         ('playlist-play-index (1- it))
+         ('set_property '(pause :json-false)))
+      (empv-start uri))
+    (when (called-interactively-p 'interactive)
+      (empv--display-event "Playing %s" uri))))
 
 (defun empv-seek (target &optional type)
   "Change the playback position according to TARGET.
@@ -1432,23 +1429,28 @@ along with the log."
 
 ;;;###autoload
 (defun empv-enqueue (uri)
-  "Like `empv-play' but add the given URI to end of the playlist."
+  "Like `empv-play' but add the given URI to end of the playlist.
+URI might be a list of URIs, then they are all enqueued in order."
   (interactive "sEnter an URI to play: ")
-  (when (string-prefix-p "~/" uri)
-    (setq uri (expand-file-name uri)))
-  (empv--cmd 'loadfile `(,uri append-play))
-  (empv--display-event "Enqueued %s" uri))
+  (if (listp uri)
+      (seq-do #'empv-enqueue uri)
+    (when (string-prefix-p "~/" uri)
+      (setq uri (expand-file-name uri)))
+    (empv--cmd 'loadfile `(,uri append-play))
+    (empv--display-event "Enqueued %s" uri)))
 
 (defalias 'empv-enqueue-last #'empv-enqueue)
 
 (defun empv-enqueue-next (uri)
   "Like `empv-enqueue' but append URI right after current item."
   (interactive "sEnter an URI to play: ")
-  (empv--let-properties '(playlist)
-    (let ((len (length .playlist))
-          (idx (empv--seq-find-index (lambda (it) (alist-get 'current it)) .playlist)))
-      (empv-enqueue uri)
-      (empv--cmd 'playlist-move `(,len ,(1+ idx))))))
+  (if (listp uri)
+      (seq-do #'empv-enqueue-next uri)
+    (empv--let-properties '(playlist)
+      (let ((len (length .playlist))
+            (idx (empv--seq-find-index (lambda (it) (alist-get 'current it)) .playlist)))
+        (empv-enqueue uri)
+        (empv--cmd 'playlist-move `(,len ,(1+ idx)))))))
 
 ;;;###autoload
 (defun empv-playlist-next ()
@@ -2694,8 +2696,8 @@ them so that responses are easier to work with."
               "%s %s"
               (propertize (alist-get 'value cand) 'face 'bold)
               (propertize (format "[%s songs]" (alist-get 'songCount cand)) 'face 'italic)))
-     (other (error "empv--subsonic-format-candidate :: No formatter found for: %s" cand)))
-   :obj cand))
+     (other (error "empv--subsonic-format-candidate :: No formatter found for: %s" other)))
+   :item cand))
 
 (defun empv--subsonic-result-handler (prompt)
   (lambda (results)
@@ -2705,11 +2707,7 @@ them so that responses are easier to work with."
       prompt
       results
       :formatter #'empv--subsonic-format-candidate
-      ;; FIXME(LmUpoql): Needs to be set per object but there is no
-      ;; way to do it with completing-read? This simply selects the
-      ;; first item's type as the category. Fine for single category
-      ;; views but does not work well with `empv-subsonic-search'.
-      :category (intern (format "empv-subsonic-%s-item" (alist-get 'empvType (seq-first results))))
+      :category 'empv-subsonic-item
       :group (lambda (object)
                (or (alist-get 'indexName object)
                    (s-titleize (symbol-name (alist-get 'empvType object)))))
@@ -2730,16 +2728,15 @@ them so that responses are easier to work with."
      (lambda (result)
        (mapcar #'empv--subsonic-format-candidate (alist-get 'results result))))
     :prompt empv--subsonic-search-prompt
-    ;; FIXME(LmUpoql): Same problem. But we can use consult--multi I guess?
-    :category 'empv-subsonic-song-item
+    :category 'empv-subsonic-item
     :lookup (lambda (selected candidates &rest _)
-              (empv--get-text-property (car (member selected candidates)) :obj))
+              (empv--get-text-property (car (member selected candidates)) :item))
     :sort nil
     :group
     (lambda (cand transform)
       (if transform
           cand
-        (s-titleize (symbol-name (alist-get 'empvType (empv--get-text-property cand :obj))))))
+        (s-titleize (symbol-name (alist-get 'empvType (empv--get-text-property cand :item))))))
     :history 'empv--subsonic-search-history
     ;; TODO: :narrow ...?
     :require-match t)))
@@ -2845,6 +2842,39 @@ them so that responses are easier to work with."
               (empv--subsonic-select-genre-sync))
      :size empv-subsonic-result-count
      (empv--subsonic-result-handler "Select album:"))))
+
+;;;;; Embark actions for subsonic
+
+;; Not every Subsonic item corresponds to a playable url.  So we
+;; define wrappers for empv-{play,enqueue} here for Subsonic results
+;; which are used in `defvar-keymap'.
+
+(defun empv--subsonic-act (action obj)
+  "Do ACTION given Subsonic OBJ.
+If OBJ is a single song, then do ACTION on it.  If OBJ is an album, then
+do ACTION on all songs of given album.  If OBJ is something else, then
+error out."
+  (pcase (alist-get 'empvType obj)
+    ('album
+     (empv--subsonic-request
+      "getAlbum.view"
+      :id (alist-get 'id obj)
+      (lambda (album)
+        (funcall (or action #'empv-play) (mapcar #'empv--subsonic-build-stream-url-for (alist-get 'results album))))))
+    ('song (funcall action (empv--subsonic-build-stream-url-for obj)))
+    (other (user-error "Not applicable for %s" other))))
+
+(defun empv-subsonic-play (subsonic-result)
+  "Play the SUBSONIC-RESULT."
+  (empv--subsonic-act #'empv-play subsonic-result))
+
+(defun empv-subsonic-enqueue (subsonic-result)
+  "Enqueue the SUBSONIC-RESULT."
+  (empv--subsonic-act #'empv-enqueue subsonic-result))
+
+(defun empv-subsonic-enqueue-next (subsonic-result)
+  "Enqueue the SUBSONIC-RESULT after current item."
+  (empv--subsonic-act #'empv-enqueue-next subsonic-result))
 
 ;;;; empv utility
 
@@ -3144,8 +3174,8 @@ get the lyrics for currently playing/paused song, use
   "Extract the YouTube URL from TARGET without changing it's TYPE."
   (cons type (empv--youtube-item-extract-link (get-text-property 0 'empv-item target))))
 
-(defun empv--embark-subsonic-song-item-transformer (type target)
-  (cons type (empv--subsonic-build-stream-url-for (get-text-property 0 'empv-item target))))
+(defun empv--embark-subsonic-item-transformer (type target)
+  (cons type (empv--get-text-property target :item)))
 
 (defun empv--embark-radio-item-transformer (type target)
   "Extract the radio URL from TARGET without changing it's TYPE."
@@ -3174,6 +3204,13 @@ get the lyrics for currently playing/paused song, use
     "e" #'empv-enqueue
     "n" #'empv-enqueue-next)
 
+  (defvar-keymap empv-subsonic-item-action-map
+    :doc "Action map for radio items, utilized by Embark."
+    :parent embark-general-map
+    "p" #'empv-subsonic-play
+    "e" #'empv-subsonic-enqueue
+    "n" #'empv-subsonic-enqueue-next)
+
   (defvar-keymap empv-youtube-item-action-map
     :doc "Action map for YouTube items, utilized by Embark."
     :parent embark-general-map
@@ -3187,16 +3224,15 @@ get the lyrics for currently playing/paused song, use
     "C" #'empv-youtube-show-channel-videos
     "t" #'empv-youtube-become-tabulated)
 
-  ;; TODO: Maybe add actions for: empv-subsonic-{artist,genre,album}-item
   (add-to-list 'embark-keymap-alist '(empv-playlist-item . empv-playlist-item-action-map))
   (add-to-list 'embark-keymap-alist '(empv-radio-item . empv-radio-item-action-map))
   (add-to-list 'embark-keymap-alist '(empv-youtube-item . empv-youtube-item-action-map))
-  (add-to-list 'embark-keymap-alist '(empv-subsonic-song-item . empv-radio-item-action-map))
+  (add-to-list 'embark-keymap-alist '(empv-subsonic-item . empv-subsonic-item-action-map))
 
   (setf (alist-get 'empv-playlist-item embark-transformer-alist) #'empv--embark-playlist-item-transformer)
   (setf (alist-get 'empv-radio-item embark-transformer-alist) #'empv--embark-radio-item-transformer)
   (setf (alist-get 'empv-youtube-item embark-transformer-alist) #'empv--embark-youtube-item-transformer)
-  (setf (alist-get 'empv-subsonic-song-item embark-transformer-alist) #'empv--embark-subsonic-song-item-transformer))
+  (setf (alist-get 'empv-subsonic-item embark-transformer-alist) #'empv--embark-subsonic-item-transformer))
 
 (defun empv-embark-initialize-extra-actions ()
   "Add empv actions like play, enqueue etc. to embark file and url actions.
