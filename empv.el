@@ -479,6 +479,7 @@ Also see `empv-youtube-ytdl-binary'."
 (defcustom empv-subsonic-username nil
   "Subsonic user name."
   :group 'empv
+  :type 'string
   :version "4.9.0")
 
 (defcustom empv-subsonic-password nil
@@ -654,7 +655,7 @@ items.  See [1] for more information on this.
   "Create a random string that is LEN chars long."
   (let* ((charset "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
          (charset-len (length charset)))
-    (apply #'string (mapcar (lambda (x) (elt charset (random charset-len))) (number-sequence 0 len)))))
+    (apply #'string (mapcar (lambda (_x) (elt charset (random charset-len))) (number-sequence 0 len)))))
 
 (defun empv--alist-path-get-helper (path alist)
   "Get the value associated with a specific PATH in ALIST.
