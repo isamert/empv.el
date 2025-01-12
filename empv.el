@@ -2055,13 +2055,16 @@ By default it downloads as MP3 file, please see
   (sort-by nil :type '(member 'newest 'popular))
   (continuation nil :type 'string :documentation "A continuation token to get the next chunk of items."))
 
+(defun empv--yt-search-generate-buffer-name (search)
+  (format "*empv-youtube-%s: %s*"
+          (empv--yt-search-kind search)
+          (empv--yt-search-query search)))
+
 (defun empv--yt-search-get-buffer-create (search)
   "Get existing one or create buffer for SEARCH."
   (or (empv--yt-search-buffer search)
       (get-buffer-create
-       (format "*empv-youtube-%s: %s"
-               (empv--yt-search-kind search)
-               (empv--yt-search-query search)))))
+       (empv--yt-search-generate-buffer-name search))))
 
 (defvar empv-youtube-results-mode-map
   (let ((map (make-sparse-keymap)))
@@ -2395,7 +2398,8 @@ nicely formatted buffer."
 
 ;;;;; Channel stuff
 
-(defun empv-youtube-show-channel-videos (channel-id)
+;;;###autoload
+(defun empv-youtube-show-channel-videos (channel-id &optional sort-by)
   (interactive "sChannel ID or URL: ")
   ;; Extract channel id from the url?
   (when-let* ((match (s-match "\\/channel\\/\\([^/?]+\\)" channel-id)))
@@ -2404,10 +2408,10 @@ nicely formatted buffer."
   (when-let* ((metadata (empv--extract-empv-metadata-from-path channel-id))
               (id (plist-get metadata :authorId)))
     (setq channel-id id))
-
-  (let ((sort-by (empv--select-action "Sort videos of channel by: "
-                   "Popular" → 'popular
-                   "Newest" → 'newest)))
+  (let ((sort-by (or sort-by
+                     (empv--select-action "Sort videos of channel by: "
+                       "Popular" → 'popular
+                       "Newest" → 'newest))))
     (empv--youtube-channel-videos
      channel-id
      sort-by
@@ -2880,6 +2884,59 @@ error out."
 (defun empv-subsonic-enqueue-next (subsonic-result)
   "Enqueue the SUBSONIC-RESULT after current item."
   (empv--subsonic-act #'empv-enqueue-next subsonic-result))
+
+;;;; Bookmarks integration
+
+(defun empv-bookmark-set ()
+  "Create an empv bookmark."
+  (interactive)
+  (pcase major-mode
+    ('empv-youtube-results-mode
+     (let* ((default (string-replace "*" "" (empv--yt-search-generate-buffer-name empv--buffer-youtube-search)))
+            (name (read-from-minibuffer "Bookmark name: " default nil nil 'bookmark-history default))
+            (bookmark-make-record-function
+             (lambda ()
+               (setq bookmark-current-bookmark nil) ;; Reset bookmark to use new name
+               `(,name
+                 (type . ,(empv--yt-search-type empv--buffer-youtube-search))
+                 (kind . ,(empv--yt-search-kind empv--buffer-youtube-search))
+                 (query . ,(empv--yt-search-query empv--buffer-youtube-search))
+                 (channel-id . ,(empv--yt-search-channel-id empv--buffer-youtube-search))
+                 (sort-by . ,(empv--yt-search-sort-by empv--buffer-youtube-search))
+                 (handler . ,#'empv-bookmark-jump)))))
+       (bookmark-set name)
+       (message "Stored bookmark: %s" name)))
+    (other (user-error "This mode is not supported by empv-bookmarks: %s" other))))
+
+;;;###autoload
+(defun empv-bookmark-jump (bookmark)
+  "Jump to empv BOOKMARK."
+  (interactive (list
+      (progn
+        (bookmark-maybe-load-default-file)
+        (assoc
+         (completing-read
+          "Bookmark: "
+          (or (seq-filter
+               (lambda (it) (eq (bookmark-prop-get it 'handler) #'empv-bookmark-jump))
+               bookmark-alist)
+              (user-error "No empv bookmarks found"))
+          nil t nil 'bookmark-history)
+         bookmark-alist))))
+  ;; FIXME: this type & kind is just mess.  Probably going to break
+  ;; people's bookmarks when I rework those.  Maybe I can add a small
+  ;; migrator when I do that.
+  (let ((type (bookmark-prop-get bookmark 'type))
+        (kind (bookmark-prop-get bookmark 'kind))
+        (query (bookmark-prop-get bookmark 'query)))
+    (pcase (list type kind)
+      ('(video search) (empv-youtube (bookmark-prop-get bookmark 'query)))
+      ('(video channel-videos) (empv-youtube-show-channel-videos
+                                (bookmark-prop-get bookmark 'channel-id)
+                                (bookmark-prop-get bookmark 'sort-by)))
+      ('(playlist search) (empv-youtube-playlist (bookmark-prop-get bookmark 'query)))
+      ;; TODO: We don't have a way of showing playlist videos right now in empv
+      ('(channel search) (empv-youtube-channel query)))))
 
 ;;;; empv utility
 
