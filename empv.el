@@ -2564,21 +2564,22 @@ See `empv--youtube-search' for TYPE."
 (defun empv--consult-get-input-with-suggestions (prompt)
   "Get an input from user, using YouTube search suggestions.
 PROMPT is passed to `completing-read' as-is."
-  (consult--read
-   (empv--consult-async-generator
-    (lambda (action on-result)
-      (empv--request
-       (format "%s/search/suggestions" empv-invidious-instance)
-       `(("q" . ,action))
-       on-result))
-    (lambda (result)
-      (alist-get 'suggestions result)))
-   :prompt prompt
-   :category 'empv-youtube-suggestion-item
-   :sort nil
-   :history 'empv--youtube-search-history
-   :require-match nil
-   :async-wrap #'empv--consult-async-wrapper))
+  (let ((consult-async-split-style 'none))
+    (consult--read
+     (empv--consult-async-generator
+      (lambda (action on-result)
+        (empv--request
+         (format "%s/search/suggestions" empv-invidious-instance)
+         `(("q" . ,action))
+         on-result))
+      (lambda (result)
+        (alist-get 'suggestions result)))
+     :prompt prompt
+     :category 'empv-youtube-suggestion-item
+     :sort nil
+     :history 'empv--youtube-search-history
+     :require-match nil
+     :async-wrap #'empv--consult-async-wrapper)))
 
 (defun empv--youtube-suggest (prompt)
   (if (empv--use-consult?)
