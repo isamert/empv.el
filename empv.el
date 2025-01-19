@@ -2610,6 +2610,7 @@ PROMPT is passed to `completing-read' as-is."
   (empv--url-with-magic-info
    (empv--subsonic-build-url "stream.view" :id (alist-get 'id object))
    :title (substring-no-properties (empv--subsonic-format-candidate object))
+   :kind (alist-get 'kind object)
    :subsonic t))
 
 (defun empv--subsonic-request (endpoint &rest rest)
@@ -2656,7 +2657,15 @@ them so that responses are easier to work with."
                    (lambda (key)
                      (let ((val (alist-get key result)))
                        (if (listp val)
-                           (setq results (append results (seq-map (lambda (x) (map-insert x 'empvType key)) val)))
+                           (setq results
+                                 (append results
+                                         (seq-map
+                                          (lambda (x)
+                                            (thread-first
+                                              x
+                                              (map-insert 'kind key)
+                                              (map-insert 'type 'subsonic)))
+                                          val)))
                          (setq info (map-insert info key val)))))
                    result-fields)
                   (seq-do
@@ -2675,7 +2684,7 @@ them so that responses are easier to work with."
                              (thread-first
                                val
                                (map-insert 'indexName index-name)
-                               (map-insert 'empvType 'artist)))
+                               (map-insert 'kind 'artist)))
                            (alist-get 'artist index))))
                       index)))
                   (let ((all `(,@info (results . ,results))))
@@ -2688,7 +2697,7 @@ them so that responses are easier to work with."
 
 (defun empv--subsonic-format-candidate (cand)
   (empv--with-text-properties
-   (pcase (alist-get 'empvType cand)
+   (pcase (alist-get 'kind cand)
      ('artist (alist-get 'name cand))
      ('album (format
               "%s - %s"
@@ -2716,7 +2725,7 @@ them so that responses are easier to work with."
       :category 'empv-subsonic-item
       :group (lambda (object)
                (or (alist-get 'indexName object)
-                   (s-titleize (symbol-name (alist-get 'empvType object)))))
+                   (s-titleize (symbol-name (alist-get 'kind object)))))
       :sort? nil))))
 
 (defun empv--subsonic-consult-search ()
@@ -2742,7 +2751,7 @@ them so that responses are easier to work with."
     (lambda (cand transform)
       (if transform
           cand
-        (s-titleize (symbol-name (alist-get 'empvType (empv--get-text-property cand :item))))))
+        (s-titleize (symbol-name (alist-get 'kind (empv--get-text-property cand :item))))))
     :history 'empv--subsonic-search-history
     ;; TODO: :narrow ...?
     :require-match t
@@ -2760,7 +2769,7 @@ them so that responses are easier to work with."
 (defun empv--subsonic-act-on-candidate (selected)
   (empv--dbg "empv--subsonic-act-on-candidate :: %s" selected)
   (let* ((id (alist-get 'id selected)))
-    (pcase (alist-get 'empvType selected)
+    (pcase (alist-get 'kind selected)
       ('song
        (empv-play-or-enqueue
         (empv--subsonic-item-extract-url selected)))
@@ -2860,7 +2869,7 @@ them so that responses are easier to work with."
 If OBJ is a single song, then do ACTION on it.  If OBJ is an album, then
 do ACTION on all songs of given album.  If OBJ is something else, then
 error out."
-  (pcase (alist-get 'empvType obj)
+  (pcase (alist-get 'kind obj)
     ('album
      (empv--subsonic-request
       "getAlbum.view"
