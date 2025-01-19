@@ -2605,7 +2605,7 @@ PROMPT is passed to `completing-read' as-is."
        ("f" . "json")
        ,@(empv--plist-to-alist params)))))
 
-(defun empv--subsonic-build-stream-url-for (object)
+(defun empv--subsonic-item-extract-url (object)
   "Build streamable url for given Subsonic OBJECT."
   (empv--url-with-magic-info
    (empv--subsonic-build-url "stream.view" :id (alist-get 'id object))
@@ -2763,8 +2763,7 @@ them so that responses are easier to work with."
     (pcase (alist-get 'empvType selected)
       ('song
        (empv-play-or-enqueue
-        ;; TODO: Move this into a function
-        (empv--subsonic-build-stream-url-for selected)))
+        (empv--subsonic-item-extract-url selected)))
       ('album
        (empv--subsonic-request
         "getAlbum.view"
@@ -2867,8 +2866,10 @@ error out."
       "getAlbum.view"
       :id (alist-get 'id obj)
       (lambda (album)
-        (funcall (or action #'empv-play) (mapcar #'empv--subsonic-build-stream-url-for (alist-get 'results album))))))
-    ('song (funcall action (empv--subsonic-build-stream-url-for obj)))
+        (funcall
+         (or action #'empv-play)
+         (mapcar #'empv--subsonic-item-extract-url (alist-get 'results album))))))
+    ('song (funcall action (empv--subsonic-item-extract-url obj)))
     (other (user-error "Not applicable for %s" other))))
 
 (defun empv-subsonic-play (subsonic-result)
