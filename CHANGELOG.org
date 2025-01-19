@@ -1,3 +1,10 @@
+* 4.10.1
+
+- Improved Embark actions for Subsonic results
+- Adopt new consult-async API, see #92
+- Add bookmarks integration for YouTube search results
+- Various codebase improvements.
+
 * 4.9.0
 
 - Subsonic support!
