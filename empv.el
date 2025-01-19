@@ -3265,7 +3265,7 @@ get the lyrics for currently playing/paused song, use
     "n" #'empv-enqueue-next)
 
   (defvar-keymap empv-subsonic-item-action-map
-    :doc "Action map for radio items, utilized by Embark."
+    :doc "Action map for Subsonic items, utilized by Embark."
     :parent embark-general-map
     "p" #'empv-subsonic-play
     "e" #'empv-subsonic-enqueue
