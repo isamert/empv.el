@@ -872,7 +872,7 @@ documentation."
   ;; for a stream, not the name for the stream itself. URL encoded
   ;; title probably has the stream's title. (At least this is the case
   ;; for radio streams, see `empv-radio-channels' and
-  ;; `empv--play-radio-channel')
+  ;; `empv--radio-item-extract-link')
   (pcase-let* ((`(,uri ,data) (split-string (or path "") empv--title-sep)))
     (if-let* ((parsed
                (and data
@@ -1660,28 +1660,25 @@ The display format is determined by the
 
 ;;;; Radio
 
-(defun empv--play-radio-channel (channel &optional ask)
-  (let* ((url (empv--url-with-magic-info
-               (cdr channel)
-               :title (car channel) :url (cdr channel) :radio t)))
-    (if ask
-        (empv-play-or-enqueue url)
-      (empv-play url))))
+(defun empv--radio-item-extract-link (channel)
+  (empv--url-with-magic-info
+   (cdr channel)
+   :title (car channel) :radio t))
 
 ;;;###autoload
 (defun empv-play-radio ()
   "Play radio channels."
   (interactive)
   (empv--with-empv-metadata
-   (empv--play-radio-channel
-    (empv--completing-read-object
-     "Channel: "
-     empv-radio-channels
-     :formatter (lambda (x) (if (equal (cdr x) (plist-get empv-metadata :uri))
-                                (format "%s %s" (car x) empv--playlist-current-indicator)
-                              (car x)))
-     :category 'empv-radio-item)
-    t)))
+   (empv-play-or-enqueue
+    (empv--radio-item-extract-link
+     (empv--completing-read-object
+      "Channel: "
+      empv-radio-channels
+      :formatter (lambda (x) (if (equal (cdr x) (plist-get empv-metadata :uri))
+                            (format "%s %s" (car x) empv--playlist-current-indicator)
+                          (car x)))
+      :category 'empv-radio-item)))))
 
 ;;;###autoload
 (defun empv-play-random-channel ()
@@ -1693,7 +1690,7 @@ The display format is determined by the
                    (random)
                    (empv--flipcall #'nth empv-radio-channels))))
     (empv--display-event "Playing %s" (car channel))
-    (empv--play-radio-channel channel)))
+    (empv-play (empv--radio-item-extract-link channel))))
 
 ;;;; Videos and music
 
@@ -3242,7 +3239,7 @@ get the lyrics for currently playing/paused song, use
 
 (defun empv--embark-radio-item-transformer (type target)
   "Extract the radio URL from TARGET without changing it's TYPE."
-  (cons type (cdr (get-text-property 0 'empv-item target))))
+  (cons type (empv--radio-item-extract-link (get-text-property 0 'empv-item target))))
 
 (defun empv--embark-playlist-item-transformer (type target)
   "Extract the item object from TARGET without changing it's TYPE."
