@@ -48,6 +48,7 @@
 (require 'consult nil t)
 (require 'compat)
 (require 'text-property-search)
+(require 'bookmark)
 (eval-when-compile
   (require 'subr-x))
 
@@ -693,6 +694,18 @@ Taken from transient.el.
                   (pop plist))
             alist))
     (nreverse alist)))
+
+(defun empv--alist-to-plist (alist)
+  "Convert ALIST to a plist.
+
+>> (empv--alist-to-plist (quote ((a . 1) (b . 2) (c . (3 4 5)))))
+=> (:a 1 :b 2 :c (3 4 5))"
+  (let (plist)
+    (while alist
+      (let ((el (car alist)))
+        (setq plist (cons (cdr el) (cons (im-to-keyword (car el)) plist))))
+      (setq alist (cdr alist)))
+    (nreverse plist)))
 
 ;;;; Utility: Execution
 
@@ -2893,51 +2906,89 @@ error out."
   "Enqueue the SUBSONIC-RESULT after current item."
   (empv--subsonic-act #'empv-enqueue-next subsonic-result))
 
+;; NOTE: It is not a good idea to store the constructed playable
+;; subsonic URL as the bookmark because it contains a token. Also it
+;; doesn't work well with other Subsonic kinds (apart from songs; like
+;; albums, artists etc.).
+(defun empv-subsonic-bookmark-set (subsonic-result)
+  "Create an empv bookmark from SUBSONIC-RESULT."
+  (empv-bookmark-set subsonic-result))
+
 ;;;; Bookmarks integration
 
-(defun empv-bookmark-set ()
-  "Create an empv bookmark."
-  (interactive)
-  (pcase major-mode
-    ('empv-youtube-results-mode
-     (let* ((default (string-replace "*" "" (empv--yt-search-generate-buffer-name empv--buffer-youtube-search)))
-            (name (read-from-minibuffer "Bookmark name: " default nil nil 'bookmark-history default))
-            (bookmark-make-record-function
-             (lambda ()
-               (setq bookmark-current-bookmark nil) ;; Reset bookmark to use new name
-               `(,name
-                 (type . ,(empv--yt-search-type empv--buffer-youtube-search))
-                 (kind . ,(empv--yt-search-kind empv--buffer-youtube-search))
-                 (query . ,(empv--yt-search-query empv--buffer-youtube-search))
-                 (channel-id . ,(empv--yt-search-channel-id empv--buffer-youtube-search))
-                 (sort-by . ,(empv--yt-search-sort-by empv--buffer-youtube-search))
-                 (handler . ,#'empv-bookmark-jump)))))
-       (bookmark-set name)
-       (message "Stored bookmark: %s" name)))
-    (other (user-error "This mode is not supported by empv-bookmarks: %s" other))))
+(defconst empv--bookmark-known-mode-list '(empv-youtube-results-mode))
+
+(defun empv-bookmark-set (&optional target)
+  "Create an empv bookmark from TARGET.
+TARGET is either a buffer (like `empv-youtube-results-mode' buffer) or a
+URL.  If invoked by empv itself, URL generally contains all the metadata
+required to build the bookmark, see `empv--title-sep' for details."
+  (interactive (unless (member major-mode empv--bookmark-known-mode-list)
+       (list (read-string "URL: "))))
+  (cond
+   ((and (listp target) (eq (alist-get 'type target) 'subsonic))
+    (let ((name (alist-get 'name target))
+          (title (alist-get 'title target))
+          (value (alist-get 'value target)))
+      (empv--create-bookmark
+       (or title value name)
+       (seq-filter
+        #'identity
+        `((type . subsonic)
+          (kind . ,(alist-get 'kind target))
+          ,(assoc 'name target)
+          ,(assoc 'title target)
+          ,(assoc 'value target)
+          ,(assoc 'artist target)
+          ,(assoc 'songCount target)
+          ,(assoc 'id target))))))
+   ((stringp target)
+    (let ((info (empv--extract-empv-metadata-from-path target)))
+      (empv--create-bookmark
+       (plist-get info :title)
+       (append
+        `((type . uri))
+        (empv--plist-to-alist info)))))
+   ((eq major-mode 'empv-youtube-results-mode)
+    (empv--create-bookmark
+     (string-replace "*" "" (empv--yt-search-generate-buffer-name empv--buffer-youtube-search))
+     `((type . ,(empv--yt-search-type empv--buffer-youtube-search))
+       (kind . ,(empv--yt-search-kind empv--buffer-youtube-search))
+       (query . ,(empv--yt-search-query empv--buffer-youtube-search))
+       (channel-id . ,(empv--yt-search-channel-id empv--buffer-youtube-search))
+       (sort-by . ,(empv--yt-search-sort-by empv--buffer-youtube-search)))))
+   (:otherwise (user-error "This mode is not supported by empv-bookmarks: %s" major-mode))))
 
 ;;;###autoload
 (defun empv-bookmark-jump (bookmark)
   "Jump to empv BOOKMARK."
   (interactive (list
       (progn
-        (bookmark-maybe-load-default-file)
         (assoc
          (completing-read
           "Bookmark: "
-          (or (seq-filter
-               (lambda (it) (eq (bookmark-prop-get it 'handler) #'empv-bookmark-jump))
-               bookmark-alist)
+          (or (empv--get-bookmarks)
               (user-error "No empv bookmarks found"))
           nil t nil 'bookmark-history)
          bookmark-alist))))
-  ;; FIXME: this type & kind is just mess.  Probably going to break
-  ;; people's bookmarks when I rework those.  Maybe I can add a small
-  ;; migrator when I do that.
   (let ((type (bookmark-prop-get bookmark 'type))
         (kind (bookmark-prop-get bookmark 'kind))
-        (query (bookmark-prop-get bookmark 'query)))
+        (query (bookmark-prop-get bookmark 'query))
+        (record (bookmark-get-bookmark-record bookmark)))
     (pcase (list type kind)
+      (`(uri ,_)
+       (let ((data (empv--alist-to-plist record)))
+         (empv-play
+          (apply
+           #'empv--url-with-magic-info
+           (plist-get data :uri)
+           data))))
+      (`(subsonic ,kind)
+       (empv--subsonic-act-on-candidate record))
+      ;; Rest is for matching YouTube bookmarks
+      ;; FIXME: this type & kind is just mess for YouTube.  Probably
+      ;; going to break people's bookmarks when I rework those.  Maybe
+      ;; I can add a small migrator when I do that.
       ('(video search) (empv-youtube (bookmark-prop-get bookmark 'query)))
       ('(video channel-videos) (empv-youtube-show-channel-videos
                                 (bookmark-prop-get bookmark 'channel-id)
@@ -2945,6 +2996,27 @@ error out."
       ('(playlist search) (empv-youtube-playlist (bookmark-prop-get bookmark 'query)))
       ;; TODO: We don't have a way of showing playlist videos right now in empv
       ('(channel search) (empv-youtube-channel query)))))
+
+
+(defvar empv--bookmark-name-prefix "empv :: ")
+
+(defun empv--create-bookmark (default props)
+  (let* ((name (read-from-minibuffer "Bookmark name: " (concat empv--bookmark-name-prefix default) nil nil 'bookmark-history default))
+         (bookmark-make-record-function
+          (lambda ()
+            (setq bookmark-current-bookmark nil)
+            `(,name
+              ,@props
+              (handler . ,#'empv-bookmark-jump)))))
+    (bookmark-set name)
+    (message "Stored bookmark: %s" name)))
+
+(defun empv--get-bookmarks ()
+  (bookmark-maybe-load-default-file)
+  (seq-filter
+   (lambda (it)
+     (eq (bookmark-prop-get it 'handler) #'empv-bookmark-jump))
+   bookmark-alist))
 
 ;;;; empv utility
 
@@ -3272,14 +3344,16 @@ get the lyrics for currently playing/paused song, use
     "RET" #'empv-play
     "p" #'empv-play
     "e" #'empv-enqueue
-    "n" #'empv-enqueue-next)
+    "n" #'empv-enqueue-next
+    "b" #'empv-bookmark-set)
 
   (defvar-keymap empv-subsonic-item-action-map
     :doc "Action map for Subsonic items, utilized by Embark."
     :parent embark-general-map
     "p" #'empv-subsonic-play
     "e" #'empv-subsonic-enqueue
-    "n" #'empv-subsonic-enqueue-next)
+    "n" #'empv-subsonic-enqueue-next
+    "b" #'empv-subsonic-bookmark-set)
 
   (defvar-keymap empv-youtube-item-action-map
     :doc "Action map for YouTube items, utilized by Embark."
@@ -3292,7 +3366,8 @@ get the lyrics for currently playing/paused song, use
     "n" #'empv-enqueue-next
     "c" #'empv-youtube-show-comments
     "C" #'empv-youtube-show-channel-videos
-    "t" #'empv-youtube-become-tabulated)
+    "t" #'empv-youtube-become-tabulated
+    "b" #'empv-bookmark-set)
 
   (add-to-list 'embark-keymap-alist '(empv-playlist-item . empv-playlist-item-action-map))
   (add-to-list 'embark-keymap-alist '(empv-radio-item . empv-radio-item-action-map))
