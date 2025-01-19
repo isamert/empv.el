@@ -1682,16 +1682,24 @@ The display format is determined by the
 (defun empv-play-radio ()
   "Play radio channels."
   (interactive)
-  (empv--with-empv-metadata
-   (empv-play-or-enqueue
-    (empv--radio-item-extract-link
-     (empv--completing-read-object
-      "Channel: "
-      empv-radio-channels
-      :formatter (lambda (x) (if (equal (cdr x) (plist-get empv-metadata :uri))
-                            (format "%s %s" (car x) empv--playlist-current-indicator)
-                          (car x)))
-      :category 'empv-radio-item)))))
+  (let ((favorites (mapcar
+                    (apply-partially #'alist-get 'uri)
+                    (empv--get-bookmarks))))
+    (empv--with-empv-metadata
+     (empv-play-or-enqueue
+      (empv--radio-item-extract-link
+       (empv--completing-read-object
+        "Channel: "
+        empv-radio-channels
+        :formatter (lambda (x) (if (equal (cdr x) (plist-get empv-metadata :uri))
+                              (format "%s %s" (car x) empv--playlist-current-indicator)
+                            (car x)))
+        :group (when favorites
+                 (lambda (x)
+                   (if (member (cdr x) favorites)
+                       "Favorites"
+                     "Other")))
+        :category 'empv-radio-item))))))
 
 ;;;###autoload
 (defun empv-play-random-channel ()
