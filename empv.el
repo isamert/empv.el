@@ -1591,7 +1591,7 @@ The display format is determined by the
                           file-format)
     (let ((title (string-trim (empv--create-media-summary-for-notification .metadata .path .media-title)))
           (state (cond
-                  ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "yellow")))
+                  ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "gold")))
                   ((eq .pause t) (propertize "Paused" 'face '(:foreground "grey")))
                   (t (propertize "Playing" 'face '(:foreground "green")))))
           (empv-metadata (empv--extract-empv-metadata-from-path .path))
