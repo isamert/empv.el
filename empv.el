@@ -915,7 +915,10 @@ documentation."
       (list
        :uri uri
        :title (gethash uri empv--media-title-cache
-                       (or fallback (abbreviate-file-name uri)))))))
+                       (or fallback (abbreviate-file-name
+                                     (if (file-remote-p uri)
+                                         (file-remote-p uri 'localname)
+                                       uri))))))))
 
 ;;;; Handlers
 
@@ -1753,10 +1756,7 @@ PROMPT is shown when `completing-read' is called."
       (shell-command-to-string)
       (empv--flipcall #'split-string "\n")
       (empv--seq-init)
-      (mapcar #'(lambda (s)
-             (if is-remote
-                 (concat is-remote s)
-               s))))))
+      (mapcar #'(lambda (s) (if is-remote (concat is-remote s) s))))))
 
 (defun empv--find-files (path extensions &optional depth)
   "Like `empv--find-files-1' but PATH can be a list."
