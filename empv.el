@@ -831,6 +831,25 @@ Taken from transient.el.
 
 ;;;; Utility: Url/Path/Metadata
 
+(defun empv--tramp-to-sftp-uri (uri)
+  "Given a URI from locating a resource via tramp, convert it into a URI that MPV can stream.
+If URI does not point to a remote resource, return as-is.
+
+NOTE: Only supports SSH/SSHX methods on tramp."
+  (if (not (file-remote-p uri))
+      uri
+    (let ((method (file-remote-p uri 'method))
+          (user (file-remote-p uri 'user))
+          (host (file-remote-p uri 'host))
+          (localname (file-remote-p uri 'localname)))
+      (if (not (member method (list "ssh" "sshx")))
+          (error "TODO: Explain that we can't stream via this method gracefully."))
+      (format "sftp://%s%s"
+              (if user
+                  (format "%s@%s" user host)
+                host)
+              localname))))
+
 (defun empv--clean-uri (it)
   (car (split-string it empv--title-sep)))
 
