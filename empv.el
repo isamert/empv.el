@@ -1289,7 +1289,10 @@ See this[1] for more information.
 This is just a simple wrapper around `empv-play' that displays
 `find-file' dialog if called interactively."
   (interactive "fPlay file: ")
-  (empv-play-or-enqueue (expand-file-name path)))
+  (thread-last path
+               expand-file-name
+               empv--tramp-to-sftp-uri
+               empv-play-or-enqueue))
 
 ;;;###autoload
 (defun empv-play-directory (path)
@@ -1303,6 +1306,7 @@ see `empv-base-directory'."
   (thread-last
     (empv--find-files path (append empv-audio-file-extensions empv-video-file-extensions) 1)
     (mapcar (lambda (it) (expand-file-name it path)))
+    (mapcar (lambda (it) (empv--tramp-to-sftp-uri it)))
     (empv-play-or-enqueue)))
 
 ;;;###autoload
