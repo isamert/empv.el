@@ -1741,17 +1741,22 @@ The display format is determined by the
 (defun empv--find-files-1 (path extensions &optional depth)
   "Find files with given EXTENSIONS under given PATH.
 PROMPT is shown when `completing-read' is called."
-  (let ((default-directory path))
+  (let ((default-directory path)
+        (is-remote (file-remote-p path)))
     (thread-last
       extensions
       (mapcar (lambda (ext) (format "-e '%s' " ext)))
       (string-join)
-      (concat (format "%s . --absolute-path --max-depth %s "
+      (concat (format "%s . --absolute-path --max-depth %s -c never "
                       empv-fd-binary
                       (or depth empv-max-directory-search-depth)))
       (shell-command-to-string)
       (empv--flipcall #'split-string "\n")
-      (empv--seq-init))))
+      (empv--seq-init)
+      (mapcar #'(lambda (s)
+             (if is-remote
+                 (concat is-remote s)
+               s))))))
 
 (defun empv--find-files (path extensions &optional depth)
   "Like `empv--find-files-1' but PATH can be a list."
