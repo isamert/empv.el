@@ -558,6 +558,7 @@ Maximum possible value is 500. "
     (define-key map "C" 'empv-playlist-clear)
     (define-key map "n" 'empv-playlist-next)
     (define-key map "N" 'empv-playlist-prev)
+    (define-key map "L" 'empv-playlist-load-from-file)
     (put 'empv-playlist-next 'repeat-map 'empv-map)
     (put 'empv-playlist-prev 'repeat-map 'empv-map)
 
