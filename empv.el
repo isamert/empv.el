@@ -1551,6 +1551,13 @@ Example:
         fname))))
   (empv--playlist-apply #'empv--playlist-save-to-file filename))
 
+;;;###autoload
+(defun empv-playlist-load-from-file (&optional filename)
+  "Load a playlist from EMPV-PLAYLIST-DIR."
+  (interactive)
+  (empv-play-or-enqueue
+   (empv--select-file "Select a playlist file:" empv-playlist-dir '("m3u"))))
+
 ;;;; Interactive - Misc
 
 (defun empv--format-clock (it)
