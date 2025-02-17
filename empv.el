@@ -558,6 +558,7 @@ Maximum possible value is 500. "
     (define-key map "C" 'empv-playlist-clear)
     (define-key map "n" 'empv-playlist-next)
     (define-key map "N" 'empv-playlist-prev)
+    (define-key map "L" 'empv-playlist-load-from-file)
     (put 'empv-playlist-next 'repeat-map 'empv-map)
     (put 'empv-playlist-prev 'repeat-map 'empv-map)
 
@@ -1574,6 +1575,13 @@ Example:
       (when (and fname (not (string-empty-p fname)))
         fname))))
   (empv--playlist-apply #'empv--playlist-save-to-file filename))
+
+;;;###autoload
+(defun empv-playlist-load-from-file ()
+  "Load a playlist from `empv-playlist-dir'."
+  (interactive)
+  (empv-play-or-enqueue
+   (empv--select-file "Select a playlist file:" empv-playlist-dir '("m3u"))))
 
 ;;;; Interactive - Misc
 
@@ -3185,7 +3193,8 @@ Also see `empv-search-prefix'."
         (url-unhex-string)
         (funcall (lambda (it) (setq url it) it))
         (empv--request-raw-sync)
-        (string-replace "" "")
+        (string-replace "
+" "")
         ;; Replace newlines so that regexes can work
         (string-replace "\n" "<newline>")
         ;; FIXME: The resulting string may be too long and regexes may
@@ -3213,7 +3222,8 @@ Also see `empv-search-prefix'."
            ("</div>" . "")
            ("\\" . "")
            ("<newline>" . "\n")
-           ("" . "\n")
+           ("
+" . "\n")
            ("\"" . "")
            ("&quot;" . "\"")
            ("&#x27;" . "'")
