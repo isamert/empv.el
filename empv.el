@@ -1553,8 +1553,8 @@ Example:
   (empv--playlist-apply #'empv--playlist-save-to-file filename))
 
 ;;;###autoload
-(defun empv-playlist-load-from-file (&optional filename)
-  "Load a playlist from EMPV-PLAYLIST-DIR."
+(defun empv-playlist-load-from-file ()
+  "Load a playlist from `empv-playlist-dir'."
   (interactive)
   (empv-play-or-enqueue
    (empv--select-file "Select a playlist file:" empv-playlist-dir '("m3u"))))
@@ -3167,7 +3167,8 @@ Also see `empv-search-prefix'."
         (url-unhex-string)
         (funcall (lambda (it) (setq url it) it))
         (empv--request-raw-sync)
-        (string-replace "" "")
+        (string-replace "
+" "")
         ;; Replace newlines so that regexes can work
         (string-replace "\n" "<newline>")
         ;; FIXME: The resulting string may be too long and regexes may
@@ -3195,7 +3196,8 @@ Also see `empv-search-prefix'."
            ("</div>" . "")
            ("\\" . "")
            ("<newline>" . "\n")
-           ("" . "\n")
+           ("
+" . "\n")
            ("\"" . "")
            ("&quot;" . "\"")
            ("&#x27;" . "'")
