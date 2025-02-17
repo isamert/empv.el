@@ -831,6 +831,25 @@ Taken from transient.el.
 
 ;;;; Utility: Url/Path/Metadata
 
+(defun empv--tramp-to-sftp-uri (uri)
+  "Given a URI from locating a resource via tramp, convert it into a URI that MPV can stream.
+If URI does not point to a remote resource, return as-is.
+
+NOTE: Only supports SSH/SSHX methods on tramp."
+  (if (not (file-remote-p uri))
+      uri
+    (let ((method (file-remote-p uri 'method))
+          (user (file-remote-p uri 'user))
+          (host (file-remote-p uri 'host))
+          (localname (file-remote-p uri 'localname)))
+      (if (not (member method (list "ssh" "sshx")))
+          (user-error "empv: method %s is not supported for playback." method))
+      (format "sftp://%s%s"
+              (if user
+                  (format "%s@%s" user host)
+                host)
+              localname))))
+
 (defun empv--clean-uri (it)
   (car (split-string it empv--title-sep)))
 
@@ -896,7 +915,10 @@ documentation."
       (list
        :uri uri
        :title (gethash uri empv--media-title-cache
-                       (or fallback (abbreviate-file-name uri)))))))
+                       (or fallback (abbreviate-file-name
+                                     (if (file-remote-p uri)
+                                         (file-remote-p uri 'localname)
+                                       uri))))))))
 
 ;;;; Handlers
 
@@ -1221,6 +1243,7 @@ enqueued and the first one starts playing."
        (empv-resume))
     (when (file-exists-p uri)
       (setq uri (expand-file-name uri)))
+    (setq uri (empv--tramp-to-sftp-uri uri))
     (if (empv--running?)
         (empv--cmd-seq
          ('loadfile (list uri 'append))
@@ -1450,6 +1473,7 @@ URI might be a list of URIs, then they are all enqueued in order."
       (seq-do #'empv-enqueue uri)
     (when (string-prefix-p "~/" uri)
       (setq uri (expand-file-name uri)))
+    (setq uri (empv--tramp-to-sftp-uri uri))
     (empv--cmd 'loadfile `(,uri append-play))
     (empv--display-event "Enqueued %s" uri)))
 
@@ -1718,17 +1742,19 @@ The display format is determined by the
 (defun empv--find-files-1 (path extensions &optional depth)
   "Find files with given EXTENSIONS under given PATH.
 PROMPT is shown when `completing-read' is called."
-  (let ((default-directory path))
+  (let ((default-directory path)
+        (is-remote (file-remote-p path)))
     (thread-last
       extensions
       (mapcar (lambda (ext) (format "-e '%s' " ext)))
       (string-join)
-      (concat (format "%s . --absolute-path --max-depth %s "
+      (concat (format "%s . --absolute-path --max-depth %s -c never "
                       empv-fd-binary
                       (or depth empv-max-directory-search-depth)))
       (shell-command-to-string)
       (empv--flipcall #'split-string "\n")
-      (empv--seq-init))))
+      (empv--seq-init)
+      (mapcar #'(lambda (s) (if is-remote (concat is-remote s) s))))))
 
 (defun empv--find-files (path extensions &optional depth)
   "Like `empv--find-files-1' but PATH can be a list."
