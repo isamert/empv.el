@@ -62,6 +62,8 @@ No default keybindings are provided but there is ~empv-map~ keymap which contain
 
 Some keys are repeatable in this keymap. Continuing with the example above, you can do ~C-x m n~ to switch to the next media item in the playlist and if you want to go to the next item again just hit ~n~ this time (or ~N~ to go back one item), as it's repeatable. Keys that control sound level, playback speed are also repeatable.
 
+You may also employ the use of a hydra instead - please see [[*Hydra][here]] for more details.
+
 ** Playing options
 When you invoke one of the functions that triggers playing a media, you'll be automatically presented with some options that asks you whether you want to /play directly/, /enqueue next/ or /enqueue last/. By default this uses ~read-multiple-choice~ to ask you about your choices. You can change this to use ~completing-read~ based interface if you want by setting ~empv-action-handler~ variable to ~completing-read~. See the variable documentation for more information.
 
@@ -209,6 +211,16 @@ If you have applied the workaround above, you can set the following option to no
 
 This is useful if you watch videos on higher speeds but you want to quickly restore the playback speed after being done with the video.
 
+** Hydra
+If you would like to use a [[https://github.com/abo-abo/hydra][Hydra]] for empv, there is an extension package [[file:empv-hydra.el][empv-hydra]] with one configured.  Please note: you MUST ensure =hydra= is already installed and loaded BEFORE loading =empv-hydra=.  You may then bind =empv-hydra/body= to any key of your choice to activate it.  A sample configuration may be like so:
+#+begin_src emacs-lisp
+(require 'empv)
+...
+(require 'hydra)
+...
+(require 'empv-hydra)
+(bind-key "C-x M" 'empv-hydra/body)
+#+end_src
 * Screenshots
 :PROPERTIES:
 :CUSTOM_ID: screenshots
