@@ -212,15 +212,28 @@ If you have applied the workaround above, you can set the following option to no
 This is useful if you watch videos on higher speeds but you want to quickly restore the playback speed after being done with the video.
 
 ** Hydra
-If you would like to use a [[https://github.com/abo-abo/hydra][Hydra]] for empv, there is an extension package [[file:empv-hydra.el][empv-hydra]] with one configured.  Please note: you MUST ensure =hydra= is already installed and loaded BEFORE loading =empv-hydra=.  You may then bind =empv-hydra/body= to any key of your choice to activate it.  A sample configuration may be like so:
+If you would like to use a [[https://github.com/abo-abo/hydra][Hydra]] for empv, there is an extension package [[file:empv-hydra.el][empv-hydra]] with one configured. Here is how you install it:
+
 #+begin_src emacs-lisp
-(require 'empv)
-...
-(require 'hydra)
-...
-(require 'empv-hydra)
-(bind-key "C-x M" 'empv-hydra/body)
+  ;; If you installed empv manually, then require in given order:
+  (require 'hydra)
+  (require 'empv)
+  (require 'empv-hydra)
+
+  ;; If installed from MELPA, you need to install it as a seperate
+  ;; package, called empv-hydra.  Simply install it and then require as
+  ;; usual:
+
+  ;; M-x package-install empv-hydra RET
+  (require 'empv-hydra)
+
+  ;; If you used straight/quelpa/elpaca etc, require it
+  (use-package empv
+    :straight (:host github :repo "isamert/empv.el")
+    :config
+    (require 'empv-hydra))
 #+end_src
+
 * Screenshots
 :PROPERTIES:
 :CUSTOM_ID: screenshots
