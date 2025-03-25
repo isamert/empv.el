@@ -2634,6 +2634,8 @@ PROMPT is passed to `completing-read' as-is."
      :async-wrap #'empv--consult-async-wrapper)))
 
 (defun empv--youtube-suggest (prompt)
+  (unless empv-invidious-instance
+    (user-error "Please configure `empv-invidious-instance'"))
   (if (empv--use-consult?)
       (empv--consult-get-input-with-suggestions prompt)
     (read-string prompt nil 'empv--youtube-search-history)))
