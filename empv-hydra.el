@@ -3,10 +3,10 @@
 ;; Copyright (C) 2025  Aryadev Chavali
 
 ;; Author: Isa Mert Gurbuz <isamertgurbuz@gmail.com>, Aryadev Chavali <aryadev@aryadevchavali.com>
-;; Version: 4.10.1
+;; Version: 1.0.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
-;; Package-Requires: ((emacs "28.1") (s "1.13.0") (compat "29.1.4.4"))
+;; Package-Requires: ((emacs "28.1") (empv "4.10.1") (hydra "0.15.0"))
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@
 (require 'hydra)
 
 (defhydra empv-hydra nil
-  "EMPV Hydra:"
+  "EMPV Hydra."
   ("o" #'empv-play-or-enqueue "play or enqueue"                         :column "Play")
   ("f" #'empv-play-file "play file"                                     :column "Play")
   ("d" #'empv-play-directory "play directory"                           :column "Play")
