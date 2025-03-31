@@ -696,6 +696,25 @@ Taken from transient.el.
             alist))
     (nreverse alist)))
 
+(defun empv--to-keyword (it)
+  "Convert IT to a :keyword.
+IT can be a symbol or string.
+
+>> (empv--to-keyword (quote hello))
+=> :hello
+
+>> (empv--to-keyword \"hey\")
+=> :hey"
+  (thread-last
+    (cond
+     ((stringp it) it)
+     ((symbolp it) (symbol-name it))
+     (t (error "Trying to convert %s to symbol" it)))
+    (string-remove-prefix ":")
+    (concat ":")
+    (downcase)
+    (intern)))
+
 (defun empv--alist-to-plist (alist)
   "Convert ALIST to a plist.
 
@@ -704,7 +723,7 @@ Taken from transient.el.
   (let (plist)
     (while alist
       (let ((el (car alist)))
-        (setq plist (cons (cdr el) (cons (im-to-keyword (car el)) plist))))
+        (setq plist (cons (cdr el) (cons (empv--to-keyword (car el)) plist))))
       (setq alist (cdr alist)))
     (nreverse plist)))
 
