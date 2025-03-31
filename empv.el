@@ -3049,7 +3049,7 @@ required to build the bookmark, see `empv--title-sep' for details."
            #'empv--url-with-magic-info
            (plist-get data :uri)
            data))))
-      (`(subsonic ,kind)
+      (`(subsonic ,_kind)
        (empv--subsonic-act-on-candidate record))
       ;; Rest is for matching YouTube bookmarks
       ;; FIXME: this type & kind is just mess for YouTube.  Probably
