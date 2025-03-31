@@ -852,8 +852,9 @@ IT can be a symbol or string.
 ;;;; Utility: Url/Path/Metadata
 
 (defun empv--tramp-to-sftp-uri (uri)
-  "Given a URI from locating a resource via tramp, convert it into a URI that MPV can stream.
-If URI does not point to a remote resource, return as-is.
+  "Convert URI to something that MPV can stream.
+URI is in TRAMP format.  If URI does not point to a remote resource,
+return as-is.
 
 NOTE: Only supports SSH/SSHX methods on tramp."
   (if (not (file-remote-p uri))
@@ -2631,6 +2632,8 @@ See `empv--youtube-search' for TYPE."
        (empv-youtube-last-results)))))
 
 ;;;;; Consult integration
+
+(defvar consult-async-split-style)
 
 (defun empv--consult-get-input-with-suggestions (prompt)
   "Get an input from user, using YouTube search suggestions.
