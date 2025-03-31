@@ -1782,7 +1782,7 @@ PROMPT is shown when `completing-read' is called."
       (shell-command-to-string)
       (empv--flipcall #'split-string "\n")
       (empv--seq-init)
-      (mapcar #'(lambda (s) (if is-remote (concat is-remote s) s))))))
+      (mapcar (lambda (s) (if is-remote (concat is-remote s) s))))))
 
 (defun empv--find-files (path extensions &optional depth)
   "Like `empv--find-files-1' but PATH can be a list."
@@ -1881,7 +1881,7 @@ Limit directory treversal at most DEPTH levels.  By default it's
          (string-join
           (thread-last
             params
-            (seq-filter (lambda (it) (not (null (cdr  it)))))
+            (seq-filter #'cdr)
             (mapcar #'empv--request-format-param))
           "&")))
     (format "%s%s"
@@ -1968,7 +1968,7 @@ resulting object is returned."
   (interactive)
   (if empv--last-youtube-search
       (empv--youtube-show-tabulated-results empv--last-youtube-search)
-    (call-interactively 'empv-youtube-tabulated)))
+    (call-interactively #'empv-youtube-tabulated)))
 
 (defalias 'empv-youtube-become-tabulated #'empv-youtube-tabulated-last-results)
 
@@ -2172,7 +2172,7 @@ By default it downloads as MP3 file, please see
 (defun empv--youtube-show-tabulated-results (search)
   (let ((buffer (empv--yt-search-get-buffer-create search)))
     (with-current-buffer buffer
-      (unless (eq major-mode 'empv-youtube-results-mode)
+      (unless (derived-mode-p 'empv-youtube-results-mode)
         (empv-youtube-results-mode))
       (pop-to-buffer-same-window (current-buffer))
       (setq empv--buffer-youtube-search search)
@@ -3015,7 +3015,7 @@ required to build the bookmark, see `empv--title-sep' for details."
        (append
         `((type . uri))
         (empv--plist-to-alist info)))))
-   ((eq major-mode 'empv-youtube-results-mode)
+   ((derived-mode-p 'empv-youtube-results-mode)
     (empv--create-bookmark
      (string-replace "*" "" (empv--yt-search-generate-buffer-name empv--buffer-youtube-search))
      `((type . ,(empv--yt-search-type empv--buffer-youtube-search))
@@ -3294,7 +3294,7 @@ interactively, it will automatically update the currently shown
 lyrics with the buffers content."
   (interactive
    (list (or empv--current-file (read-file-name "Audio file: "))
-         (if (eq major-mode 'empv-lyrics-display-mode)
+         (if (derived-mode-p 'empv-lyrics-display-mode)
              (buffer-string)
            (read-string "Lyrics: "))))
   (setq file (expand-file-name file))
