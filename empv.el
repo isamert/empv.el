@@ -1968,7 +1968,7 @@ resulting object is returned."
   (interactive)
   (if empv--last-youtube-search
       (empv--youtube-show-tabulated-results empv--last-youtube-search)
-    (call-interactively #'empv-youtube-tabulated)))
+    (user-error "Last YouTube search is empty")))
 
 (defalias 'empv-youtube-become-tabulated #'empv-youtube-tabulated-last-results)
 
