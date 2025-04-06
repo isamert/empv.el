@@ -3460,5 +3460,46 @@ learn more.  Supposed to be used like this:
   (define-key embark-url-map "e" 'empv-enqueue-next) ;; overrides eww
   (define-key embark-url-map "n" 'empv-enqueue))
 
+;;;; Hydra extension
+
+(with-eval-after-load 'hydra
+  ;; See the discussion at[1] for why this is wrapped in an `eval'
+  ;; call.
+  ;; [1]: https://github.com/melpa/melpa/pull/9423
+  (eval
+   '(defhydra empv-hydra nil
+      "EMPV Hydra."
+      ("o" #'empv-play-or-enqueue "play or enqueue"                         :column "Play")
+      ("f" #'empv-play-file "play file"                                     :column "Play")
+      ("d" #'empv-play-directory "play directory"                           :column "Play")
+      ("v" #'empv-play-video "play video"                                   :column "Play")
+      ("a" #'empv-play-audio "play audio"                                   :column "Play")
+      ("q" #'empv-exit "exit"                                               :column "Play" :exit t)
+      ("Q" #'empv-save-and-exit "save and exit"                             :column "Play" :exit t)
+      ("[" #'empv-playback-speed-down "playback speed down"                 :column "Playback")
+      ("]" #'empv-playback-speed-up "playback speed up"                     :column "Playback")
+      ("0" #'empv-volume-up "volume up"                                     :column "Playback")
+      ("9" #'empv-volume-down "volume down"                                 :column "Playback")
+      ("(" #'empv-chapter-prev "chapter prev"                               :column "Playback")
+      (")" #'empv-chapter-next "chapter next"                               :column "Playback")
+      ("x" #'empv-chapter-select "chapter select"                           :column "Playback")
+      ("p" #'empv-playlist-select "playlist select"                         :column "Playlist")
+      ("L" #'empv-playlist-load-from-file "playlist load"                   :column "Playlist")
+      ("s" #'empv-playlist-shuffle "playlist shuffle"                       :column "Playlist")
+      ("C" #'empv-playlist-clear "playlist clear"                           :column "Playlist")
+      ("n" #'empv-playlist-next "playlist next"                             :column "Playlist")
+      ("N" #'empv-playlist-prev "playlist prev"                             :column "Playlist")
+      ("r" #'empv-play-radio "play radio"                                   :column "Remote Play")
+      ("R" #'empv-play-random-channel "play random channel"                 :column "Remote Play")
+      ("l" #'empv-log-current-radio-song-name "log current radio song name" :column "Remote Play")
+      ("y" #'empv-youtube "youtube"                                         :column "Remote Play")
+      ("Y" #'empv-youtube-last-results "youtube last results"               :column "Remote Play")
+      ("t" #'empv-toggle "toggle"                                           :column "Toggle")
+      ("_" #'empv-toggle-video "toggle video"                               :column "Toggle")
+      ("8" #'empv-toggle-current-loop "toggle current loop"                 :column "Toggle")
+      ("e" #'empv-toggle-event-display "toggle event display"               :column "Toggle")
+      ("i" #'empv-display-current "display current"                         :column "Utility")
+      ("c" #'empv-copy-path "copy path"                                     :column "Utility"))))
+
 (provide 'empv)
 ;;; empv.el ends here
