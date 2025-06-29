@@ -2583,7 +2583,17 @@ finishes."
    `(("q" . ,term)
      ("page" . ,(number-to-string page))
      ("type" . ,type))
-   callback))
+   (lambda (results)
+     ;; For some reason, even if we set the type to "video", "channel"
+     ;; type results may appear in the returned data from
+     ;; Invidious. Filtering it out here so that it does not interfere
+     ;; with tabulated-list building logic etc..
+     (funcall
+      callback
+      (seq-filter
+       (lambda (it)
+         (equal type (alist-get 'type it type)))
+       results)))))
 
 (defun empv--youtube-channel-videos (channel-id sort-by continuation callback)
   "Get videos for CHANNEL-ID sorted by SORT-BY.
