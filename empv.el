@@ -281,7 +281,7 @@ Only used in lyrics related functions."
 This sets the playback speed to 1 when you hit the `q' key while
 on video view in mpv.  You need to enable overriding the quit key
 for this to work.  See `empv-override-quit-key'."
-  :type 'string
+  :type 'boolean
   :group 'empv)
 
 (defcustom empv-display-current-format
@@ -467,14 +467,14 @@ haven't installed consult."
 (defcustom empv-ytdl-binary "yt-dlp"
   "`ytdl' binary path."
   :version "4.5.0"
-  :type 'boolean
+  :type 'string
   :group 'empv)
 
 (defcustom empv-ytdl-download-options '("--extract-audio" "--audio-format=mp3" "--embed-metadata" "--embed-thumbnail")
   "Options passed to yt-dlp program while calling `empv-youtube-download'.
 Also see `empv-youtube-ytdl-binary'."
   :version "4.5.0"
-  :type 'boolean
+  :type '(repeat (string :tag "Command line option"))
   :group 'empv)
 
 (defcustom empv-subsonic-username nil
