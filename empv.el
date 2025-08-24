@@ -1436,7 +1436,13 @@ see `empv-base-directory'."
 You can press \"_\" to hide it again when you are focused on
 MPV."
   (interactive)
-  (empv--cmd 'cycle 'video))
+  (empv--transform-property 'video
+    (lambda (it)
+      (pcase it
+        (1 (empv--cmd 'set_property '(force-window no))
+           0)
+        (0 (empv--cmd 'set_property '(force-window immediate))
+           1)))))
 
 ;;;###autoload
 (defun empv-exit ()
