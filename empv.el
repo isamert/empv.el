@@ -1358,7 +1358,8 @@ see `empv-base-directory'."
 (defun empv-toggle ()
   "Toggle the playback."
   (interactive)
-  (empv--cmd 'cycle 'pause))
+  (empv--transform-property 'pause
+    (lambda (it) (if (eq it :json-false) t :json-false))))
 
 ;;;###autoload
 (defun empv-current-loop-on ()
