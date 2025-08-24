@@ -1442,10 +1442,10 @@ MPV."
   (empv--transform-property 'video
     (lambda (it)
       (pcase it
-        (1 (empv--cmd 'set_property '(force-window no))
-           0)
+        (1 0)
         (_ (empv--cmd 'set_property '(force-window immediate))
-           1)))))
+           1))))
+  (empv--cmd 'set_property '(force-window no)))
 
 ;;;###autoload
 (defun empv-exit ()
