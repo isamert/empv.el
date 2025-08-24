@@ -1359,7 +1359,10 @@ see `empv-base-directory'."
   "Toggle the playback."
   (interactive)
   (empv--transform-property 'pause
-    (lambda (it) (if (eq it :json-false) t :json-false))))
+    (lambda (it)
+      (pcase it
+        ('t :json-false)
+        (_ t)))))
 
 ;;;###autoload
 (defun empv-current-loop-on ()
@@ -1441,7 +1444,7 @@ MPV."
       (pcase it
         (1 (empv--cmd 'set_property '(force-window no))
            0)
-        (0 (empv--cmd 'set_property '(force-window immediate))
+        (_ (empv--cmd 'set_property '(force-window immediate))
            1)))))
 
 ;;;###autoload
