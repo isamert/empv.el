@@ -1100,7 +1100,19 @@ Executes BODY with this context."
     (lambda (result)
       (let ((new-val (funcall ,fn result)))
         (empv--send-command (list "set_property" ,property new-val) #'ignore)
-        (empv--display-event "%s is set to %s" (capitalize (symbol-name ,property)) new-val)))))
+        (empv--display-event
+         "%s is %s"
+         (capitalize (symbol-name ,property))
+         (pcase new-val
+           (:json-false "false")
+           ('t "true")
+           ;; Some properties use 0/1 to indicate enabled/disabled but this causes messages like:
+           ;; "Volume is disabled" instead of "Volume is 0" (which is kind of true)
+           ;; "Volume is enabled" instead of "Volume is 1" (Bearable)
+           ;; I can fix this by taking an optional message transformer but I don't feel like doing it right now.
+           (0 "disabled")
+           (1 "enabled")
+           (other other)))))))
 
 ;;;; User level helpers
 
