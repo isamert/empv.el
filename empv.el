@@ -3,7 +3,7 @@
 ;; Copyright (C) 2022-2024  Isa Mert Gurbuz
 
 ;; Author: Isa Mert Gurbuz <isamertgurbuz@gmail.com>
-;; Version: 4.10.1
+;; Version: 5.0.0
 ;; Homepage: https://github.com/isamert/empv.el
 ;; License: GPL-3.0-or-later
 ;; Package-Requires: ((emacs "28.1") (s "1.13.0") (compat "29.1.4.4"))

@@ -1,3 +1,17 @@
+* 5.0.0
+
+- Added a new public variable =empv-current-media-title=. You can use this for various stuff, like putting the song name in the ~global-mode-line~ etc.
+- Improved the toggling of video display. When video is enabled, the mpv window now appears immediately (even before buffering completes), this should improve the experience with video toggling.
+- Improved event displaying on certain situations, like video visibility changes and pause status changes. Now you should see events for them in the echo area.
+- Added a dedicated hydra for empv commands, with notes in the README for usage. Thanks @oreodave!
+- Fixed customization types for improved compatibility with Emacs customization. Thanks @Ban3.
+- Added =empv-playlist-load-from-file=, allowing playlist selection and playback from =empv-playlist-dir=. This is now bound to "L" in =empv-map=.
+- Enabled playback of remote files via SFTP for SSH/SSHX Tramp URIs, ensuring seamless operation both locally and remotely. Thanks @oreodave!
+- Added the ability to bookmark all types of URLs, including radio streams and Subsonic resources. (See ~empv-bookmark-set~ and ~empv-bookmark-jump~ functions.)
+- Now displays bookmarked radio channels under a separate "Favorites" group.
+- Warns user to configure =empv-invidious-instance= when missing (improves troubleshooting).
+- Improved color readability in the =empv-display-current= function.
+
 * 4.10.1
 
 - Improved Embark actions for Subsonic results
