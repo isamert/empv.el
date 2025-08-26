@@ -508,6 +508,9 @@ Maximum possible value is 500. "
 
 ;;;; Public variables
 
+(defvar empv-current-media-title nil
+  "Formatted title of the current or most recently played media.")
+
 ;;;###autoload
 (defvar empv-map
   (let ((map (make-sparse-keymap)))
@@ -1166,12 +1169,13 @@ PATH is the path of the media file."
   (empv--dbg "handle-metadata-change <> %s" data)
   (empv--let-properties '(media-title path)
     (when .path
-      (let ((title (empv--create-media-summary-for-notification data .path .media-title)))
+      (let ((title (string-trim (empv--create-media-summary-for-notification data .path .media-title))))
         (empv--display-event "%s" title)
-        (puthash (empv--clean-uri .path) title empv--media-title-cache)))))
+        (puthash (empv--clean-uri .path) title empv--media-title-cache)
+        (setq empv-current-media-title title)))))
 
 (defun empv-start (&rest uris)
-  "Start mpv using `empv-mpv-command' with given URIs."
+  "Start mpv using `empv-mpv-command' with given URIS."
   (interactive)
   (unless (empv--running?)
     (empv--dbg "Starting MPV.")
@@ -1456,7 +1460,8 @@ MPV."
   (when empv--network-process
     (setq empv--network-process (delete-process empv--network-process)))
   (setq empv--callback-table (make-hash-table :test 'equal))
-  (setq empv--media-title-cache (make-hash-table :test 'equal)))
+  (setq empv--media-title-cache (make-hash-table :test 'equal))
+  (setq empv-current-media-title nil))
 
 ;;;###autoload
 (defun empv-save-and-exit ()
