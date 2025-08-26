@@ -10,6 +10,12 @@ Scroll to bottom of the page to see the [[#screenshots][screenshots]].
 
 Workflow is generally =M-x empv-something= and =completing-read= based, no buffers or complex interfaces (except for the tabulated YouTube results with thumbnails).
 
+#+begin_quote
+[!TIP]
+
+Existing users: Please see the [[file:CHANGELOG.org][CHANGELOG.org]] for new features & fixes!
+#+end_quote
+
 * Installation
 First, you need to install [[https://mpv.io][mpv]], go check out its installation instructions for your operating system/distribution.
 
