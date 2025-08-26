@@ -1,5 +1,6 @@
 #+TITLE: empv.el
 
+[[https://stable.melpa.org/#/lab][file:https://stable.melpa.org/packages/empv-badge.svg]]
 [[https://melpa.org/#/empv][file:https://melpa.org/packages/empv-badge.svg]]
 
 An Emacs media player, based on [[https://mpv.io/][mpv]]. More precisely this package provides somewhat comprehensive interface to mpv with bunch of convenient functionality like an embedded radio manager, YouTube interface, Subsonic/Navidrome client, local music/video library manager, lyrics manager etc.
