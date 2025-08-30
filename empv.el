@@ -1162,17 +1162,21 @@ events: https://mpv.io/manual/stable/#list-of-events"
 ;;;; Some callbacks
 
 (defun empv--set-player-state (&rest _)
-  (if (empv--running?)
-      (empv--let-properties '(paused-for-cache pause playlist-pos)
-        (let ((empv-metadata (empv--extract-empv-metadata-from-path .path)))
-          (setq empv-player-state
-                (cond
-                 ((< .playlist-pos 0) 'stopped)
-                 ((eq .paused-for-cache t) 'caching)
-                 ((eq .pause t) 'paused)
-                 (t 'playing)))))
-    (setq empv-player-state 'stopped))
-  (seq-each (lambda (x) (funcall x empv-player-state)) empv-player-state-changed-hook))
+  (cl-flet ((run-hooks
+             ()
+             (seq-each (lambda (x) (funcall x empv-player-state)) empv-player-state-changed-hook)))
+    (if (empv--running?)
+        (empv--let-properties '(paused-for-cache pause playlist-pos)
+          (let ((empv-metadata (empv--extract-empv-metadata-from-path .path)))
+            (setq empv-player-state
+                  (cond
+                   ((< .playlist-pos 0) 'stopped)
+                   ((eq .paused-for-cache t) 'caching)
+                   ((eq .pause t) 'paused)
+                   (t 'playing))))
+          (run-hooks))
+      (setq empv-player-state 'stopped)
+      (run-hooks))))
 
 (defun empv--set-media-title (title)
   (if (empv--running?)
