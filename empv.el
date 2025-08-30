@@ -509,7 +509,8 @@ Maximum possible value is 500. "
 ;;;; Public variables
 
 (defvar empv-media-title nil
-  "Formatted title of the current or most recently played media.")
+  "Formatted title of the current or most recently played media.
+If available, chapter info is also included.")
 
 (defcustom empv-media-title-changed-hook '()
   "Functions to run when current media title is changed.
@@ -1170,7 +1171,7 @@ events: https://mpv.io/manual/stable/#list-of-events"
 
 (defun empv--set-media-title (title)
   (if (empv--running?)
-      (setq empv-media-title nil)
+      (setq empv-media-title title)
     (setq empv-media-title nil))
   (seq-each (lambda (x) (funcall x empv-media-title)) empv-media-title-changed-hook))
 
@@ -1200,12 +1201,14 @@ PATH is the path of the media file."
 (defun empv--handle-metadata-change (data)
   "Display info about the current track using DATA."
   (empv--dbg "handle-metadata-change <> %s" data)
-  (empv--let-properties '(media-title path)
+  (empv--let-properties '(media-title path chapter chapter-metadata metadata)
     (when .path
-      (let ((title (string-trim (empv--create-media-summary-for-notification data .path .media-title))))
-        (empv--display-event "%s" title)
+      (let ((title (string-trim (empv--create-media-summary-for-notification .metadata .path .media-title))))
         (puthash (empv--clean-uri .path) title empv--media-title-cache)
-        (empv--set-media-title title)))))
+        (empv--set-media-title (concat title (if (and .chapter (> .chapter -1))
+                                                 (format " (%s)" (alist-get 'title .chapter-metadata))
+                                               "")))
+        (empv--display-event "%s" empv-media-title)))))
 
 ;;;; Essential functions
 
@@ -1227,6 +1230,7 @@ URI might be a string or a list of strings."
     (apply #'empv--make-process uris)
     (empv--make-network-process)
     (empv-observe 'metadata #'empv--handle-metadata-change)
+    (empv-observe 'chapter-metadata #'empv--handle-metadata-change)
     (empv-observe 'pause #'empv--set-player-state)
     (empv-observe 'paused-for-cache #'empv--set-player-state)
     (empv-observe 'playlist-count #'empv--set-player-state)
