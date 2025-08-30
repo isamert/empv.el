@@ -377,13 +377,18 @@ A HEADER-DEFINITION is a list in the following form:
 
   as parameters.
 
-- ACCESSOR is a JSON-PATH like symbol that defines how to get the
-  value of this column.
+- ACCESSOR is a JSON-PATH like symbol that defines how to get the value
+  of this column.  Or it can be a function that takes one argument, an
+  alist containing video information.
 
 For example, to show how many views are there for a video, you can use
 the following HEADER-DEFINITION:
 
     \\='(\"Views\" 15 t .viewCountText)
+
+alternatively (the function variant):
+
+    \\='(\"Views\" 15 t (lambda (video) (alist-get 'viewCountText video)))
 
 This will create an 15 char-wide column named \"Views\" and it
 will get the viewCountText value from the Invidious response to
@@ -2321,6 +2326,7 @@ buffer."
            ;; I truncate the title (and `other' below) manually because
            ;; when tabulated-list-mode does it, some columns gets
            ;; misaligned for some reason
+           ((and (pred functionp) fn) (funcall fn (cdr it)))
            ('.title (propertize
                      (s-truncate (- (nth 1 col) 1) .title "…")
                      'help-echo .title))
