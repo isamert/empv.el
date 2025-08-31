@@ -17,6 +17,35 @@ Workflow is generally =M-x empv-something= and =completing-read= based, no buffe
 Existing users: Please see the [[file:CHANGELOG.org][CHANGELOG.org]] for new features & fixes!
 #+end_quote
 
+* Contents :noexport:
+:PROPERTIES:
+:TOC:      :include siblings :depth 3 :ignore this
+:END:
+:CONTENTS:
+- [[#installation][Installation]]
+- [[#basics][Basics]]
+  - [[#keybindings][Keybindings]]
+  - [[#playing-options][Playing options]]
+- [[#extra-functionality-and-configuration][Extra functionality and configuration]]
+  - [[#general-youtube-configuration][General YouTube configuration]]
+    - [[#youtube-channel--playlist-search][YouTube Channel & Playlist search]]
+    - [[#youtube-comments][YouTube Comments]]
+  - [[#local-media-management][Local media management]]
+  - [[#radiostream-management][Radio/stream management]]
+  - [[#subsonicnavidrome-integration][Subsonic/Navidrome integration]]
+  - [[#embark-and-consult-integration][Embark and Consult integration]]
+  - [[#viewing-youtube-videos][Viewing YouTube videos]]
+  - [[#lyrics-manager][Lyrics manager]]
+  - [[#saving-playback-position][Saving playback position]]
+  - [[#getting-notified-on-mediametadataproperty-change][Getting notified on media/metadata/property change]]
+    - [[#using-variables--hooks][Using variables & hooks]]
+    - [[#using-empv-observe][Using empv-observe]]
+  - [[#overriding-the-quit-key-for-mpv][Overriding the quit key for mpv]]
+  - [[#resetting-playback-speed-after-quit][Resetting playback speed after quit]]
+  - [[#hydra][Hydra]]
+- [[#screenshots][Screenshots]]
+:END:
+
 * Installation
 First, you need to install [[https://mpv.io][mpv]], go check out its installation instructions for your operating system/distribution.
 
@@ -80,7 +109,7 @@ Do =M-x= and then search for =empv-= to list all available functions. Currently 
 #+begin_quote
 [!TIP]
 
-Also take a look at [[https://github.com/isamert/dotfiles/blob/59c2eeae4869917922eed2d8abeb44026d6053ab/emacs/init.el#L8646][my /empv.el/ configuration]] after reading down below to see how they are applied.
+Also take a look at [[https://github.com/isamert/dotfiles/blob/054c00e2c3a1cbef79d88973b04b8f158da389dd/emacs/init.el#L7841][my /empv.el/ configuration]] after reading down below to see how they are applied.
 #+end_quote
 
 ** General YouTube configuration
@@ -195,11 +224,50 @@ empv has two functions for managing lyrics:
   (add-to-list 'empv-mpv-args "--save-position-on-quit")
 #+end_src
 
-** Getting notified on media change
-empv already notifies you when media changes by default (see ~empv-display-events~), or you can always call ~empv-display-current~ to get the details for currently playing media and status of the media player itself. But you may also want to take an action programatically when current media (or any other property of mpv) changes. You can register an observer to underlying property changes of /mpv/ through ~empv-observe~ function. See [[https://github.com/mpv-player/mpv/blob/master/DOCS/man/input.rst#property-list][list of properties]] that you can subscribe to their changes. Here is an example showing you how you can register an observer to ~metadata~ change event:
+** Getting notified on media/metadata/property change
+empv already notifies you when media changes by default (see ~empv-display-events~), or you can always call ~empv-display-current~ to get the details for currently playing media and status of the media player itself. But you may also want to take an action programatically when current media (or any other property of mpv) changes. There are more than one way of doing this:
+
+*** Using variables & hooks
+
+There are two variables that kept up-to-date all the time and they also have corresponding hooks that you register to get notified whenever they change:
+
+- ~empv-media-title~ ⟶ ~empv-media-title-changed-hook~
+- ~empv-player-state~ ⟶ ~empv-player-state-changed-hook~
 
 #+begin_src emacs-lisp
-  (empv-observe 'metadata (lambda (data) (message "Metadata changed, new metadata is: %s" data)))
+(add-hook
+ 'empv-media-title-changed-hook
+ (lambda (title)
+   (message "Media title changed: %s" title)))
+
+(add-hook
+ 'empv-player-state-changed-hook
+ (lambda (state)
+   (message
+    (pcase empv-player-state
+      ('playing "empv is playing...")
+      ('paused "empv is paused...")
+      ('caching "empv is buffering...")
+      ('stopped "empv is stopped...")))))
+#+end_src
+
+*** Using ~empv-observe~
+
+This is a more low-level way of doing it but you have more options. You can register an observer to underlying property changes of /mpv/ through ~empv-observe~ function. See [[https://github.com/mpv-player/mpv/blob/master/DOCS/man/input.rst#property-list][list of properties]] that you can subscribe to their changes. Here is an example showing you how you can register an observer to ~metadata~ change event:
+
+#+begin_src emacs-lisp
+(empv-observe 'metadata (lambda (data) (message "Metadata changed, new metadata is: %s" data)))
+#+end_src
+
+But every time empv is closed, you need to re-register your observer. For that, you can utilize the ~empv-init-hook~ which gets to run whenever empv is starting:
+
+#+begin_src emacs-lisp
+(add-hook
+ 'empv-init-hook
+ (lambda ()
+   (empv-observe 'metadata
+     (lambda (data)
+       (message "Metadata changed, new metadata is: %s" data)))))
 #+end_src
 
 ** Overriding the quit key for mpv
@@ -261,3 +329,7 @@ empv also brings a simple [[https://github.com/abo-abo/hydra][Hydra]] configurat
 | YouTube tabulated results                                                                                 |
 |-----------------------------------------------------------------------------------------------------------|
 | [[file:https://user-images.githubusercontent.com/8031017/250307500-a95f84ac-0ba0-45a6-b3eb-e6153e2fe46a.png]] |
+
+# Local Variables:
+# before-save-hook: org-make-toc
+# End:
