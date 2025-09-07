@@ -3204,7 +3204,7 @@ To make this behavior permanant, add the following to your init file:
 Also see `empv-reset-playback-speed-on-quit' for resetting playback
 speed to 1 after quitting the video view."
   (empv--cmd
-   'keybind `("q" ,(format "set pause yes;%s cycle video"
+   'keybind `("q" ,(format "set pause yes; %s set force-window no; cycle video;"
                            (if empv-reset-playback-speed-on-quit
                                "set speed 1;"
                              "")))))
