@@ -1064,9 +1064,9 @@ happens."
           (msg (json-encode
                 (if event?
                     `((command . (,(seq-first command) ,(string-to-number request-id) ,@(seq-rest command)))
-                      (request_id . ,request-id))
+                      (request_id . ,(string-to-number request-id)))
                   `((command . ,command)
-                    (request_id . ,request-id))))))
+                    (request_id . ,(string-to-number request-id)))))))
      (when callback
        (map-put! empv--callback-table request-id (list :fn callback :event? event?)))
      (process-send-string empv--network-process (format "%s\n" msg))
