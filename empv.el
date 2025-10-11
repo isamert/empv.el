@@ -1996,7 +1996,8 @@ resulting object is returned."
          (default-headers '(("Accept" . "*/*")))
          (custom-headers
           (when (and empv-invidious-instance
-                     (string-prefix-p empv-invidious-instance full-url))
+                     empv-invidious-request-headers
+                     (empv--invidious-host? url))
             empv-invidious-request-headers))
          (url-request-extra-headers
           (append custom-headers default-headers))
@@ -2425,15 +2426,18 @@ buffer."
                           (empv--youtube-find-reasonable-thumbnail (alist-get 'authorThumbnails info))))
               (args (seq-filter
                      #'identity
-                     (list
-                      (if (file-exists-p filename)
-                          "printf" "curl")
-                      (if empv-allow-insecure-connections
-                          "--insecure" nil)
-                      "-L"
-                      "-o"
-                      filename
-                      thumb-url))))
+                     `(,(if (file-exists-p filename)
+                            "printf" "curl")
+                       ,(when empv-allow-insecure-connections
+                          "--insecure")
+                       ,@(when (and empv-invidious-request-headers (empv--invidious-host? thumb-url))
+                           (seq-mapcat
+                            (lambda (header) (list "--header" (format "%s: %s" (car header) (cdr header))))
+                            empv-invidious-request-headers))
+                       "-L"
+                       "-o"
+                       ,filename
+                       ,thumb-url))))
          (empv--dbg "Dowloading thumbnail using: '%s'" args)
          (set-process-sentinel
           (apply #'start-process
@@ -2675,6 +2679,11 @@ nicely formatted buffer."
         (s-truncate 100 (propertize (or .description "") 'face 'italic)))))))
 
 ;;;;;; Request
+
+(defun empv--invidious-host? (url)
+  "Check if given URL host is same as `empv-invidious-instance's host."
+  (equal (url-host (url-generic-parse-url empv-invidious-instance))
+         (url-host (url-generic-parse-url url))))
 
 (defun empv--youtube-search (term type page callback)
   "Search TERM in YouTube.
