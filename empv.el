@@ -122,6 +122,14 @@ https://invidious-example.com/api/v1"
   :type 'string
   :group 'empv)
 
+(defcustom empv-invidious-request-headers nil
+  "Alist of custom HTTP headers to include in Invidious API requests.
+For example:
+    \\='((\"X-My-Header\" . \"Value\")
+         (\"Authorization\" . \"Bearer token\"))"
+  :type '(alist :key-type string :value-type string)
+  :group 'empv)
+
 (defcustom empv-youtube-use-tabulated-results
   nil
   "Show YouTube results in a tabulated buffer with thumbnails if not nil.
@@ -1985,7 +1993,13 @@ PARAMS should be an alist.  CALLBACK is called with the resulting JSON
 object.  If no callback is given, request is made synchronously and
 resulting object is returned."
   (let* ((full-url (empv--build-url url params))
-         (url-request-extra-headers '(("Accept" . "*/*")))
+         (default-headers '(("Accept" . "*/*")))
+         (custom-headers
+          (when (and empv-invidious-instance
+                     (string-prefix-p empv-invidious-instance full-url))
+            empv-invidious-request-headers))
+         (url-request-extra-headers
+          (append custom-headers default-headers))
          (handler
           (lambda (status)
             (empv--dbg "empv--request(%s, %s) → error: %s" url params (plist-get status :error))
