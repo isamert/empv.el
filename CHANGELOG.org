@@ -1,3 +1,18 @@
+* 5.1.0
+
+- Add ability to pass custom headers for Invidious requests.
+- "q" now forcefully closes the video view for a more consistent experience.
+- Add chapter info to =empv-media-title=, making it easier to identify your position in media.
+- Add =empv-player-state= variable and hooks:
+  - =empv-media-title-changed-hook= for title changes.
+  - =empv-player-state-changed-hook= for player state changes.
+- Run =empv-player-state-change-hook= at the correct time to improve reliability.
+- =empv-youtube-tabulated-video-headers=: accessor now accepts a function for greater flexibility.
+- Add =Contents= section and update =Getting notified on media change= in docs.
+- Mark some buffers as hidden for a cleaner buffer list.
+- Fix MELPA badge link and add stable MELPA badge.
+- Add note about the CHANGELOG to the README.
+
 * 5.0.0
 
 - Added a new public variable =empv-current-media-title=. You can use this for various stuff, like putting the song name in the ~global-mode-line~ etc.
