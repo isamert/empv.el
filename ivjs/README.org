@@ -1,0 +1,36 @@
+#+title: ivjs
+
+Invidious-like API, using YouTube.js. Aims to be a drop in replacement
+(to a limited extend) for applications that use Invidious API.
+
+* Usage
+
+Install deno and start ivjs with:
+
+#+begin_src sh
+deno run --allow-all main.ts
+#+end_src
+
+use it as your Invidious instance:
+
+#+begin_src emacs-lisp
+(setq empv-invidious-instance "http://localhost:3534/api/v1")
+#+end_src
+
+* TODO/Roadmap [1/6]
+
+Currently it's usable but only for video searches (and only shows the
+first page of results).
+
+- [X] [[https://docs.invidious.io/api/#get-apiv1searchsuggestions][GET /api/v1/search/suggestions]]
+- [-] [[https://docs.invidious.io/api/#get-apiv1search][GET /api/v1/search]]
+  - [X] Basic functionality
+  - [ ] Pagination/continuation
+- [ ] [[https://docs.invidious.io/api/channels_endpoint/#get-apiv1channelsidstreams][GET /api/v1/channels/:id/videos]]
+- [ ] [[https://docs.invidious.io/api/#get-apiv1commentsid][GET /api/v1/comments/:id]]
+- [ ] Add some customization/privacy options, [[https://github.com/FreeTubeApp/FreeTube/blob/44850093cb74c32ef4e85353ad457725f3f9d804/src/renderer/helpers/api/local.js#L101][see]].
+  - [ ] Changing the port
+  - [ ] Cache options
+  - [ ] Different client types
+  - [ ] ..?
+- [ ] Automatic integration with empv.el
