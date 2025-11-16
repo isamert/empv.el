@@ -396,7 +396,7 @@ the following HEADER-DEFINITION:
 
 alternatively (the function variant):
 
-    \\='(\"Views\" 15 t (lambda (video) (alist-get 'viewCountText video)))
+    \\='(\"Views\" 15 t (lambda (video) (alist-get \\='viewCountText video)))
 
 This will create an 15 char-wide column named \"Views\" and it
 will get the viewCountText value from the Invidious response to
@@ -514,7 +514,7 @@ This only applies if the endpoint has a count or size parameter.  For
 example, `empv-subsonic-artists' will return all artists no matter what
 this value is.
 
-Maximum possible value is 500. "
+Maximum possible value is 500."
   :type 'string
   :group 'empv
   :version "4.9.0")
@@ -902,7 +902,7 @@ NOTE: Only supports SSH/SSHX methods on tramp."
           (host (file-remote-p uri 'host))
           (localname (file-remote-p uri 'localname)))
       (if (not (member method (list "ssh" "sshx")))
-          (user-error "empv: method %s is not supported for playback." method))
+          (user-error "empv: method %s is not supported for playback" method))
       (format "sftp://%s%s"
               (if user
                   (format "%s@%s" user host)
@@ -2147,7 +2147,7 @@ buffer."
          (goto-char (point-min)))))))
 
 (defun empv-toggle-youtube-tabulated-results ()
-  "Toggle YouTube results display between tabulated mode and completing-read."
+  "Toggle YouTube results display between tabulated mode and `completing-read'."
   (interactive)
   (setq empv-youtube-use-tabulated-results (not empv-youtube-use-tabulated-results))
   (empv--display-event
@@ -2842,7 +2842,7 @@ them so that responses are easier to work with."
             (let-alist result
               (unless (equal "ok" .subsonic-response.status)
                 (empv--dbg "empv--subsonic-request failed :: endpoint=%s, rest=%s, response=%s" endpoint rest result)
-                (error "Request to subsonic failed."))
+                (error "Request to subsonic failed"))
               (let ((result (or
                              (alist-get
                               (thread-last
