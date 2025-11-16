@@ -2460,16 +2460,22 @@ buffer."
   "Return image type of FILE.
 It is based on file extension.  See Info node `(elisp) Image Formats' for
 supported formats."
-  ;; (if (string-prefix-p
-  ;;      "\x89PNG\r\n\x1a\n"
-  ;;      (with-temp-buffer
-  ;;        (insert-file-contents-literally file nil 0 10)
-  ;;        (buffer-string)))
-  ;;     'png
-  ;;   'jpeg)
-  (pcase (intern (file-name-extension file))
-    ('jpg 'jpeg)
-    (other other)))
+  (when (file-readable-p file)
+    (with-temp-buffer
+      (insert-file-contents-literally file nil 0 12)
+      (let ((content (buffer-string)))
+        (cond
+         ;; PNG: \x89PNG\r\n\x1a\n
+         ((string-prefix-p "\x89PNG\r\n\x1a\n" content)
+          'png)
+         ;; JPEG: \xFF\xD8\xFF
+         ((string-prefix-p "\xFF\xD8\xFF" content)
+          'jpeg)
+         ;; WebP: RIFF....WEBP (where .... is 4-byte size)
+         ((and (string-prefix-p "RIFF" content)
+               (>= (length content) 12)
+               (string-prefix-p "WEBP" (substring content 8)))
+          'webp))))))
 
 (defun empv-youtube-results--current-item ()
   (save-excursion
