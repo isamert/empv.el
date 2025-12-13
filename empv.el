@@ -2194,7 +2194,10 @@ By default it downloads as MP3 file, please see
                                  (s-matches? "^--\\(audio-format\\|merge-output-format\\)" it))
                                empv-ytdl-download-options))))
                           "mp4")))))
-         (default-directory (file-name-directory where))
+         (default-directory (let ((dir (file-name-directory where)))
+                              ;; Create any nonexistent parent dirs.
+                              (make-directory dir t)
+                              dir))
          (buffer (generate-new-buffer " *empv-yt-dlp*")))
     (set-process-sentinel
      (apply
