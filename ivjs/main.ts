@@ -66,7 +66,7 @@ export type AuthorThumbnail = {
   height: number;
 };
 
-export type VideoSearchResult = {
+export type VideoResult = {
   type: 'video';
   title: string;
   videoId: string;
@@ -77,6 +77,7 @@ export type VideoSearchResult = {
   description: string;
   descriptionHtml: string;
   viewCount: number;
+  viewCountText: number;
   published: number;
   publishedText: string;
   lengthSeconds: number;
@@ -92,7 +93,7 @@ export type PlaylistVideo = {
   videoThumbnails: VideoThumbnail[];
 };
 
-export type PlaylistSearchResult = {
+export type PlaylistResult = {
   type: 'playlist';
   title: string;
   playlistId: string;
@@ -105,7 +106,7 @@ export type PlaylistSearchResult = {
   videos: PlaylistVideo[];
 };
 
-export type ChannelSearchResult = {
+export type ChannelResult = {
   type: 'channel';
   author: string;
   authorId: string;
@@ -118,7 +119,7 @@ export type ChannelSearchResult = {
   descriptionHtml: string;
 };
 
-export type HashtagSearchResult = {
+export type HashtagResult = {
   type: 'hashtag';
   title: string;
   url: string;
@@ -127,10 +128,10 @@ export type HashtagSearchResult = {
 };
 
 export type SearchResult =
-  | VideoSearchResult
-  | PlaylistSearchResult
-  | ChannelSearchResult
-  | HashtagSearchResult;
+  | VideoResult
+  | PlaylistResult
+  | ChannelResult
+  | HashtagResult;
 
 export type SearchResponse = SearchResult[];
 
@@ -198,6 +199,7 @@ function convertVideo(item) {
   const descriptionHtml = getSnippetHtml(item.snippets);
 
   const viewCount = parseViewCount(item.view_count);
+  const viewCountText = getText(item.view_count);
 
   const published = 0; // Not available in timestamp format
   const publishedText = getText(item.published);
@@ -219,6 +221,7 @@ function convertVideo(item) {
     description,
     descriptionHtml,
     viewCount,
+    viewCountText,
     published,
     publishedText,
     lengthSeconds,
