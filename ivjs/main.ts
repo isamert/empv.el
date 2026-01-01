@@ -580,26 +580,128 @@ const search = async (req: SearchParams): Promise<SearchResponse> => {
   return convertYouTubeResults(result);
 }
 
+// ** Channel videos
+// *** Types
+
+type ChannelVideosResult = {
+  videos: VideoResult[];
+  continuation: string;
+}
+
+type ChannelVideosParams = {
+  sort_by: ('newest' | 'latest') | 'popular' | 'oldest'
+}
+
+// *** channelVideos
+
+const channelVideos = async (id: string, req: ChannelVideosParams): Promise<ChannelVideosResult> => {
+  const channel = await innertube.getChannel(id);
+  const channelVideos = await channel.getVideos()
+  const sortFilter = channelVideos
+    .filters
+    .find(x => x.toLowerCase() === req.sort_by || (req.sort_by === "newest" && x.toLowerCase() === 'latest'));
+  const response = await channelVideos.applyFilter(sortFilter);
+  const contents = response?.contents?.contents ?? [];
+  const videos: VideoResult[] = [];
+  let continuation: string = "";
+
+  const metadata = channelVideos?.metadata ?? {};
+  const author = metadata.title ?? '';
+  const authorId = metadata.external_id ?? '';
+  const authorUrl = metadata.url ?? '';
+  for (const item of contents) {
+    if (item.type === "RichItem" && item.content.type === "Video") {
+      const videoResult = parseVideoResult(item, { author, authorId, authorUrl });
+      if (videoResult) {
+        videos.push(videoResult);
+      }
+    } else if (item.type === "ContinuationItem") {
+      continuation = item.endpoint?.payload?.token ?? "";
+    }
+  }
+  return { videos, continuation };
+}
+
+function parseVideoResult(item: any, author: any): VideoResult | null {
+  const video = item?.content;
+  return {
+    type: 'video',
+    title: video.title?.text ?? '',
+    videoId: video.video_id ?? '',
+    author: author.author ?? video.author?.name ?? '',
+    authorId: author.authorId ?? video.author?.id ?? '',
+    authorUrl: author.authorUrl ?? video.author?.url ?? '',
+    videoThumbnails: (video.thumbnails ?? []).map((t: any): VideoThumbnail => ({
+      quality: '', // Quality info may not be present in the data.
+      url: t.url,
+      width: t.width,
+      height: t.height
+    })),
+    description: video.description_snippet?.text ?? '',
+    descriptionHtml: '', // Not available in this structure
+    viewCount: Number((video.view_count?.text ?? '0').replace(/\D/g, '')) || 0,
+    viewCountText: video.view_count?.text ?? '0',
+    published: 0, // No epoch available
+    publishedText: video.published?.text ?? '',
+    lengthSeconds: (() => {
+      const [min, sec] = (video.length_text?.text ?? '').split(":").map(Number);
+      return min && sec !== undefined ? min * 60 + sec : 0;
+    })(),
+    // TODO: Need to handle these:
+    liveNow: false,
+    paid: false,
+    premium: false,
+  };
+}
+
 // * Server
 
 Deno.serve({ port: 3534 }, async (req) => {
   const url = new URL(req.url);
   const searchParams: any = Object.fromEntries(url.searchParams);
 
-  let result;
-  if (url.pathname === "/api/v1/search/suggestions") {
-    result = await getSearchSuggestions(searchParams)
-  } else if (url.pathname === "/api/v1/search") {
-    result = await search(searchParams)
+  console.log("→", { url: req.url })
+
+  const routes = [
+    [
+      "/api/v1/search/suggestions",
+      () => getSearchSuggestions(searchParams)
+    ],
+    [
+      "/api/v1/search",
+      () => search(searchParams)
+    ],
+    [
+      "/api/v1/channels/(?<channelId>[a-zA-Z0-9_-]+)/videos",
+      (params) => channelVideos(params.channelId, searchParams)
+    ],
+  ];
+
+  let response;
+  for (const [pattern, handler] of routes) {
+    const match = RegExp(pattern).exec(url.pathname);
+    if (match) {
+      const result = await handler(match.groups || {});
+      if (result) {
+        response = result
+        break;
+      }
+    }
   }
 
-  if (result) {
-    return new Response(JSON.stringify(result))
+  console.log("←", response ? "OK" : undefined)
+
+  if (response) {
+    return new Response(JSON.stringify(response))
   }
+
   return new Response(`Not found`, { status: 404 });
 });
 
 // * Testing
 
 // const val = await search({q: 'iron maiden'})
+// console.log(JSON.stringify(val , null, 2))
+
+// const val = await channelVideos('UCaisXKBdNOYqGr2qOXCLchQ')
 // console.log(JSON.stringify(val , null, 2))
