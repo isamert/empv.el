@@ -2085,7 +2085,7 @@ resulting object is returned."
 
 ;;;###autoload
 (defun empv-youtube-channel (term)
-  "Search TERM in YouTube playlists."
+  "Search TERM in YouTube channels."
   (interactive (list (empv--youtube-suggest "Search in YouTube channels: ")))
   (empv--youtube term 'channel))
 
