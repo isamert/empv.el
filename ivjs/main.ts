@@ -1,4 +1,8 @@
-import { Innertube, UniversalCache, Types as InnerTubeTypes } from 'youtubei.js';
+import {
+  Innertube,
+  Types as InnerTubeTypes,
+  UniversalCache,
+} from "youtubei.js";
 
 // * InnerTube
 
@@ -7,8 +11,8 @@ const innertube = await Innertube.create({
     // Enables persistent caching
     true,
     // Path to the cache directory. The directory will be created if it doesn't exist
-    './.cache'
-  )
+    "./.cache",
+  ),
 });
 
 // * Endpoints
@@ -28,13 +32,15 @@ export type SearchSuggestionsResponse = {
 
 // *** getSearchSuggestions
 
-const getSearchSuggestions = async (req: SearchSuggestionsParams): Promise<SearchSuggestionsResponse> => {
-  const result = await innertube.getSearchSuggestions(req.q)
+const getSearchSuggestions = async (
+  req: SearchSuggestionsParams,
+): Promise<SearchSuggestionsResponse> => {
+  const result = await innertube.getSearchSuggestions(req.q);
   return {
     query: req.q,
     suggestions: result,
-  }
-}
+  };
+};
 
 // ** Search
 
@@ -67,7 +73,7 @@ export type AuthorThumbnail = {
 };
 
 export type VideoResult = {
-  type: 'video';
+  type: "video";
   title: string;
   videoId: string;
   author: string;
@@ -94,7 +100,7 @@ export type PlaylistVideo = {
 };
 
 export type PlaylistResult = {
-  type: 'playlist';
+  type: "playlist";
   title: string;
   playlistId: string;
   playlistThumbnail: string;
@@ -107,7 +113,7 @@ export type PlaylistResult = {
 };
 
 export type ChannelResult = {
-  type: 'channel';
+  type: "channel";
   author: string;
   authorId: string;
   authorUrl: string;
@@ -120,7 +126,7 @@ export type ChannelResult = {
 };
 
 export type HashtagResult = {
-  type: 'hashtag';
+  type: "hashtag";
   title: string;
   url: string;
   channelCount: number;
@@ -143,7 +149,7 @@ export type SearchResponse = SearchResult[];
  * @returns {Array<{type: string, [key: string]: unknown}>} Converted results
  */
 function convertYouTubeResults(result) {
-  if (!result || typeof result !== 'object' || !('results' in result)) {
+  if (!result || typeof result !== "object" || !("results" in result)) {
     return [];
   }
 
@@ -152,24 +158,24 @@ function convertYouTubeResults(result) {
     return [];
   }
 
-  return results.map(item => {
-    if (!item || typeof item !== 'object' || !('type' in item)) {
+  return results.map((item) => {
+    if (!item || typeof item !== "object" || !("type" in item)) {
       return null;
     }
 
     switch (item.type) {
-      case 'Video':
+      case "Video":
         return convertVideo(item);
-      case 'Playlist':
+      case "Playlist":
         return convertPlaylist(item);
-      case 'Channel':
+      case "Channel":
         return convertChannel(item);
-      case 'Hashtag':
+      case "Hashtag":
         return convertHashtag(item);
       default:
         return null;
     }
-  }).filter(item => item !== null);
+  }).filter((item) => item !== null);
 }
 
 /**
@@ -179,19 +185,19 @@ function convertYouTubeResults(result) {
  */
 function convertVideo(item) {
   const title = getText(item.title);
-  const videoId = typeof item.video_id === 'string' ? item.video_id : '';
+  const videoId = typeof item.video_id === "string" ? item.video_id : "";
 
-  const author = item.author && typeof item.author === 'object'
-    ? (typeof item.author.name === 'string' ? item.author.name : '')
-    : '';
+  const author = item.author && typeof item.author === "object"
+    ? (typeof item.author.name === "string" ? item.author.name : "")
+    : "";
 
-  const authorId = item.author && typeof item.author === 'object'
-    ? (typeof item.author.id === 'string' ? item.author.id : '')
-    : '';
+  const authorId = item.author && typeof item.author === "object"
+    ? (typeof item.author.id === "string" ? item.author.id : "")
+    : "";
 
-  const authorUrl = item.author && typeof item.author === 'object'
-    ? (typeof item.author.url === 'string' ? item.author.url : '')
-    : '';
+  const authorUrl = item.author && typeof item.author === "object"
+    ? (typeof item.author.url === "string" ? item.author.url : "")
+    : "";
 
   const videoThumbnails = convertThumbnails(item.thumbnails);
 
@@ -211,7 +217,7 @@ function convertVideo(item) {
   const premium = false;
 
   return {
-    type: 'video',
+    type: "video",
     title,
     videoId,
     author,
@@ -227,7 +233,7 @@ function convertVideo(item) {
     lengthSeconds,
     liveNow,
     paid,
-    premium
+    premium,
   };
 }
 
@@ -238,39 +244,46 @@ function convertVideo(item) {
  */
 function convertPlaylist(item) {
   const title = getText(item.title);
-  const playlistId = typeof item.playlist_id === 'string' ? item.playlist_id : '';
+  const playlistId = typeof item.playlist_id === "string"
+    ? item.playlist_id
+    : "";
 
-  const thumbnails = Array.isArray(item.thumbnails) && item.thumbnails.length > 0
-    ? item.thumbnails[0]
-    : null;
-  const playlistThumbnail = thumbnails && typeof thumbnails === 'object' && 'url' in thumbnails
-    ? ensureHttps(typeof thumbnails.url === 'string' ? thumbnails.url : '')
-    : '';
+  const thumbnails =
+    Array.isArray(item.thumbnails) && item.thumbnails.length > 0
+      ? item.thumbnails[0]
+      : null;
+  const playlistThumbnail =
+    thumbnails && typeof thumbnails === "object" && "url" in thumbnails
+      ? ensureHttps(typeof thumbnails.url === "string" ? thumbnails.url : "")
+      : "";
 
-  const author = item.author && typeof item.author === 'object'
-    ? (typeof item.author.name === 'string' ? item.author.name : '')
-    : '';
+  const author = item.author && typeof item.author === "object"
+    ? (typeof item.author.name === "string" ? item.author.name : "")
+    : "";
 
-  const authorId = item.author && typeof item.author === 'object'
-    ? (typeof item.author.id === 'string' ? item.author.id : '')
-    : '';
+  const authorId = item.author && typeof item.author === "object"
+    ? (typeof item.author.id === "string" ? item.author.id : "")
+    : "";
 
-  const authorUrl = item.author && typeof item.author === 'object'
-    ? (typeof item.author.url === 'string' ? item.author.url : '')
-    : '';
+  const authorUrl = item.author && typeof item.author === "object"
+    ? (typeof item.author.url === "string" ? item.author.url : "")
+    : "";
 
-  const authorVerified = item.author && typeof item.author === 'object' && 'is_verified' in item.author
+  const authorVerified = item.author && typeof item.author === "object" &&
+      "is_verified" in item.author
     ? Boolean(item.author.is_verified || item.author.is_verified_artist)
     : false;
 
-  const videoCount = typeof item.video_count === 'number' ? item.video_count : 0;
+  const videoCount = typeof item.video_count === "number"
+    ? item.video_count
+    : 0;
 
   const videos = Array.isArray(item.videos)
-    ? item.videos.map(convertPlaylistVideo).filter(v => v !== null)
+    ? item.videos.map(convertPlaylistVideo).filter((v) => v !== null)
     : [];
 
   return {
-    type: 'playlist',
+    type: "playlist",
     title,
     playlistId,
     playlistThumbnail,
@@ -279,7 +292,7 @@ function convertPlaylist(item) {
     authorUrl,
     authorVerified,
     videoCount,
-    videos
+    videos,
   };
 }
 
@@ -289,20 +302,26 @@ function convertPlaylist(item) {
  * @returns {{title: string, videoId: string, lengthSeconds: number, videoThumbnails: Array<{quality: string, url: string, width: number, height: number}>} | null}
  */
 function convertPlaylistVideo(video) {
-  if (!video || typeof video !== 'object') {
+  if (!video || typeof video !== "object") {
     return null;
   }
 
-  const title = 'title' in video ? getText(video.title) : '';
-  const videoId = 'video_id' in video && typeof video.video_id === 'string' ? video.video_id : '';
-  const lengthSeconds = 'length_text' in video ? parseLengthSeconds(video.length_text) : 0;
-  const videoThumbnails = 'thumbnails' in video ? convertThumbnails(video.thumbnails) : [];
+  const title = "title" in video ? getText(video.title) : "";
+  const videoId = "video_id" in video && typeof video.video_id === "string"
+    ? video.video_id
+    : "";
+  const lengthSeconds = "length_text" in video
+    ? parseLengthSeconds(video.length_text)
+    : 0;
+  const videoThumbnails = "thumbnails" in video
+    ? convertThumbnails(video.thumbnails)
+    : [];
 
   return {
     title,
     videoId,
     lengthSeconds,
-    videoThumbnails
+    videoThumbnails,
   };
 }
 
@@ -312,17 +331,18 @@ function convertPlaylistVideo(video) {
  * @returns {{type: string, [key: string]: unknown}}
  */
 function convertChannel(item) {
-  const author = item.author && typeof item.author === 'object'
-    ? (typeof item.author.name === 'string' ? item.author.name : '')
-    : '';
+  const author = item.author && typeof item.author === "object"
+    ? (typeof item.author.name === "string" ? item.author.name : "")
+    : "";
 
-  const authorId = typeof item.id === 'string' ? item.id : '';
+  const authorId = typeof item.id === "string" ? item.id : "";
 
-  const authorUrl = item.author && typeof item.author === 'object'
-    ? (typeof item.author.url === 'string' ? item.author.url : '')
-    : '';
+  const authorUrl = item.author && typeof item.author === "object"
+    ? (typeof item.author.url === "string" ? item.author.url : "")
+    : "";
 
-  const authorThumbnails = item.author && typeof item.author === 'object' && 'thumbnails' in item.author
+  const authorThumbnails = item.author && typeof item.author === "object" &&
+      "thumbnails" in item.author
     ? convertThumbnails(item.author.thumbnails)
     : [];
 
@@ -336,7 +356,7 @@ function convertChannel(item) {
   const descriptionHtml = getTextAsHtml(item.description_snippet);
 
   return {
-    type: 'channel',
+    type: "channel",
     author,
     authorId,
     authorUrl,
@@ -345,7 +365,7 @@ function convertChannel(item) {
     subCount,
     videoCount,
     description,
-    descriptionHtml
+    descriptionHtml,
   };
 }
 
@@ -356,16 +376,20 @@ function convertChannel(item) {
  */
 function convertHashtag(item) {
   const title = getText(item.title);
-  const url = typeof item.url === 'string' ? item.url : '';
-  const channelCount = typeof item.channel_count === 'number' ? item.channel_count : 0;
-  const videoCount = typeof item.video_count === 'number' ? item.video_count : 0;
+  const url = typeof item.url === "string" ? item.url : "";
+  const channelCount = typeof item.channel_count === "number"
+    ? item.channel_count
+    : 0;
+  const videoCount = typeof item.video_count === "number"
+    ? item.video_count
+    : 0;
 
   return {
-    type: 'hashtag',
+    type: "hashtag",
     title,
     url,
     channelCount,
-    videoCount
+    videoCount,
   };
 }
 
@@ -375,15 +399,15 @@ function convertHashtag(item) {
  * @returns {string}
  */
 function getText(textObj) {
-  if (!textObj || typeof textObj !== 'object') {
-    return '';
+  if (!textObj || typeof textObj !== "object") {
+    return "";
   }
 
-  if ('text' in textObj && typeof textObj.text === 'string') {
+  if ("text" in textObj && typeof textObj.text === "string") {
     return textObj.text;
   }
 
-  return '';
+  return "";
 }
 
 /**
@@ -393,12 +417,15 @@ function getText(textObj) {
  */
 function getSnippetText(snippets) {
   if (!Array.isArray(snippets) || snippets.length === 0) {
-    return '';
+    return "";
   }
 
   const firstSnippet = snippets[0];
-  if (!firstSnippet || typeof firstSnippet !== 'object' || !('text' in firstSnippet)) {
-    return '';
+  if (
+    !firstSnippet || typeof firstSnippet !== "object" ||
+    !("text" in firstSnippet)
+  ) {
+    return "";
   }
 
   return getText(firstSnippet.text);
@@ -411,12 +438,15 @@ function getSnippetText(snippets) {
  */
 function getSnippetHtml(snippets) {
   if (!Array.isArray(snippets) || snippets.length === 0) {
-    return '';
+    return "";
   }
 
   const firstSnippet = snippets[0];
-  if (!firstSnippet || typeof firstSnippet !== 'object' || !('text' in firstSnippet)) {
-    return '';
+  if (
+    !firstSnippet || typeof firstSnippet !== "object" ||
+    !("text" in firstSnippet)
+  ) {
+    return "";
   }
 
   return getTextAsHtml(firstSnippet.text);
@@ -428,7 +458,7 @@ function getSnippetHtml(snippets) {
  * @returns {string}
  */
 function getTextAsHtml(textObj) {
-  if (!textObj || typeof textObj !== 'object' || !('runs' in textObj)) {
+  if (!textObj || typeof textObj !== "object" || !("runs" in textObj)) {
     return getText(textObj);
   }
 
@@ -437,19 +467,22 @@ function getTextAsHtml(textObj) {
     return getText(textObj);
   }
 
-  return runs.map(run => {
-    if (!run || typeof run !== 'object' || !('text' in run) || typeof run.text !== 'string') {
-      return '';
+  return runs.map((run) => {
+    if (
+      !run || typeof run !== "object" || !("text" in run) ||
+      typeof run.text !== "string"
+    ) {
+      return "";
     }
 
     let html = run.text;
 
-    if ('bold' in run && run.bold === true) {
+    if ("bold" in run && run.bold === true) {
       html = `<b>${html}</b>`;
     }
 
     return html;
-  }).join('');
+  }).join("");
 }
 
 /**
@@ -463,20 +496,24 @@ function convertThumbnails(thumbnails) {
   }
 
   return thumbnails.map((thumb, index) => {
-    if (!thumb || typeof thumb !== 'object') {
+    if (!thumb || typeof thumb !== "object") {
       return null;
     }
 
-    const url = 'url' in thumb && typeof thumb.url === 'string'
+    const url = "url" in thumb && typeof thumb.url === "string"
       ? ensureHttps(thumb.url)
-      : '';
-    const width = 'width' in thumb && typeof thumb.width === 'number' ? thumb.width : 0;
-    const height = 'height' in thumb && typeof thumb.height === 'number' ? thumb.height : 0;
+      : "";
+    const width = "width" in thumb && typeof thumb.width === "number"
+      ? thumb.width
+      : 0;
+    const height = "height" in thumb && typeof thumb.height === "number"
+      ? thumb.height
+      : 0;
 
     const quality = getQualityFromDimensions(width, height, index);
 
     return { quality, url, width, height };
-  }).filter(thumb => thumb !== null);
+  }).filter((thumb) => thumb !== null);
 }
 
 /**
@@ -487,9 +524,9 @@ function convertThumbnails(thumbnails) {
  * @returns {string}
  */
 function getQualityFromDimensions(width, height, index) {
-  if (height >= 720 || width >= 1280) return 'high';
-  if (height >= 360 || width >= 640) return 'medium';
-  if (height >= 180 || width >= 320) return 'low';
+  if (height >= 720 || width >= 1280) return "high";
+  if (height >= 360 || width >= 640) return "medium";
+  if (height >= 180 || width >= 320) return "low";
   return `thumbnail${index}`;
 }
 
@@ -499,7 +536,7 @@ function getQualityFromDimensions(width, height, index) {
  * @returns {string}
  */
 function ensureHttps(url) {
-  if (url.startsWith('//')) {
+  if (url.startsWith("//")) {
     return `https:${url}`;
   }
   return url;
@@ -517,7 +554,7 @@ function parseViewCount(viewCountObj) {
   const match = text.match(/[\d,]+/);
   if (!match) return 0;
 
-  return parseInt(match[0].replace(/,/g, ''), 10) || 0;
+  return parseInt(match[0].replace(/,/g, ""), 10) || 0;
 }
 
 /**
@@ -536,10 +573,14 @@ function parseSubscriberCount(subCountObj) {
   const multiplier = match[2].toUpperCase();
 
   switch (multiplier) {
-    case 'K': return Math.floor(num * 1000);
-    case 'M': return Math.floor(num * 1000000);
-    case 'B': return Math.floor(num * 1000000000);
-    default: return Math.floor(num);
+    case "K":
+      return Math.floor(num * 1000);
+    case "M":
+      return Math.floor(num * 1000000);
+    case "B":
+      return Math.floor(num * 1000000000);
+    default:
+      return Math.floor(num);
   }
 }
 
@@ -552,7 +593,7 @@ function parseLengthSeconds(lengthObj) {
   const text = getText(lengthObj);
   if (!text) return 0;
 
-  const parts = text.split(':').map(p => parseInt(p, 10));
+  const parts = text.split(":").map((p) => parseInt(p, 10));
   if (parts.some(isNaN)) return 0;
 
   if (parts.length === 2) {
@@ -575,10 +616,10 @@ const search = async (req: SearchParams): Promise<SearchResponse> => {
     features: req.features,
   });
 
-  result.getContinuationData()
+  result.getContinuationData();
 
   return convertYouTubeResults(result);
-}
+};
 
 // ** Channel videos
 // *** Types
@@ -586,72 +627,180 @@ const search = async (req: SearchParams): Promise<SearchResponse> => {
 type ChannelVideosResult = {
   videos: VideoResult[];
   continuation: string;
-}
+};
 
 type ChannelVideosParams = {
-  sort_by: ('newest' | 'latest') | 'popular' | 'oldest'
-}
+  sort_by: ("newest" | "latest") | "popular" | "oldest";
+  continuation: string;
+};
 
 // *** channelVideos
 
-const channelVideos = async (id: string, req: ChannelVideosParams): Promise<ChannelVideosResult> => {
+const channelVideos = async (
+  id: string,
+  req: ChannelVideosParams,
+): Promise<ChannelVideosResult> => {
+  const sortBy = req.sort_by
+    ? (req.sort_by === "newest" ? "latest" : req.sort_by)
+    : "latest";
+
   const channel = await innertube.getChannel(id);
-  const channelVideos = await channel.getVideos()
-  const sortFilter = channelVideos
-    .filters
-    .find(x => x.toLowerCase() === req.sort_by || (req.sort_by === "newest" && x.toLowerCase() === 'latest'));
+  const channelVideos = await channel.getVideos();
+  const sortFilter = channelVideos.filters.find((x) =>
+    x.toLowerCase() === sortBy
+  )!;
   const response = await channelVideos.applyFilter(sortFilter);
-  const contents = response?.contents?.contents ?? [];
-  const videos: VideoResult[] = [];
+
   let continuation: string = "";
-
-  const metadata = channelVideos?.metadata ?? {};
-  const author = metadata.title ?? '';
-  const authorId = metadata.external_id ?? '';
-  const authorUrl = metadata.url ?? '';
-  for (const item of contents) {
-    if (item.type === "RichItem" && item.content.type === "Video") {
-      const videoResult = parseVideoResult(item, { author, authorId, authorUrl });
-      if (videoResult) {
-        videos.push(videoResult);
-      }
-    } else if (item.type === "ContinuationItem") {
-      continuation = item.endpoint?.payload?.token ?? "";
-    }
+  if (channelVideos.has_continuation) {
+    continuation = encodePage(response.page);
   }
-  return { videos, continuation };
-}
+  const metadata = channelVideos?.metadata ?? {};
+  const author = metadata.title ?? "";
+  const authorId = metadata.external_id ?? "";
+  const authorUrl = metadata.url ?? "";
+  const authorInfo = { author, authorId, authorUrl };
 
-function parseVideoResult(item: any, author: any): VideoResult | null {
-  const video = item?.content;
   return {
-    type: 'video',
-    title: video.title?.text ?? '',
-    videoId: video.video_id ?? '',
-    author: author.author ?? video.author?.name ?? '',
-    authorId: author.authorId ?? video.author?.id ?? '',
-    authorUrl: author.authorUrl ?? video.author?.url ?? '',
-    videoThumbnails: (video.thumbnails ?? []).map((t: any): VideoThumbnail => ({
-      quality: '', // Quality info may not be present in the data.
-      url: t.url,
-      width: t.width,
-      height: t.height
-    })),
-    description: video.description_snippet?.text ?? '',
-    descriptionHtml: '', // Not available in this structure
-    viewCount: Number((video.view_count?.text ?? '0').replace(/\D/g, '')) || 0,
-    viewCountText: video.view_count?.text ?? '0',
-    published: 0, // No epoch available
-    publishedText: video.published?.text ?? '',
-    lengthSeconds: (() => {
-      const [min, sec] = (video.length_text?.text ?? '').split(":").map(Number);
-      return min && sec !== undefined ? min * 60 + sec : 0;
-    })(),
-    // TODO: Need to handle these:
-    liveNow: false,
-    paid: false,
-    premium: false,
+    videos: channelVideosToVideoResult(response?.videos, authorInfo),
+    continuation,
   };
+};
+
+export function channelVideosToVideoResult(
+  raw: any[],
+  authorInfo: any,
+): VideoResult[] {
+  const textFrom = (t: any): string =>
+    t?.text ?? t?.runs?.map((r: any) => r.text).join("") ?? "";
+
+  const parseNumber = (s: string | undefined): number => {
+    if (!s) return 0;
+    // "126,020,980 views" -> 126020980
+    const m = s.replace(/,/g, "").match(/(\d+(\.\d+)?)/);
+    if (!m) return 0;
+    return Number(m[1]);
+  };
+
+  const parsePublishedAgo = (s: string | undefined): number => {
+    // very rough: "10 years ago" -> timestamp
+    if (!s) return 0;
+    const m = s.match(
+      /(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago/i,
+    );
+    if (!m) return 0;
+    const num = Number(m[1]);
+    const unit = m[2].toLowerCase();
+    const now = Date.now();
+    const msPer = {
+      second: 1000,
+      minute: 60 * 1000,
+      hour: 60 * 60 * 1000,
+      day: 24 * 60 * 60 * 1000,
+      week: 7 * 24 * 60 * 60 * 1000,
+      month: 30 * 24 * 60 * 60 * 1000,
+      year: 365 * 24 * 60 * 60 * 1000,
+    } as const;
+    const ms = msPer[unit] * num;
+    return Math.floor((now - ms) / 1000); // unix seconds
+  };
+
+  const parseDuration = (s: string | undefined): number => {
+    // "4:24" | "1:02:03"
+    if (!s) return 0;
+    const parts = s.split(":").map(Number);
+    if (parts.some(isNaN)) return 0;
+    if (parts.length === 3) {
+      return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    }
+    if (parts.length === 2) {
+      return parts[0] * 60 + parts[1];
+    }
+    return parts[0] || 0;
+  };
+
+  const htmlEscape = (s: string): string =>
+    s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+  const inferThumbnailQuality = (url: string): VideoThumbnail["quality"] => {
+    if (!url) return "default";
+
+    // Common YouTube patterns
+    if (url.includes("maxresdefault")) return "maxresdefault";
+    if (url.includes("maxres")) return "maxres";
+    if (url.includes("sddefault")) return "sddefault";
+    if (url.includes("hqdefault")) return "high";
+    if (url.includes("mqdefault")) return "medium";
+    if (url.includes("default")) return "default";
+
+    // Heuristic by size, fallback
+    const m = url.match(/\/(\d+)x(\d+)\./);
+    if (m) {
+      const w = Number(m[1]);
+      const h = Number(m[2]);
+      if (w >= 1280 || h >= 720) return "maxres";
+      if (w >= 640 || h >= 480) return "high";
+      if (w >= 320 || h >= 180) return "medium";
+    }
+
+    return "default";
+  };
+
+  return raw
+    .filter((item) => item?.type === "Video")
+    .map((item): VideoResult => {
+      const title = textFrom(item.title);
+      const description = textFrom(item.description_snippet);
+      const lengthText = item.length_text?.text as string | undefined;
+
+      const videoThumbnails: VideoThumbnail[] = (item.thumbnails ?? []).map(
+        (t: any): VideoThumbnail => ({
+          quality: inferThumbnailQuality(t.url),
+          url: t.url,
+          width: t.width,
+          height: t.height,
+        }),
+      );
+
+      const authorName = authorInfo.author ?? item.author?.name ?? "";
+      const authorId = authorInfo.authorId ?? item.author?.id ?? "";
+      const authorUrl = authorInfo.authorUrl ?? item.author?.url ?? "";
+
+      const viewCount = parseNumber(item.view_count?.text);
+      const viewCountText = item.short_view_count?.text ?? "";
+      const publishedText = item.published?.text ?? "";
+      const published = parsePublishedAgo(publishedText);
+      const lengthSeconds = parseDuration(lengthText);
+
+      // naive detection; refine as needed
+      const liveNow = item.badges?.some((b: any) =>
+        /live/i.test(b?.text ?? b?.label ?? "")
+      ) ??
+        false;
+
+      return {
+        type: "video",
+        title,
+        videoId: item.video_id ?? item.endpoint?.payload?.videoId ?? "",
+        author: authorName,
+        authorId,
+        authorUrl,
+        videoThumbnails,
+        description,
+        descriptionHtml: htmlEscape(description).replace(/\n/g, "<br>"),
+        viewCount,
+        viewCountText,
+        published,
+        publishedText,
+        lengthSeconds,
+        liveNow,
+        paid: false,
+        premium: false,
+      };
+    });
 }
 
 // * Server
@@ -660,20 +809,20 @@ Deno.serve({ port: 3534 }, async (req) => {
   const url = new URL(req.url);
   const searchParams: any = Object.fromEntries(url.searchParams);
 
-  console.log("→", { url: req.url })
+  console.log("→", { url: req.url });
 
   const routes = [
     [
       "/api/v1/search/suggestions",
-      () => getSearchSuggestions(searchParams)
+      () => getSearchSuggestions(searchParams),
     ],
     [
       "/api/v1/search",
-      () => search(searchParams)
+      () => search(searchParams),
     ],
     [
       "/api/v1/channels/(?<channelId>[a-zA-Z0-9_-]+)/videos",
-      (params) => channelVideos(params.channelId, searchParams)
+      (params) => channelVideos(params.channelId, searchParams),
     ],
   ];
 
@@ -683,16 +832,16 @@ Deno.serve({ port: 3534 }, async (req) => {
     if (match) {
       const result = await handler(match.groups || {});
       if (result) {
-        response = result
+        response = result;
         break;
       }
     }
   }
 
-  console.log("←", response ? "OK" : undefined)
+  console.log("←", response ? "OK" : undefined);
 
   if (response) {
-    return new Response(JSON.stringify(response))
+    return new Response(JSON.stringify(response, null, 2));
   }
 
   return new Response(`Not found`, { status: 404 });
