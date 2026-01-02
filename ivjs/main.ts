@@ -634,9 +634,9 @@ type ChannelVideosParams = {
   continuation: string;
 };
 
-// *** channelVideos
+// *** getChannelVideos
 
-const channelVideos = async (
+const getChannelVideos = async (
   id: string,
   req: ChannelVideosParams,
 ): Promise<ChannelVideosResult> => {
@@ -803,6 +803,174 @@ export function channelVideosToVideoResult(
     });
 }
 
+// ** Comments
+// *** Types
+
+type CommentsParams = {
+  sort_by: "top" | "new";
+  source: "youtube";
+};
+
+type CommentsResponse = {
+  commentCount?: number | null;
+  videoId: string;
+  comments: CommentThread[];
+  continuation?: string | null;
+};
+
+type CommentThread = {
+  author: string;
+  authorThumbnails: AuthorThumbnail[];
+  authorId: string;
+  authorUrl: string;
+
+  isEdited: boolean;
+  isPinned: boolean;
+  isSponsor?: boolean | null;
+  sponsorIconUrl?: string | null;
+
+  content: string;
+  contentHtml: string;
+  published: number; // Int64
+  publishedText: string;
+  likeCount: number;
+  commentId: string;
+  authorIsChannelOwner: boolean;
+
+  creatorHeart?: CreatorHeart | null;
+  replies?: CommentReplies | null;
+};
+
+type CreatorHeart = {
+  creatorThumbnail: string;
+  creatorName: string;
+};
+
+type CommentReplies = {
+  replyCount: number;
+  continuation: string;
+};
+
+// *** getVideoComments
+
+const getVideoComments = async (
+  id: string,
+  params: CommentsParams,
+): Promise<CommentsResponse> => {
+  const sortBy = params.sort_by === "new"
+    ? "NEWEST_FIRST"
+    : params.sort_by === "top"
+    ? "TOP_COMMENTS"
+    : undefined;
+
+  let commentsResponse = await innertube.getComments(id);
+  if (sortBy) {
+    commentsResponse = await commentsResponse.applySort(sortBy);
+  }
+
+  const parseLikeCount = (raw?: string): number => {
+    if (!raw) return 0;
+    const n = Number(raw.replace(/[^\d]/g, ""));
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const toThumbnails = (author: any): AuthorThumbnail[] => {
+    return (author?.thumbnails ?? []).map((t: any) => ({
+      url: t.url,
+      width: t.width,
+      height: t.height,
+    }));
+  };
+
+  const toCreatorHeart = (c: any): CreatorHeart | undefined => {
+    if (!c?.is_hearted) return undefined;
+
+    const m = String(c.heart_active_tooltip).match(/by\s+(.+)$/i);
+    const creatorName = m ? m[1] : undefined;
+
+    if (!creatorName || !c.creator_thumbnail_url) return undefined;
+
+    return {
+      creatorName,
+      creatorThumbnail: c.creator_thumbnail_url,
+    };
+  };
+
+  const toReplies = (commentThread: any): CommentReplies | undefined => {
+    const replyCount = parseLikeCount(commentThread?.comment?.reply_count);
+    if (!replyCount) return undefined;
+
+    return {
+      replyCount,
+      // TODO: continuation
+      continuation: "NULL",
+    };
+  };
+
+  const toInvidiousComment = (thread: any): CommentThread => {
+    const c = thread.comment;
+
+    const author = c.author;
+
+    const authorName: string = author?.name ??
+      (typeof c.author === "string" ? c.author : "");
+
+    const authorId: string = author?.id ??
+      author?.channel_id ??
+      "";
+
+    const authorUrl: string = author?.url ??
+      author?.endpoint?.metadata?.url ??
+      "";
+
+    const isSponsor: boolean | undefined = typeof c.is_member === "boolean"
+      ? c.is_member
+      : undefined;
+
+    const likeCount = parseLikeCount(c.like_count);
+    const replyData = toReplies(thread);
+    const creatorHeart = toCreatorHeart(c);
+
+    return {
+      author: authorName,
+      authorThumbnails: toThumbnails(author),
+      authorId,
+      authorUrl,
+
+      isEdited: false, // TODO: Check an edited comment for this.
+      isPinned: Boolean(c.is_pinned),
+      isSponsor,
+
+      sponsorIconUrl: undefined,
+
+      content: c.content?.text ?? "",
+      contentHtml: c.content?.text ?? "",
+      published: 0, // TODO: Parse this from publishedText?
+      publishedText: c.published_time ?? "",
+
+      likeCount,
+      commentId: c.comment_id,
+      authorIsChannelOwner: Boolean(c.author_is_channel_owner),
+
+      creatorHeart,
+      replies: replyData,
+    };
+  };
+
+  const comments = commentsResponse.contents
+    .filter((t) => t?.comment)
+    .map(toInvidiousComment);
+
+  return {
+    videoId: id,
+    commentCount: Number(commentsResponse.header?.comments_count.text) ??
+      comments.length,
+    comments,
+    // TODO: continuation
+    continuation: "NULL",
+  };
+};
+
 // * Server
 
 Deno.serve({ port: 3534 }, async (req) => {
@@ -822,7 +990,11 @@ Deno.serve({ port: 3534 }, async (req) => {
     ],
     [
       "/api/v1/channels/(?<channelId>[a-zA-Z0-9_-]+)/videos",
-      (params) => channelVideos(params.channelId, searchParams),
+      (params) => getChannelVideos(params.channelId, searchParams),
+    ],
+    [
+      "/api/v1/comments/(?<videoId>[a-zA-Z0-9_-]+)",
+      (params) => getVideoComments(params.videoId, searchParams),
     ],
   ];
 
@@ -852,5 +1024,5 @@ Deno.serve({ port: 3534 }, async (req) => {
 // const val = await search({q: 'iron maiden'})
 // console.log(JSON.stringify(val , null, 2))
 
-// const val = await channelVideos('UCaisXKBdNOYqGr2qOXCLchQ')
+// const val = await getChannelVideos('UCaisXKBdNOYqGr2qOXCLchQ')
 // console.log(JSON.stringify(val , null, 2))

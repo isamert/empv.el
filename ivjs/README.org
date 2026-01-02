@@ -17,7 +17,7 @@ use it as your Invidious instance:
 (setq empv-invidious-instance "http://localhost:3534/api/v1")
 #+end_src
 
-* Roadmap [3/13]
+* Roadmap [26%]
 :PROPERTIES:
 :COOKIE_DATA: recursive
 :END:
@@ -33,7 +33,9 @@ the responses (like thumbnail quaility info etc.)
 - [-] [[https://docs.invidious.io/api/channels_endpoint/#get-apiv1channelsidstreams][GET /api/v1/channels/:id/videos]]
   - [X] Basic functionality
   - [ ] Pagination/continuation
-- [ ] [[https://docs.invidious.io/api/#get-apiv1commentsid][GET /api/v1/comments/:id]]
+- [-] [[https://docs.invidious.io/api/#get-apiv1commentsid][GET /api/v1/comments/:id]]
+  - [X] Basic functionality
+  - [ ] Pagination/continuation
 - [ ] Add some customization/privacy options, [[https://github.com/FreeTubeApp/FreeTube/blob/44850093cb74c32ef4e85353ad457725f3f9d804/src/renderer/helpers/api/local.js#L101][see]].
   - [ ] Changing the port
   - [ ] Cache options
