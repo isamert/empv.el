@@ -17,20 +17,26 @@ use it as your Invidious instance:
 (setq empv-invidious-instance "http://localhost:3534/api/v1")
 #+end_src
 
-* TODO/Roadmap [1/6]
+* Roadmap [3/13]
+:PROPERTIES:
+:COOKIE_DATA: recursive
+:END:
 
-Currently it's usable but only for video searches (and only shows the
-first page of results).
+Currently it's usable but pagination does not work, you only get first
+page of the results. Also some minor information might be missing from
+the responses (like thumbnail quaility info etc.)
 
 - [X] [[https://docs.invidious.io/api/#get-apiv1searchsuggestions][GET /api/v1/search/suggestions]]
 - [-] [[https://docs.invidious.io/api/#get-apiv1search][GET /api/v1/search]]
   - [X] Basic functionality
   - [ ] Pagination/continuation
-- [ ] [[https://docs.invidious.io/api/channels_endpoint/#get-apiv1channelsidstreams][GET /api/v1/channels/:id/videos]]
+- [-] [[https://docs.invidious.io/api/channels_endpoint/#get-apiv1channelsidstreams][GET /api/v1/channels/:id/videos]]
+  - [X] Basic functionality
+  - [ ] Pagination/continuation
 - [ ] [[https://docs.invidious.io/api/#get-apiv1commentsid][GET /api/v1/comments/:id]]
 - [ ] Add some customization/privacy options, [[https://github.com/FreeTubeApp/FreeTube/blob/44850093cb74c32ef4e85353ad457725f3f9d804/src/renderer/helpers/api/local.js#L101][see]].
   - [ ] Changing the port
   - [ ] Cache options
   - [ ] Different client types
-  - [ ] ..?
+  - ...
 - [ ] Automatic integration with empv.el
