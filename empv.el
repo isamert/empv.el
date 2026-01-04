@@ -767,24 +767,33 @@ IT can be a symbol or string.
 
 ;;;; Utility: Execution
 
-(cl-defmacro empv--wait-until-non-nil (place &rest forms)
-  "Wait until PLACE is non-nil, after executing FORMS."
+(cl-defmacro empv--wait-until-non-nil (config &rest forms)
+  "Wait until the PLACE is non-nil, after executing FORMS.
+CONFIG is (PLACE MAX-TRY-COUNT WAIT-TIME).  FORMS are executed once."
   (declare (indent 1))
-  `(let (,place (try-count 0))
+  `(let (,(car config)
+         (__max-try-count (or ,(nth 1 config) 500))
+         (__wait-time (or ,(nth 2 config) 0.01))
+         (__try-count 0))
      ,@forms
-     (while (and (not ,place) (< try-count 500))
-       (setq try-count (1+ try-count))
-       (sleep-for 0.01))
-     ,place))
+     (while (and (not ,(car config)) (< __try-count __max-try-count))
+       (setq __try-count (1+ __try-count))
+       (sleep-for __wait-time))
+     ,(car config)))
 
-(cl-defmacro empv--try-until-non-nil (place &rest forms)
-  "Run FORMS until PLACE becomes non-nil."
+(cl-defmacro empv--try-until-non-nil (config &rest forms)
+  "Run FORMS until PLACE becomes non-nil.
+CONFIG is (PLACE MAX-TRY-COUNT WAIT-TIME).  FORMS are executed in a loop
+until they are non-nil."
   (declare (indent 1))
-  `(let (,place (try-count 0))
+  `(let (,(car config)
+         (__max-try-count (or ,(nth 1 config) 500))
+         (__wait-time (or ,(nth 2 config) 0.01))
+         (__try-count 0))
      ,@forms
-     (while (and (not result) (< try-count 500))
-       (setq try-count (1+ try-count))
-       (sleep-for 0.01)
+     (while (and (not ,(car config)) (< __try-count __max-try-count))
+       (setq __try-count (1+ __try-count))
+       (sleep-for __wait-time)
        ,@forms)
      result))
 
@@ -1045,7 +1054,7 @@ the result.
   "Create the network process for mpv.
 Blocks until mpv process establishes it's socket interface."
   (setq empv--network-process
-        (empv--try-until-non-nil result
+        (empv--try-until-non-nil (result)
           (setq result
                 (ignore-error file-error
                   (make-network-process :name "empv-network-process"
@@ -1076,7 +1085,7 @@ happens."
 (defun empv--send-command-sync (command)
   "Send COMMAND to mpv process and return the result."
   (let ((result nil))
-    (empv--wait-until-non-nil finished
+    (empv--wait-until-non-nil (finished)
       (empv--send-command command (lambda (x)
                                     (setq result x)
                                     (setq finished t))))
