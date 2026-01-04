@@ -118,7 +118,21 @@ following links to find an instance:
 - https://api.invidious.io/
 - https://docs.invidious.io/Invidious-Instances.md
 The URL should end with \"/api/v1\". An example would be
-https://invidious-example.com/api/v1"
+https://invidious-example.com/api/v1
+
+You can also set this to \\='ivjs to use the bundled Invidious
+instance (it's a simple wrapper around YouTube.js that mimics
+Invidious).  You need to have deno installed for this to work, other
+than that YouTube functionality should work without any other
+intervention with this set to \\='ivjs.
+
+If you don't have access to an Invidious instance this might be more
+reliable and easier way to use YouTube functionality.  See
+ivjs/README.org under this directory if you want to learn more about it.
+Simply put, this starts a tiny Deno process that mimics Invidious API to
+let empv interact with it.  It's automatically started and killed
+whenever needed.  See `empv-ivjs-port' to control on which port this
+process runs."
   :type 'string
   :group 'empv)
 
@@ -519,6 +533,13 @@ Maximum possible value is 500."
   :group 'empv
   :version "4.9.0")
 
+(defcustom empv-ivjs-port 3467
+  "Port to use for ivjs process.
+This is only relevant if you set `empv-invidious-instance' to \\='ivjs."
+  :group 'empv
+  :type 'number
+  :version "5.5.0")
+
 ;;;; Public variables
 
 (defvar empv-media-title nil
@@ -672,6 +693,13 @@ items.  See [1] for more information on this.
   "YouTube search for this buffer, see `empv--yt-search'.")
 
 (defvar empv--youtube-search-history nil)
+
+(defvar empv--request-headers '(("Accept" . "*/*"))
+  "Headers to use while sending requests with `empv--request'.")
+
+(defvar empv--ivjs-process nil
+  "ivjs process.
+Only relevant when `empv-invidious-instance' is set to \\='ivjs.")
 
 ;;;; Utility: Lists
 
@@ -1539,7 +1567,9 @@ MPV."
   (setq empv--callback-table (make-hash-table :test 'equal))
   (setq empv--media-title-cache (make-hash-table :test 'equal))
   (empv--set-media-title nil)
-  (empv--set-player-state nil))
+  (empv--set-player-state nil)
+  (when empv--ivjs-process
+    (setq empv--process (delete-process empv--ivjs-process))))
 
 ;;;###autoload
 (defun empv-save-and-exit ()
@@ -2001,14 +2031,7 @@ PARAMS should be an alist.  CALLBACK is called with the resulting JSON
 object.  If no callback is given, request is made synchronously and
 resulting object is returned."
   (let* ((full-url (empv--build-url url params))
-         (default-headers '(("Accept" . "*/*")))
-         (custom-headers
-          (when (and empv-invidious-instance
-                     empv-invidious-request-headers
-                     (empv--invidious-host? url))
-            empv-invidious-request-headers))
-         (url-request-extra-headers
-          (append custom-headers default-headers))
+         (url-request-extra-headers empv--request-headers)
          (handler
           (lambda (status)
             (empv--dbg "empv--request(%s, %s) → error: %s" url params (plist-get status :error))
@@ -2121,8 +2144,8 @@ buffer."
                 (_ (plist-get metadata :youtube)))
       (setq video-info (empv--plist-to-alist metadata))))
   (setq video-id (replace-regexp-in-string "^.*v=\\([A-Za-z0-9_-]+\\).*" "\\1" video-id))
-  (empv--request
-   (format "%s/comments/%s" empv-invidious-instance video-id)
+  (empv--invidious-request
+   (format "comments/%s" video-id)
    '()
    (lambda (result)
      (let ((buffer (get-buffer-create (format "*empv-yt-comments: %s %s*"
@@ -2697,10 +2720,48 @@ nicely formatted buffer."
 
 ;;;;;; Request
 
+(defun empv--invidious-url ()
+  (if (eq 'ivjs empv-invidious-instance)
+      (format "http://localhost:%s/api/v1" empv-ivjs-port)
+    empv-invidious-instance))
+
 (defun empv--invidious-host? (url)
   "Check if given URL host is same as `empv-invidious-instance's host."
-  (equal (url-host (url-generic-parse-url empv-invidious-instance))
+  (equal (url-host (url-generic-parse-url (empv--invidious-url)))
          (url-host (url-generic-parse-url url))))
+
+(defun empv--invidious-request (endpoint params callback)
+  "Simple wrapper around `empv--request' to handle invidious specific requests.
+See `empv--request' to learn about ENDPOINT, PARAMS, CALLBACK."
+  (let ((invidious-url (empv--invidious-url)))
+    (unless invidious-url
+      (user-error "Please configure `empv-invidious-instance' first to use YouTube functionality"))
+    (when (and (eq 'ivjs empv-invidious-instance)
+               (or
+                (not empv--ivjs-process)
+                (not (process-live-p empv--ivjs-process))))
+      (setq empv--ivjs-process
+            (make-process :name "empv-ivjs-process"
+                          :buffer " *empv-ivjs-process*"
+                          :command `("deno"
+                                     "--allow-net"
+                                     "--allow-read"
+                                     "--allow-write"
+                                     "--allow-import"
+                                     "ivjs/main.ts"
+                                     ,(format "--port=%s" empv-ivjs-port))))
+      ;; Wait until it becomes online, should not take long.
+      (empv--try-until-non-nil (result 10 0.3)
+        (setq result (equal "pong" (ignore-errors
+                                     (thread-first
+                                       (format "%s/ping" invidious-url)
+                                       (empv--request-raw-sync)
+                                       (s-trim)))))))
+    (let ((empv--request-headers (append
+                                  empv--request-headers
+                                  empv-invidious-request-headers)))
+      (empv--request (format "%s/%s" invidious-url endpoint)
+                     params callback))))
 
 (defun empv--youtube-search (term type page callback)
   "Search TERM in YouTube.
@@ -2708,8 +2769,8 @@ TYPE determines what to search for, it's either video or
 playlist.  By default it's video.  Call CALLBACK when request
 finishes."
   (setq type (symbol-name (or type 'video)))
-  (empv--request
-   (format "%s/search" empv-invidious-instance)
+  (empv--invidious-request
+   "search"
    `(("q" . ,term)
      ("page" . ,(number-to-string page))
      ("type" . ,type))
@@ -2732,8 +2793,8 @@ of 10/2022 on Invidious).  Default to newest.
 
 CONTINUATION is the continuation token.  CALLBACK is called with results
 parameter."
-  (empv--request
-   (format "%s/channels/%s/videos" empv-invidious-instance channel-id)
+  (empv--invidious-request
+   (format "channels/%s/videos" channel-id)
    `(("sort_by" . ,(or (symbol-name sort-by) "newest"))
      ("continuation" . ,continuation))
    callback))
@@ -2782,8 +2843,8 @@ PROMPT is passed to `completing-read' as-is."
     (consult--read
      (empv--consult-async-generator
       (lambda (action on-result)
-        (empv--request
-         (format "%s/search/suggestions" empv-invidious-instance)
+        (empv--invidious-request
+         "search/suggestions"
          `(("q" . ,action))
          on-result))
       (lambda (result)
@@ -2796,8 +2857,6 @@ PROMPT is passed to `completing-read' as-is."
      :async-wrap #'empv--consult-async-wrapper)))
 
 (defun empv--youtube-suggest (prompt)
-  (unless empv-invidious-instance
-    (user-error "Please configure `empv-invidious-instance'"))
   (if (empv--use-consult?)
       (empv--consult-get-input-with-suggestions prompt)
     (read-string prompt nil 'empv--youtube-search-history)))
