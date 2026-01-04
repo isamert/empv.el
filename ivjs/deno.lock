@@ -1,19 +1,16 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@std/assert@1": "1.0.15",
-    "jsr:@std/internal@^1.0.12": "1.0.12",
+    "jsr:@std/cli@*": "1.0.25",
+    "jsr:@std/encoding@*": "1.0.10",
     "npm:youtubei.js@^16.0.1": "16.0.1"
   },
   "jsr": {
-    "@std/assert@1.0.15": {
-      "integrity": "d64018e951dbdfab9777335ecdb000c0b4e3df036984083be219ce5941e4703b",
-      "dependencies": [
-        "jsr:@std/internal"
-      ]
+    "@std/cli@1.0.25": {
+      "integrity": "1f85051b370c97a7a9dfc6ba626e7ed57a91bea8c081597276d1e78d929d8c91"
     },
-    "@std/internal@1.0.12": {
-      "integrity": "972a634fd5bc34b242024402972cd5143eac68d8dffaca5eaa4dba30ce17b027"
+    "@std/encoding@1.0.10": {
+      "integrity": "8783c6384a2d13abd5e9e87a7ae0520a30e9f56aeeaa3bdf910a3eaaf5c811a1"
     }
   },
   "npm": {
@@ -33,7 +30,6 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@std/assert@1",
       "npm:youtubei.js@^16.0.1"
     ]
   }

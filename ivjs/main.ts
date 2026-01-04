@@ -1,3 +1,4 @@
+import { parseArgs } from "jsr:@std/cli/parse-args";
 import {
   Innertube,
   Types as InnerTubeTypes,
@@ -971,15 +972,28 @@ const getVideoComments = async (
   };
 };
 
+// * CLI
+
+const flags = parseArgs(Deno.args, {
+  string: ["port"],
+  default: {
+    port: 3467,
+  }
+});
+
 // * Server
 
-Deno.serve({ port: 3534 }, async (req) => {
+Deno.serve({ port: Number(flags.port) }, async (req) => {
   const url = new URL(req.url);
   const searchParams: any = Object.fromEntries(url.searchParams);
 
   console.log("→", { url: req.url });
 
   const routes = [
+    [
+      "/ping",
+      () => "pong",
+    ],
     [
       "/api/v1/search/suggestions",
       () => getSearchSuggestions(searchParams),
@@ -1013,7 +1027,9 @@ Deno.serve({ port: 3534 }, async (req) => {
   console.log("←", response ? "OK" : undefined);
 
   if (response) {
-    return new Response(JSON.stringify(response, null, 2));
+    return typeof response === "string"
+      ? new Response(response)
+      : new Response(JSON.stringify(response));
   }
 
   return new Response(`Not found`, { status: 404 });
