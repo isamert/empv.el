@@ -1,11 +1,23 @@
 #+title: ivjs
 
-Invidious-like API, using YouTube.js. Aims to be a drop in replacement
+Invidious-like API, using [[https://github.com/LuanRT/YouTube.js][YouTube.js]]. Aims to be a drop in replacement
 (to a limited extend) for applications that use Invidious API.
 
-* Usage
+* Usage with /empv/
+** Automatic integration
 
-Install deno and start ivjs with:
+Install /Deno/ and ensure it is in your ~PATH~. Then:
+
+#+begin_src emacs-lisp
+(setq empv-invidious-instance 'ivjs)
+#+end_src
+
+Now YouTube related functionality should work without doing anything
+else. /empv/ manages the external process.
+
+** Manual usage
+
+Install /Deno/ and start /ivjs/ with:
 
 #+begin_src sh
 deno run --allow-all main.ts
@@ -14,31 +26,42 @@ deno run --allow-all main.ts
 use it as your Invidious instance:
 
 #+begin_src emacs-lisp
-(setq empv-invidious-instance "http://localhost:3534/api/v1")
+(setq empv-invidious-instance "http://localhost:3467/api/v1")
 #+end_src
 
-* Roadmap [26%]
+* Roadmap [60%]
 :PROPERTIES:
 :COOKIE_DATA: recursive
 :END:
 
-Currently it's usable but pagination does not work, you only get first
-page of the results. Also some minor information might be missing from
-the responses (like thumbnail quaility info etc.)
+Currently it's usable (for /empv/'s purposes) but pagination does not
+work, you only get first page of the results. Also some minor
+information might be missing from the responses (like thumbnail
+quaility info etc. which should not affect the experience in a
+significant way)
+
+The following list of items will never be fully done. It's just there
+to see what's next. Currently main next item is
+pagination/continuation.  Rest of the API is outside the scope of
+/empv/, I'll add relevant endpoints if /empv/ uses them.
 
 - [X] [[https://docs.invidious.io/api/#get-apiv1searchsuggestions][GET /api/v1/search/suggestions]]
-- [-] [[https://docs.invidious.io/api/#get-apiv1search][GET /api/v1/search]]
-  - [X] Basic functionality
-  - [ ] Pagination/continuation
-- [-] [[https://docs.invidious.io/api/channels_endpoint/#get-apiv1channelsidstreams][GET /api/v1/channels/:id/videos]]
-  - [X] Basic functionality
-  - [ ] Pagination/continuation
-- [-] [[https://docs.invidious.io/api/#get-apiv1commentsid][GET /api/v1/comments/:id]]
-  - [X] Basic functionality
-  - [ ] Pagination/continuation
-- [ ] Add some customization/privacy options, [[https://github.com/FreeTubeApp/FreeTube/blob/44850093cb74c32ef4e85353ad457725f3f9d804/src/renderer/helpers/api/local.js#L101][see]].
-  - [ ] Changing the port
+- [X] [[https://docs.invidious.io/api/#get-apiv1search][GET /api/v1/search]]
+- [X] [[https://docs.invidious.io/api/channels_endpoint/#get-apiv1channelsidstreams][GET /api/v1/channels/:id/videos]]
+- [X] [[https://docs.invidious.io/api/#get-apiv1commentsid][GET /api/v1/comments/:id]]
+- [ ] Pagination/continuation for required endpoints
+- [X] Automatic integration with empv.el
+- [-] Add some customization/privacy options, [[https://github.com/FreeTubeApp/FreeTube/blob/44850093cb74c32ef4e85353ad457725f3f9d804/src/renderer/helpers/api/local.js#L101][see]].
+  - [X] Changing the port
   - [ ] Cache options
   - [ ] Different client types
   - ...
-- [ ] Automatic integration with empv.el
+- [ ] Handling of YouTube.js version upgrades?
+  - I'm not sure about the way this should be done.
+- Extras:
+  - With this kind of custom implementation, I can go beyond what
+    Invidious provides (hopefully in a backward-compatible way)
+  - For example, I would like to see if a given video has chapters in
+    search page. This is useful for listening "full albums" and with
+    videos with chapters I can utilize =empv-chapter-{next,prev,select}=
+    functions. I'll explore if this is a possibility with YouTube.js.
