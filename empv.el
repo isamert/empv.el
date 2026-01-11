@@ -2741,6 +2741,8 @@ See `empv--request' to learn about ENDPOINT, PARAMS, CALLBACK."
                (or
                 (not empv--ivjs-process)
                 (not (process-live-p empv--ivjs-process))))
+      (unless (executable-find "deno")
+        (user-error "Deno is not installed.  To use ivjs as Invidious replacement, install it first.  See: https://deno.com/"))
       (setq empv--ivjs-process
             (make-process :name "empv-ivjs-process"
                           :buffer " *empv-ivjs-process*"
