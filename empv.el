@@ -2266,7 +2266,8 @@ By default it downloads as MP3 file, please see
   (continuation nil :type 'string :documentation "A continuation token to get the next chunk of items."))
 
 (defun empv--yt-search-generate-buffer-name (search)
-  (format "*empv-youtube-%s: %s*"
+  (format "*empv-youtube-%s-%s: %s*"
+          (empv--yt-search-type search)
           (empv--yt-search-kind search)
           (empv--yt-search-query search)))
 
