@@ -2,6 +2,7 @@
   "version": "5",
   "specifiers": {
     "jsr:@std/cli@*": "1.0.25",
+    "jsr:@std/cli@1.0.25": "1.0.25",
     "jsr:@std/encoding@*": "1.0.10",
     "npm:youtubei.js@^16.0.1": "16.0.1"
   },
