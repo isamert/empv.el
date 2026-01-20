@@ -2731,7 +2731,7 @@ nicely formatted buffer."
   (equal (url-host (url-generic-parse-url (empv--invidious-url)))
          (url-host (url-generic-parse-url url))))
 
-(defun empv--invidious-request (endpoint params callback)
+(defun empv--invidious-request (endpoint &optional params callback)
   "Simple wrapper around `empv--request' to handle invidious specific requests.
 See `empv--request' to learn about ENDPOINT, PARAMS, CALLBACK."
   (let ((invidious-url (empv--invidious-url)))
