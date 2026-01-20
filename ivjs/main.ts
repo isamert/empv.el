@@ -1,19 +1,32 @@
-import { parseArgs } from "jsr:@std/cli@1.0.25/parse-args";
+import { parseArgs } from "jsr:@std/cli@1/parse-args";
+import { join } from "jsr:@std/path@1";
 import {
   Innertube,
   Types as InnerTubeTypes,
   UniversalCache,
 } from "youtubei.js";
 
+// * CLI
+
+const flags = parseArgs(Deno.args, {
+  string: ["port", "baseTempDir"],
+  default: {
+    port: 3467,
+  },
+});
+
 // * InnerTube
 
-const innertube = await Innertube.create({
-  cache: new UniversalCache(
-    // Enables persistent caching
+let cache
+if (flags.baseTempDir) {
+  cache = new UniversalCache(
     true,
     // Path to the cache directory. The directory will be created if it doesn't exist
-    "./.cache",
-  ),
+    join(flags.baseTempDir, "empv-ivjs-cache"),
+  )
+}
+const innertube = await Innertube.create({
+  cache,
 });
 
 // * Endpoints
@@ -824,15 +837,6 @@ const getVideo = async (id: string): Promise<SingleVideoResponse> => {
     recommendedVideos: [],
   };
 };
-
-// * CLI
-
-const flags = parseArgs(Deno.args, {
-  string: ["port"],
-  default: {
-    port: 3467,
-  },
-});
 
 // * Server
 

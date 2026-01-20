@@ -2751,8 +2751,11 @@ See `empv--request' to learn about ENDPOINT, PARAMS, CALLBACK."
                                      "--allow-read"
                                      "--allow-write"
                                      "--allow-import"
-                                     "ivjs/main.ts"
-                                     ,(format "--port=%s" empv-ivjs-port))))
+                                     ;; TODO: This assumes empv.el is in load-path. Maybe make the path customizable.
+                                     ,(concat (file-name-directory (file-truename (locate-file "empv.el" load-path)))
+                                              "ivjs/main.ts")
+                                     ,(format "--port=%s" empv-ivjs-port)
+                                     ,(format "--baseTempDir=%s" temporary-file-directory))))
       ;; Wait until it becomes online, should not take long.
       (empv--try-until-non-nil (result 10 0.3)
         (setq result (equal "pong" (ignore-errors
