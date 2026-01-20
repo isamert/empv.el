@@ -124,13 +124,13 @@ You can select an invidious instance from [[https://api.invidious.io/][here]].
 #+begin_quote
 [!TIP]
 
-Lately, YouTube has aggressively targeted Invidious instances, making working ones hard to find, and self‑hosting is not feasible for everyone, so I wrote ivjs: a simple TypeScript/Deno wrapper around [[https://github.com/LuanRT/YouTube.js][YouTube.js]] that provides an Invidious-like API exposing only the endpoints used by /empv.el/ for its YouTube features, and can be used as a lightweight alternative to running a full Invidious instance. To use it instead, do:
+Lately, YouTube has aggressively targeted Invidious instances, making working ones hard to find, and self‑hosting is not feasible for everyone, so I wrote ivjs: a simple TypeScript/[[https://deno.com/][Deno]] wrapper around [[https://github.com/LuanRT/YouTube.js][YouTube.js]] that provides an Invidious-like API exposing only the endpoints used by /empv.el/ for its YouTube features, and can be used as a lightweight alternative to running a full Invidious instance. To use it instead, do:
 
 #+begin_src elisp
   (setq empv-invidious-instance 'ivjs)
 #+end_src
 
-/empv.el/ will handle the lifecycle of ivjs process, you don't need to anything else. If you want to manually manage it, see [[file:ivjs/README.org][ivjs README]].
+/empv.el/ will handle the lifecycle of ivjs process, you don't need to anything else. If you want to manually manage it, see [[file:ivjs/README.org][ivjs README]]. This requires [[https://deno.com/][Deno]] to be installed on your machine.
 
 ivjs currently does not support pagination, you will only get the first page of the results.
 #+end_quote

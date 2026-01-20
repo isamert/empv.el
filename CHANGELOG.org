@@ -1,3 +1,9 @@
+* 6.0.0
+
+- Now you can use *YouTube* functionality without using an Invidious instance. You need to do ~(setq empv-invidious-instance 'ivjs)~ to be able to use. See [[file:README.org::*General YouTube configuration][README's YouTube configuration section]].
+- Create any nonexistent parent dirs in ~empv-youtube-download~ (thanks to @QiangF!).
+- Various bug fixes.
+
 * 5.1.0
 
 - Add ability to pass custom headers for Invidious requests.
