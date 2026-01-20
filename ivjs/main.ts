@@ -585,6 +585,246 @@ const getVideoComments = async (
   };
 };
 
+// ** Get Video
+// *** Types
+
+export type Storyboard = {
+  url: string;
+  templateUrl: string;
+  width: number;
+  height: number;
+  count: number;
+  interval: number;
+  storyboardWidth: number;
+  storyboardHeight: number;
+  storyboardCount: number;
+};
+
+export type AdaptiveFormat = {
+  index: string;
+  bitrate: string;
+  init: string;
+  url: string;
+  itag: string;
+  type: string;
+  clen: string;
+  lmt: string;
+  projectionType: string;
+  container: string;
+  encoding: string;
+  qualityLabel?: string;
+  resolution?: string;
+  fps: number;
+  size?: string;
+  targetDurationSec?: number;
+  maxDvrDurationSec?: number;
+  audioQuality?: string;
+  audioSampleRate?: string;
+  audioChannels?: string;
+  colorInfo?: string;
+  captionTrack?: string;
+};
+
+export type FormatStream = {
+  url: string;
+  itag: string;
+  type: string;
+  quality: string;
+  bitrate?: string;
+  container: string;
+  encoding: string;
+  qualityLabel: string;
+  resolution: string;
+  size: string;
+};
+
+export type Caption = {
+  label: string;
+  language_code: string;
+  url: string;
+};
+
+export type MusicTrack = {
+  song: string;
+  artist: string;
+  album: string;
+  license: string;
+};
+
+export type RecommendedVideo = {
+  videoId: string;
+  title: string;
+  videoThumbnails: VideoThumbnail[];
+  author: string;
+  authorUrl: string;
+  authorId?: string;
+  authorVerified: boolean;
+  authorThumbnails: AuthorThumbnail[];
+  lengthSeconds: number;
+  viewCount: number;
+  viewCountText: string;
+};
+
+export type SingleVideoResponse = {
+  type: "video";
+  title: string;
+  videoId: string;
+  videoThumbnails: VideoThumbnail[];
+  storyboards: Storyboard[];
+  description: string;
+  descriptionHtml: string;
+  published: number;
+  publishedText: string;
+  keywords: string[];
+  viewCount: number;
+  likeCount: number;
+  dislikeCount: number;
+  paid: boolean;
+  premium: boolean;
+  isFamilyFriendly: boolean;
+  allowedRegions: string[];
+  genre: string;
+  genreUrl: string;
+  author: string;
+  authorId: string;
+  authorUrl: string;
+  authorThumbnails: AuthorThumbnail[];
+  subCountText: string;
+  lengthSeconds: number;
+  allowRatings: boolean;
+  rating: number;
+  isListed: boolean;
+  liveNow: boolean;
+  isPostLiveDvr: boolean;
+  isUpcoming: boolean;
+  dashUrl: string;
+  premiereTimestamp?: number;
+  hlsUrl?: string;
+  adaptiveFormats: AdaptiveFormat[];
+  formatStreams: FormatStream[];
+  captions: Caption[];
+  musicTracks: MusicTrack[];
+  recommendedVideos: RecommendedVideo[];
+};
+
+// *** getVideo
+
+const getVideo = async (id: string): Promise<SingleVideoResponse> => {
+  const response = await innertube.getBasicInfo(id);
+
+  const basicInfo = response.basic_info ?? {};
+  const streamingData = response.streaming_data ?? {};
+  const storyboardsData = response.storyboards?.boards ?? [];
+  const authorInfo = extractAuthorInfo(basicInfo);
+
+  function extractContainer(mimeType: string): string {
+    const match = mimeType?.match(/^(video|audio)\/([^;]+)/);
+    return match?.[2] ?? "";
+  }
+
+  function extractEncoding(mimeType: string): string {
+    const match = mimeType?.match(/codecs="([^"]+)"/);
+    return match?.[1]?.split(",")[0]?.trim() ?? "";
+  }
+
+  function formatResolution(width?: number, height?: number): string {
+    if (width && height) return `${width}x${height}`;
+    return "";
+  }
+
+  const storyboards: Storyboard[] = storyboardsData
+    .filter((b: any) => b.interval > 0)
+    .map((board: any) => ({
+      url: board.template_url?.replace("M$M", "0") ?? "",
+      templateUrl: board.template_url ?? "",
+      width: board.thumbnail_width ?? 0,
+      height: board.thumbnail_height ?? 0,
+      count: board.thumbnail_count ?? 0,
+      interval: board.interval ?? 0,
+      storyboardWidth: board.columns ?? 0,
+      storyboardHeight: board.rows ?? 0,
+      storyboardCount: board.storyboard_count ?? 0,
+    }));
+
+  const adaptiveFormats: AdaptiveFormat[] = (streamingData.adaptive_formats ?? []).map((fmt: any) => ({
+    index: fmt.index_range ? `${fmt.index_range.start}-${fmt.index_range.end}` : "",
+    bitrate: String(fmt.bitrate ?? ""),
+    init: fmt.init_range ? `${fmt.init_range.start}-${fmt.init_range.end}` : "",
+    url: fmt.url ?? "",
+    itag: String(fmt.itag ?? ""),
+    type: fmt.mime_type ?? "",
+    clen: String(fmt.content_length ?? ""),
+    lmt: String(fmt.last_modified_ms ?? ""),
+    projectionType: fmt.projection_type ?? "",
+    container: extractContainer(fmt.mime_type ?? ""),
+    encoding: extractEncoding(fmt.mime_type ?? ""),
+    qualityLabel: fmt.quality_label,
+    resolution: fmt.width && fmt.height ? formatResolution(fmt.width, fmt.height) : undefined,
+    fps: fmt.fps ?? 0,
+    size: fmt.width && fmt.height ? formatResolution(fmt.width, fmt.height) : undefined,
+    audioQuality: fmt.audio_quality,
+    audioSampleRate: fmt.audio_sample_rate ? String(fmt.audio_sample_rate) : undefined,
+    audioChannels: fmt.audio_channels ? String(fmt.audio_channels) : undefined,
+  }));
+
+  const formatStreams: FormatStream[] = (streamingData.formats ?? []).map((fmt: any) => ({
+    url: fmt.url ?? "",
+    itag: String(fmt.itag ?? ""),
+    type: fmt.mime_type ?? "",
+    quality: fmt.quality ?? "",
+    bitrate: fmt.bitrate ? String(fmt.bitrate) : undefined,
+    container: extractContainer(fmt.mime_type ?? ""),
+    encoding: extractEncoding(fmt.mime_type ?? ""),
+    qualityLabel: fmt.quality_label ?? "",
+    resolution: formatResolution(fmt.width, fmt.height),
+    size: formatResolution(fmt.width, fmt.height),
+  }));
+
+  const description = basicInfo.short_description ?? "";
+
+  return {
+    type: "video",
+    title: basicInfo.title ?? "",
+    videoId: basicInfo.id ?? "",
+    videoThumbnails: convertThumbnails(basicInfo.thumbnail ?? []),
+    storyboards,
+    description,
+    descriptionHtml: htmlEscape(description),
+    published: 0,
+    publishedText: "",
+    keywords: basicInfo.tags ?? [],
+    viewCount: basicInfo.view_count ?? 0,
+    likeCount: 0,
+    dislikeCount: 0,
+    paid: false,
+    premium: false,
+    isFamilyFriendly: basicInfo.is_family_safe ?? true,
+    allowedRegions: [],
+    genre: basicInfo.category ?? "",
+    genreUrl: "",
+    author: authorInfo.name,
+    authorId: authorInfo.id,
+    authorUrl: authorInfo.url,
+    authorThumbnails: [],
+    subCountText: "",
+    lengthSeconds: basicInfo.duration ?? 0,
+    allowRatings: basicInfo.allow_ratings ?? true,
+    rating: 0,
+    isListed: !basicInfo.is_unlisted,
+    liveNow: basicInfo.is_live ?? false,
+    isPostLiveDvr: basicInfo.is_post_live_dvr ?? false,
+    isUpcoming: basicInfo.is_upcoming ?? false,
+    dashUrl: "",
+    premiereTimestamp: undefined,
+    hlsUrl: undefined,
+    adaptiveFormats,
+    formatStreams,
+    captions: [],
+    musicTracks: [],
+    recommendedVideos: [],
+  };
+};
+
 // * CLI
 
 const flags = parseArgs(Deno.args, {
@@ -614,6 +854,10 @@ Deno.serve({ port: Number(flags.port) }, async (req) => {
     [
       "/api/v1/search",
       () => search(searchParams),
+    ],
+    [
+      "/api/v1/videos/(?<videoId>[a-zA-Z0-9_-]+)",
+      (params: any) => getVideo(params.videoId),
     ],
     [
       "/api/v1/channels/(?<channelId>[a-zA-Z0-9_-]+)/videos",
