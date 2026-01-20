@@ -1,8 +1,0 @@
-{
-  "tasks": {
-    "dev": "deno run --watch iv.ts"
-  },
-  "imports": {
-    "youtubei.js": "npm:youtubei.js@^16.0.1"
-  }
-}

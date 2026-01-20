@@ -1,10 +1,10 @@
-import { parseArgs } from "jsr:@std/cli@1/parse-args";
-import { join } from "jsr:@std/path@1";
+import { parseArgs } from "jsr:@std/cli@^1.0.25/parse-args";
+import { join } from "jsr:@std/path@^1.1.4/join";
 import {
   Innertube,
   Types as InnerTubeTypes,
   UniversalCache,
-} from "youtubei.js";
+} from "npm:youtubei.js@^16.0.1";
 
 // * CLI
 
