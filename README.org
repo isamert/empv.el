@@ -71,8 +71,6 @@ Yet another option is just downloading =empv.el= file and putting into your =loa
   (require 'empv)
 #+end_src
 
-Some functionality may require the external program [[https://github.com/sharkdp/fd][fd]]. You are also advised to install it.
-
 * Basics
 See /Keybindings/ section down below to learn more about the bindings and the commands. Here are a few basic functions that'll get you started:
 

@@ -88,11 +88,6 @@
   :type 'string
   :group 'empv)
 
-(defcustom empv-fd-binary "fd"
-  "FD path."
-  :type 'string
-  :group 'empv)
-
 (defcustom empv-mpv-binary "mpv"
   "MPV binary path."
   :type 'string
@@ -1904,20 +1899,24 @@ The display format is determined by the
 
 (defun empv--find-files-1 (path extensions &optional depth)
   "Find files with given EXTENSIONS under given PATH.
-PROMPT is shown when `completing-read' is called."
-  (let ((default-directory path)
-        (is-remote (file-remote-p path)))
-    (thread-last
-      extensions
-      (mapcar (lambda (ext) (format "-e '%s' " ext)))
-      (string-join)
-      (concat (format "%s . --absolute-path --max-depth %s -c never "
-                      empv-fd-binary
-                      (or depth empv-max-directory-search-depth)))
-      (shell-command-to-string)
-      (empv--flipcall #'split-string "\n")
-      (empv--seq-init)
-      (mapcar (lambda (s) (if is-remote (concat is-remote s) s))))))
+DEPTH limits how deep to search in subdirectories."
+  (let* ((max-depth (or depth empv-max-directory-search-depth))
+         (path (file-name-as-directory (expand-file-name path)))
+         (base-depth (empv--count-slashes (directory-file-name path)))
+         (ext-regexp (concat "\\." (regexp-opt extensions t) "\\'"))
+         (depth-predicate
+          (lambda (dir)
+            (< (- (empv--count-slashes dir) base-depth)
+               max-depth))))
+    (directory-files-recursively path ext-regexp nil depth-predicate)))
+
+(defun empv--count-slashes (path)
+  "Count the number of slashes in PATH."
+  (let ((count 0) (pos 0))
+    (while (setq pos (string-search "/" path pos))
+      (setq count (1+ count)
+            pos (1+ pos)))
+    count))
 
 (defun empv--find-files (path extensions &optional depth)
   "Like `empv--find-files-1' but PATH can be a list."
