@@ -1938,22 +1938,6 @@ Limit directory traversal at most DEPTH levels.  By default it's
     :formatter #'abbreviate-file-name
     :category 'file)))
 
-(defun empv--select-files (prompt path extensions &optional depth)
-  "Select files interactively under given PATH.
-
-Only searches for files with given EXTENSIONS.
-PROMPT is shown to user while selecting.
-Limit directory treversal at most DEPTH levels.  By default it's
-`empv-max-directory-search-depth'"
-  (seq-map
-   (lambda (it) (expand-file-name it path))
-   (empv--completing-read-object
-    prompt
-    (empv--find-files path extensions depth)
-    :multiple? t
-    :formatter #'abbreviate-file-name
-    :category 'file)))
-
 ;;;###autoload
 (defun empv-play-video ()
   "Interactively select and play a video file from `empv-video-dir'."
