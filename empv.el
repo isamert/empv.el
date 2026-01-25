@@ -1433,16 +1433,21 @@ This is just a simple wrapper around `empv-play' that displays
   (empv-play-or-enqueue (expand-file-name path)))
 
 ;;;###autoload
-(defun empv-play-directory (path)
+(defun empv-play-directory (path &optional recursively?)
   "Enqueue given files under PATH.
 If called interactively, shows a prompt to select a directory.  By
 default this directory is `default-directory'.  If you want this
 function to start the prompt in same directory everytime, please
 see `empv-base-directory'."
   (interactive
-   (list (read-directory-name "Select directory to enqueue: " empv-base-directory nil t)))
+   (let ((directory (read-directory-name "Select directory to enqueue: " empv-base-directory nil t))
+         (recursively (y-or-n-p "Include files from subdirectories? ")))
+     (list directory recursively)))
   (thread-last
-    (empv--find-files path (append empv-audio-file-extensions empv-video-file-extensions) 1)
+    (empv--find-files
+     path
+     (append empv-audio-file-extensions empv-video-file-extensions)
+     (if recursively? empv-max-directory-search-depth 1))
     (mapcar (lambda (it) (expand-file-name it path)))
     (empv-play-or-enqueue)))
 
