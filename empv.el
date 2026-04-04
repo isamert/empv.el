@@ -2441,49 +2441,51 @@ buffer."
         (buffer (current-buffer)))
     (seq-do-indexed
      (lambda (video index)
-       (let* ((info (cdr video))
-              (id (or (alist-get 'videoId info)
-                      (alist-get 'playlistId info)
-                      (alist-get 'authorId info)))
-              (filename (format
-                         (expand-file-name "~/.cache/empv_%s_%s.jpg")
-                         id
-                         empv-youtube-thumbnail-quality))
-              (thumb-url (or
-                          (alist-get 'playlistThumbnail info)
-                          (empv--youtube-find-reasonable-thumbnail (alist-get 'videoThumbnails info))
-                          (empv--youtube-find-reasonable-thumbnail (alist-get 'authorThumbnails info))))
-              (args (seq-filter
-                     #'identity
-                     `(,(if (file-exists-p filename)
-                            "printf" "curl")
-                       ,(when empv-allow-insecure-connections
-                          "--insecure")
-                       ,@(when (and empv-invidious-request-headers (empv--invidious-host? thumb-url))
-                           (seq-mapcat
-                            (lambda (header) (list "--header" (format "%s: %s" (car header) (cdr header))))
-                            empv-invidious-request-headers))
-                       "-L"
-                       "-o"
-                       ,filename
-                       ,thumb-url))))
-         (empv--dbg "Dowloading thumbnail using: '%s'" args)
-         (set-process-sentinel
-          (apply #'start-process
-                 (format "empv-download-process-%s" id)
-                 " *empv-thumbnail-downloads*"
-                 args)
-          (lambda (_ _)
-            (empv--dbg "Download finished for image index=%s, url=%s, path=%s" index thumb-url filename)
-            (with-current-buffer buffer
-              (setf
-               (elt (car (alist-get (+ (or index-offset 0) index) tabulated-list-entries)) thumbnail-col-index)
-               (cons 'image `(:type ,(empv--get-image-type filename) :file ,filename ,@empv-youtube-thumbnail-props)))
-              (setq completed-count (1+ completed-count))
-              (when (eq completed-count total-count)
-                (tabulated-list-print t)
-                (back-to-indentation)))))))
+       (empv--download-thumbnail
+        video
+        (lambda (filename)
+          (with-current-buffer buffer
+            (setf
+             (elt (car (alist-get (+ (or index-offset 0) index) tabulated-list-entries)) thumbnail-col-index)
+             (cons 'image `(:type ,(empv--get-image-type filename) :file ,filename ,@empv-youtube-thumbnail-props)))
+            (setq completed-count (1+ completed-count))
+            (when (eq completed-count total-count)
+              (tabulated-list-print t)
+              (back-to-indentation))))))
      candidates)))
+
+(defun empv--download-thumbnail (video callback)
+  (let* ((info (cdr video))
+         (id (or (alist-get 'videoId info)
+                 (alist-get 'playlistId info)
+                 (alist-get 'authorId info)))
+         (filename (format
+                    (expand-file-name "~/.cache/empv_%s_%s.jpg")
+                    id
+                    empv-youtube-thumbnail-quality))
+         (thumb-url (or
+                     (alist-get 'playlistThumbnail info)
+                     (empv--youtube-find-reasonable-thumbnail (alist-get 'videoThumbnails info))
+                     (empv--youtube-find-reasonable-thumbnail (alist-get 'authorThumbnails info))))
+         (args (seq-filter
+                #'identity
+                `("curl"
+                  ,(when empv-allow-insecure-connections "--insecure")
+                  ,@(when (and empv-invidious-request-headers (empv--invidious-host? thumb-url))
+                      (seq-mapcat
+                       (lambda (header) (list "--header" (format "%s: %s" (car header) (cdr header))))
+                       empv-invidious-request-headers))
+                  "-L" "-o" ,filename ,thumb-url))))
+    (cond
+     ((file-exists-p filename)
+      (empv--dbg "Thumbnail already exists: '%s'" filename)
+      (funcall callback filename))
+     (t (empv--dbg "Dowloading thumbnail using: '%s'" args)
+        (set-process-sentinel
+         (apply #'start-process (format "empv-download-process-%s" id) " *empv-thumbnail-downloads*" args)
+         (lambda (_ _)
+           (empv--dbg "Download finished for image url=%s, path=%s" thumb-url filename)
+           (funcall callback filename)))))))
 
 (defun empv--get-image-type (file)
   "Return image type of FILE.
