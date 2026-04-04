@@ -2125,52 +2125,73 @@ resulting object is returned."
     (empv-youtube-show-comments .path)))
 
 (declare-function emojify-mode "emojify")
+(declare-function org-link-preview-region "ol")
 
 ;;;###autoload
-(defun empv-youtube-show-comments (video-id &optional video-info)
-  "Show comments of a YouTube VIDEO-ID in a nicely formatted org buffer.
+(defalias 'empv-youtube-show-comments #'empv-youtube-show-video-details)
+
+;;;###autoload
+(defun empv-youtube-show-video-details (video-id &optional video-info)
+  "Show details with comments of a VIDEO-ID in a nicely formatted Org buffer.
 VIDEO-ID can be either a YouTube URL or just a YouTube ID.  If
 VIDEO-INFO is non-nil, then add video metadata to beginning of the
-buffer."
+buffer (otherwise it will be fetched automatically)."
   (interactive (list (or (thing-at-point 'url t) (read-string "URL or ID: "))))
-  (unless video-info
-    (when-let* ((metadata (empv--extract-empv-metadata-from-path video-id))
-                (_ (plist-get metadata :youtube)))
-      (setq video-info (empv--plist-to-alist metadata))))
   (setq video-id (replace-regexp-in-string "^.*v=\\([A-Za-z0-9_-]+\\).*" "\\1" video-id))
-  (empv--invidious-request
-   (format "comments/%s" video-id)
-   '()
-   (lambda (result)
-     (let ((buffer (get-buffer-create (format "*empv-yt-comments: %s %s*"
-                                              (alist-get 'title video-info)
-                                              video-id))))
-       (switch-to-buffer-other-window buffer)
-       (with-current-buffer buffer
-         (erase-buffer)
-         (org-mode)
-         (when (require 'emojify nil t)
-           (emojify-mode))
-         (when video-info
-           (let-alist video-info
-             (insert (format "#+title: \"%s\" comments\n\n" .title))
-             (unless (s-blank? .description)
-               (insert .description "\n\n"))
-             (insert (format "- View Count :: %s
-- Published :: %s
-- Author :: [[elisp:(empv-youtube-show-channel-videos \"%s\")][%s]]"
-                             .viewCountText
-                             .publishedText
-                             .authorId
-                             .author))
-             (insert "\n\n-----\n")))
-         (seq-map
-          (lambda (comment)
-            (let-alist comment
-              (insert (format "* %s (👍 %s)%s\n%s\n"
-                              .author .likeCount (if .creatorHeart " ❤️" "") .content))))
-          (alist-get 'comments result))
-         (goto-char (point-min)))))))
+  (let ((cb (lambda (video-info)
+              (let ((buffer (get-buffer-create (format "*empv-yt-video-details: %s %s*"
+                                                       (alist-get 'title video-info)
+                                                       video-id))))
+                (switch-to-buffer-other-window buffer)
+                (with-current-buffer buffer
+                  (erase-buffer)
+                  (org-mode)
+                  (when (require 'emojify nil t)
+                    (emojify-mode))
+                  (when video-info
+                    (let-alist video-info
+                      (insert (format "#+title: \"%s\" comments\n\n" .title))
+                      (insert (format "- View Count :: %s\n" .viewCountText))
+                      (insert (format "- Duration   :: %s \n" (empv--format-yt-duration .lengthSeconds)))
+                      (insert (format "- Published  :: %s\n" .publishedText))
+                      (insert (format "- Author     :: [[elisp:(empv-youtube-show-channel-videos \"%s\")][%s]]\n" .authorId .author))
+                      (insert (format "- Link       :: https://youtube.com/watch?v=%s\n" video-id))
+                      (insert "\n")
+                      (insert (format "[[elisp:(empv-play \"https://youtube.com/watch?v=%s\")][Play]] " video-id))
+                      (insert (format "[[elisp:(empv-enqueue \"https://youtube.com/watch?v=%s\")][Enqueue]]\n" video-id))
+                      (when (and .description (not (string-blank-p .description)))
+                        (insert "\n* Description\n" .description))
+                      (insert "\n\n-----\n"))))
+                (empv--download-thumbnail
+                 video-info
+                 (lambda (file-path)
+                   (with-current-buffer buffer
+                     (save-excursion
+                       (goto-char (point-min))
+                       (forward-line 1)
+                       (let ((start (point)))
+                         (insert (format "\n[[file:%s][Thumbnail]]\n" file-path))
+                         (org-link-preview-region t t start (point)))))))
+                (empv--invidious-request
+                 (format "comments/%s" video-id)
+                 '()
+                 (lambda (result)
+                   (with-current-buffer buffer
+                     (goto-char (point-max))
+                     (seq-map
+                      (lambda (comment)
+                        (let-alist comment
+                          (insert (format "* %s (👍 %s)%s\n%s\n"
+                                          .author .likeCount (if .creatorHeart " ❤️" "") .content))))
+                      (alist-get 'comments result))
+                     (goto-char (point-min)))))))))
+    (if video-info
+        (funcall cb video-info)
+      (empv--display-event "Getting video info...")
+      (empv--invidious-request
+       (format "videos/%s" video-id)
+       '()
+       (lambda (result) (funcall cb result))))))
 
 (defun empv-toggle-youtube-tabulated-results ()
   "Toggle YouTube results display between tabulated mode and `completing-read'."
