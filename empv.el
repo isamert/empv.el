@@ -2132,7 +2132,7 @@ resulting object is returned."
 VIDEO-ID can be either a YouTube URL or just a YouTube ID.  If
 VIDEO-INFO is non-nil, then add video metadata to beginning of the
 buffer."
-  (interactive "sURL or ID: ")
+  (interactive (list (or (thing-at-point 'url t) (read-string "URL or ID: "))))
   (unless video-info
     (when-let* ((metadata (empv--extract-empv-metadata-from-path video-id))
                 (_ (plist-get metadata :youtube)))
