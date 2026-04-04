@@ -2162,7 +2162,7 @@ buffer (otherwise it will be fetched automatically)."
                       (when (and .description (not (string-blank-p .description)))
                         (insert "\n* Description\n" .description))
                       (insert "\n\n-----\n"))))
-                (empv--download-thumbnail
+                (empv--download-youtube-video-thumbnail
                  video-info
                  (lambda (file-path)
                    (with-current-buffer buffer
@@ -2462,7 +2462,7 @@ buffer."
         (buffer (current-buffer)))
     (seq-do-indexed
      (lambda (video index)
-       (empv--download-thumbnail
+       (empv--download-youtube-video-thumbnail
         video
         (lambda (filename)
           (with-current-buffer buffer
@@ -2475,7 +2475,7 @@ buffer."
               (back-to-indentation))))))
      candidates)))
 
-(defun empv--download-thumbnail (video callback)
+(defun empv--download-youtube-video-thumbnail (video callback)
   (let* ((info (cdr video))
          (id (or (alist-get 'videoId info)
                  (alist-get 'playlistId info)
