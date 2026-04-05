@@ -1036,37 +1036,42 @@ the result.
 
 [1]: https://github.com/mpv-player/mpv/blob/master/DOCS/man/ipc.rst")
 
+(defvar empv--filter-running nil)
 (defun empv--filter (_proc incoming)
   "Filter INCOMING messages from the socket."
   (setq empv--process-buffer (concat empv--process-buffer incoming))
-  (when (string-match-p "\n$" incoming)
-    (seq-do
-     (lambda (it)
-       (let* ((json-data (empv--read-result it))
-              (id (map-elt json-data 'id))
-              (request-id (map-elt json-data 'request_id))
-              (event-name (map-elt json-data 'event))
-              (callback (map-elt empv--callback-table (format "%s" (or request-id id event-name)))))
-         (empv--dbg
-          "<< data: %s, request_id: %s, has-cb?: %s"
-          json-data
-          request-id
-          (and callback t))
-         ;; Remove it first from callback table, so we don't get into
-         ;; a loop if an error occurs on the callback function
-         (when (not (plist-get callback :event?))
-           (map-delete empv--callback-table request-id))
-         (when-let* ((cb-fn (plist-get callback :fn)))
-           (ignore-error (quit minibuffer-quit)
-             (if (or request-id id)
-                 (funcall cb-fn (cdr (assoc 'data json-data)))
-               (funcall cb-fn json-data))))))
-     (seq-filter
-      (lambda (it) (not (string-empty-p it)))
-      (seq-map
-       #'string-trim
-       (split-string empv--process-buffer "\n"))))
-    (setq empv--process-buffer "")))
+  (unless empv--filter-running
+    (setq empv--filter-running t)
+    (unwind-protect
+        (while (and empv--process-buffer
+                    (string-match-p "\n$" empv--process-buffer))
+          (let ((messages (seq-filter
+                           (lambda (it) (not (string-empty-p it)))
+                           (seq-map
+                            #'string-trim
+                            (split-string empv--process-buffer "\n")))))
+            (setq empv--process-buffer "")
+            (dolist (it messages)
+              (let* ((json-data (empv--read-result it))
+                     (id (map-elt json-data 'id))
+                     (request-id (map-elt json-data 'request_id))
+                     (event-name (map-elt json-data 'event))
+                     (callback (map-elt empv--callback-table (format "%s" (or request-id id event-name)))))
+                (empv--dbg
+                 "<< data: %s, request_id: %s, has-cb?: %s"
+                 json-data
+                 request-id
+                 (and callback t))
+                ;; Remove it first from callback table, so we don't get into
+                ;; a loop if an error occurs on the callback function
+                (when (not (plist-get callback :event?))
+                  (map-delete empv--callback-table request-id))
+                (when-let* ((cb-fn (plist-get callback :fn)))
+                  (ignore-error (quit minibuffer-quit)
+                    (if (or request-id id)
+                        (funcall cb-fn (cdr (assoc 'data json-data)))
+                      (funcall cb-fn json-data))))))))
+      (setq empv--filter-running nil))))
 
 ;;;; Process primitives
 
@@ -1382,7 +1387,8 @@ enqueued and the first one starts playing."
   (if (listp uri)
       (empv--cmd
        'stop nil
-       (seq-do #'empv-enqueue uri)
+       (dolist (u uri)
+         (empv-enqueue u))
        (empv-resume))
     (when (file-exists-p uri)
       (setq uri (expand-file-name uri)))
@@ -1632,7 +1638,8 @@ along with the log."
 URI might be a list of URIs, then they are all enqueued in order."
   (interactive "sEnter an URI to play: ")
   (if (listp uri)
-      (seq-do #'empv-enqueue uri)
+      (dolist (u uri)
+        (empv-enqueue u))
     (when (string-prefix-p "~/" uri)
       (setq uri (expand-file-name uri)))
     (setq uri (empv--tramp-to-sftp-uri uri))
@@ -1645,7 +1652,8 @@ URI might be a list of URIs, then they are all enqueued in order."
   "Like `empv-enqueue' but append URI right after current item."
   (interactive "sEnter an URI to play: ")
   (if (listp uri)
-      (seq-do #'empv-enqueue-next uri)
+      (dolist (u uri)
+        (empv-enqueue-next u))
     (empv--let-properties '(playlist)
       (let ((len (length .playlist))
             (idx (empv--seq-find-index (lambda (it) (alist-get 'current it)) .playlist)))
