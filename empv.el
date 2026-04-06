@@ -2133,7 +2133,6 @@ resulting object is returned."
     (empv-youtube-show-comments .path)))
 
 (declare-function emojify-mode "emojify")
-(declare-function org-link-preview-region "ol")
 
 ;;;###autoload
 (defalias 'empv-youtube-show-comments #'empv-youtube-show-video-details)
@@ -2179,7 +2178,11 @@ buffer (otherwise it will be fetched automatically)."
                        (forward-line 1)
                        (let ((start (point)))
                          (insert (format "\n[[file:%s][Thumbnail]]\n" file-path))
-                         (org-link-preview-region t t start (point)))))))
+                         (cond
+                          ((fboundp 'org-link-preview-region)
+                           (org-link-preview-region t t start (point)))
+                          ((fboundp 'org-display-inline-images)
+                           (org-display-inline-images t t start (point)))))))))
                 (empv--invidious-request
                  (format "comments/%s" video-id)
                  '()
