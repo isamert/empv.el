@@ -414,8 +414,13 @@ const getChannelVideos = async (
   const channelVideos = await channel.getVideos();
   const sortFilter = channelVideos.filters.find((x) =>
     x.toLowerCase() === sortBy
-  )!;
-  const response = await channelVideos.applyFilter(sortFilter);
+  );
+  if (!sortFilter) {
+    console.warn(`Sort filter "${sortBy}" not found for channel ${id}. Available filters: ${channelVideos.filters.join(", ")}. Falling back to default.`);
+  }
+  const response = sortFilter
+    ? await channelVideos.applyFilter(sortFilter)
+    : channelVideos;
 
   let continuation: string = ""; // TODO: No continuation...
   const metadata = channelVideos?.metadata ?? {};
