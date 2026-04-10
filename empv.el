@@ -2037,18 +2037,22 @@ resulting object is returned."
          (handler
           (lambda (status)
             (empv--dbg "empv--request(%s, %s) → error: %s" url params (plist-get status :error))
-            (let ((headers (progn
-                             (goto-char (point-min))
-                             (re-search-forward "\n\n" nil t)
-                             (buffer-substring-no-properties (point-min) (point))))
-                  (body (decode-coding-string
-                         (buffer-substring-no-properties (point) (point-max)) 'utf-8)))
-              (empv--dbg "empv--request(%s, %s) → headers: %s, body: %s" url params headers body)
-              (kill-buffer)
-              (let ((parsed (empv--read-result body)))
-                (if callback
-                    (funcall callback parsed)
-                  parsed))))))
+            (if-let* ((err (plist-get status :error)))
+                (progn
+                  (kill-buffer)
+                  (empv--display-event "Request failed: %s → %s" full-url err))
+              (let ((headers (progn
+                               (goto-char (point-min))
+                               (re-search-forward "\n\n" nil t)
+                               (buffer-substring-no-properties (point-min) (point))))
+                    (body (decode-coding-string
+                           (buffer-substring-no-properties (point) (point-max)) 'utf-8)))
+                (empv--dbg "empv--request(%s, %s) → headers: %s, body: %s" url params headers body)
+                (kill-buffer)
+                (let ((parsed (empv--read-result body)))
+                  (if callback
+                      (funcall callback parsed)
+                    parsed)))))))
     (if callback
         (url-retrieve full-url handler)
       (with-current-buffer (url-retrieve-synchronously full-url)
