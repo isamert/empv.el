@@ -2158,7 +2158,7 @@ buffer (otherwise it will be fetched automatically)."
                   (when video-info
                     (let-alist video-info
                       (insert (format "#+title: \"%s\" comments\n\n" .title))
-                      (insert (format "- View Count :: %s\n" .viewCountText))
+                      (insert (format "- View Count :: %s\n" (or .viewCountText (when .viewCount (empv--format-yt-views .viewCount)))))
                       (insert (format "- Duration   :: %s \n" (empv--format-yt-duration .lengthSeconds)))
                       (insert (format "- Published  :: %s\n" .publishedText))
                       (insert (format "- Author     :: [[elisp:(empv-youtube-show-channel-videos \"%s\")][%s]]\n" .authorId .author))
