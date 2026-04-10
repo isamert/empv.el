@@ -2791,10 +2791,9 @@ See `empv--request' to learn about ENDPOINT, PARAMS, CALLBACK."
     (when (and (eq 'ivjs empv-invidious-instance)
                empv--ivjs-process
                (not (process-get empv--ivjs-process :ready)))
-      ;; Wait until it becomes online, should not take long.
       (process-put
        empv--ivjs-process
-       :ready (empv--try-until-non-nil (result 10 0.3)
+       :ready (empv--try-until-non-nil (result 20 0.3)
                 (setq result (equal "pong" (ignore-errors
                                              (thread-first
                                                (format "%s/ping" invidious-url)
