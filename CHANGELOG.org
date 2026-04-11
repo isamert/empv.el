@@ -1,3 +1,9 @@
+* 6.2.0
+
+- Add ~empv-youtube-show-video-details~, replacing the old ~empv-youtube-show-comments~. Now it also shows video metadata, thumbnail and automatically detects URL at point.
+- Various bug fixes and stability improvements.
+- README now contains a section about useful mpv extensions that works well with empv, check them out!
+
 * 6.1.0
 
 - Drop ~fd~ dependency for discovering media files.
