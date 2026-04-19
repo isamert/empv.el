@@ -2062,6 +2062,7 @@ resulting object is returned."
   "Retrieve URL's body synchronously as string."
   (when (string-empty-p url)
     (error 'wrong-type-argument))
+  (empv--dbg "empv--request-raw-sync(%s)" url)
   (with-current-buffer (url-retrieve-synchronously url)
     (let ((result
            (progn
@@ -2071,6 +2072,7 @@ resulting object is returned."
              (set-buffer-multibyte t)
              (decode-coding-region (point-min) (point-max) 'utf-8)
              (buffer-substring-no-properties (point-min) (point-max)))))
+      (empv--dbg "empv--request-raw-sync(%s) → %s" url result)
       result)))
 
 ;;;; YouTube/Invidious
