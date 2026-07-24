@@ -4,7 +4,7 @@ import {
   Innertube,
   Types as InnerTubeTypes,
   UniversalCache,
-} from "npm:youtubei.js@^16.0.1";
+} from "npm:youtubei.js@^17.2.0";
 
 // * CLI
 
