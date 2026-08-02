@@ -535,6 +535,31 @@ This is only relevant if you set `empv-invidious-instance' to \\='ivjs."
   :type 'number
   :version "5.5.0")
 
+(defcustom empv-media-title-function
+  #'empv-classic-media-title
+  "Function used to format media title.
+
+The function is called with five arguments: TITLE, ARTIST, ALBUM, GENRE
+and FALLBACK.  Each argument is a trimmed, non-empty string or nil.
+FALLBACK is resolved from the path or mpv's media title.  The function
+should return a string.  Its result is used for the current media title,
+notifications etc.
+
+For example, to use the format \"Artist — Title (Album)\" one can set it
+to:
+
+  (setq empv-media-title-function
+        (lambda (title artist album _genre fallback)
+          (cond
+           ((and artist title album)
+            (format \"%s - %s (%s)\" artist title album))
+           ((and artist title)
+            (format \"%s - %s\" artist title))
+           (title title)
+           (t fallback))))"
+  :type 'function
+  :group 'empv)
+
 ;;;; Public variables
 
 (defvar empv-media-title nil
@@ -1017,6 +1042,12 @@ documentation."
                                          (file-remote-p uri 'localname)
                                        uri))))))))
 
+(defun empv--normalize-string (value)
+  "Trim VALUE and return it, if it's empty then return nil."
+  (when (stringp value)
+    (let ((value (string-trim value)))
+      (unless (string-empty-p value) value))))
+
 ;;;; Handlers
 
 (defun empv--sentinel (_proc msg)
@@ -1162,7 +1193,7 @@ happens."
   "Gives you a context containing `.media-title', `.path' `.metadata'.
 Executes BODY with this context."
   `(empv--let-properties '(metadata media-title path)
-     (let ((.media-title (empv--create-media-summary-for-notification .metadata .path .media-title)))
+     (let ((.media-title (empv--format-media-title .metadata .path .media-title)))
        ,@body)))
 
 (defmacro empv--with-video-enabled (&rest forms)
@@ -1245,24 +1276,34 @@ events: https://mpv.io/manual/stable/#list-of-events"
     (artist . ,(empv--metadata-get data 'artist 'icy-artist))
     (genre  . ,(empv--metadata-get data 'genre 'icy-genre))))
 
-(defun empv--create-media-summary-for-notification (metadata path &optional fallback)
-  "Generate a formatted media title like \"Song name - Artist\" from given METADATA.
-Use FALLBACK as fallback title in case song/artist name not found.
-PATH is the path of the media file."
+(defun empv-classic-media-title (title artist _album _genre fallback)
+  "Try to format media as \"TITLE - ARTIST\", otherwise use FALLBACK.
+Used as the value of `empv-media-title-function'."
+  (if title
+      (string-join (delq nil (list title artist)) " - ")
+    fallback))
+
+(defun empv--format-media-title (metadata path &optional fallback)
+  "Generate a formatted media title from METADATA and PATH.
+Use FALLBACK when no title can be derived from METADATA or PATH."
   (let-alist (empv--extract-metadata metadata)
-    (if .title
-        (format "%s %s %s"
-                (string-trim .title)
-                (or (and .artist "-") "")
-                (or .artist ""))
-      (plist-get (empv--extract-empv-metadata-from-path path fallback) :title))))
+    (funcall
+     empv-media-title-function
+     (empv--normalize-string .title)
+     (empv--normalize-string .artist)
+     (empv--normalize-string .album)
+     (empv--normalize-string .genre)
+     (empv--normalize-string
+      (plist-get
+       (empv--extract-empv-metadata-from-path path fallback)
+       :title)))))
 
 (defun empv--handle-metadata-change (data)
   "Display info about the current track using DATA."
   (empv--dbg "handle-metadata-change <> %s" data)
   (empv--let-properties '(media-title path chapter chapter-metadata metadata)
     (when .path
-      (let ((title (string-trim (empv--create-media-summary-for-notification .metadata .path .media-title))))
+      (let ((title (string-trim (empv--format-media-title .metadata .path .media-title))))
         (puthash (empv--clean-uri .path) title empv--media-title-cache)
         (empv--set-media-title (concat title (if (and .chapter (> .chapter -1))
                                                  (format " (%s)" (alist-get 'title .chapter-metadata))
@@ -1304,18 +1345,22 @@ see what `empv-metadata' object looks like."
        ,@forms)))
 
 (defun empv--format-playlist-item (item)
-  "Format given ITEM into a readable item.
-INDEX is the place where the item appears in the playlist."
-  (format
-   "%s%s"
-   (or (and (alist-get 'current item)
-            (format "%s " empv--playlist-current-indicator)) "")
-   (string-trim
-    (or (alist-get 'title item)
-        (thread-first
-          (alist-get 'filename item)
-          empv--extract-empv-metadata-from-path
-          (plist-get :title))))))
+  "Format playlist ITEM into a readable string."
+  (let* ((filename (alist-get 'filename item))
+         (cached-title (and filename
+                            (gethash (empv--clean-uri filename)
+                                     empv--media-title-cache))))
+    (format
+     "%s%s"
+     (or (and (alist-get 'current item)
+              (format "%s " empv--playlist-current-indicator)) "")
+     (string-trim
+      (or cached-title
+          (alist-get 'title item)
+          (thread-first
+            filename
+            empv--extract-empv-metadata-from-path
+            (plist-get :title)))))))
 
 (defmacro empv--playlist-select-item-and (&rest forms)
   "Select a playlist item and then run FORMS with the input.
@@ -1790,7 +1835,7 @@ The display format is determined by the
                           volume option-info/volume/default-value
                           speed option-info/volume/default-value
                           file-format)
-    (let ((title (string-trim (empv--create-media-summary-for-notification .metadata .path .media-title)))
+    (let ((title (string-trim (empv--format-media-title .metadata .path .media-title)))
           (state (cond
                   ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "gold")))
                   ((eq .pause t) (propertize "Paused" 'face '(:foreground "grey")))
