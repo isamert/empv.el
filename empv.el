@@ -3056,7 +3056,12 @@ them so that responses are easier to work with."
                       index)))
                   (let ((all `(,@info (results . ,results))))
                     (if callback
-                        (funcall callback all)
+                        ;; Callbacks run from a process filter and if
+                        ;; user quits the completing-read via C-g, it
+                        ;; is reported as an error.  This fixes that.
+                        (condition-case nil
+                            (funcall callback all)
+                          (quit nil))
                       all))))))))
     (if callback
         (empv--request (apply #'empv--subsonic-build-url endpoint params) nil handler)
