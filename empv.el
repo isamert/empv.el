@@ -40,6 +40,7 @@
 ;;; Code:
 
 (require 'pp)
+(require 'cl-lib)
 (require 'seq)
 (require 'map)
 (require 'json)
@@ -3086,48 +3087,80 @@ them so that responses are easier to work with."
      (other (error "empv--subsonic-format-candidate :: No formatter found for: %s" other)))
    :item cand))
 
-(defun empv--subsonic-result-handler (prompt)
-  (lambda (results)
-    (setq results (alist-get 'results results))
-    (empv--subsonic-act-on-candidate
-     (empv--completing-read-object
-      prompt
-      results
-      :formatter #'empv--subsonic-format-candidate
-      :category 'empv-subsonic-item
-      :group (lambda (object)
-               (or (alist-get 'indexName object)
-                   (s-titleize (symbol-name (alist-get 'kind object)))))
-      :sort? nil))))
+(defun empv--subsonic-result-handler (prompt &optional on-quit)
+  "Return a handler that displays Subsonic results with PROMPT.
+ON-QUIT is called when the result selector is cancelled.  Nested result
+selectors use this to return to the selector from which they were opened."
+  (lambda (response)
+    ;; `url-retrieve' invokes callbacks with `inhibit-quit' bound.  Reset it
+    ;; before opening a minibuffer, otherwise C-g is read as an invalid choice
+    ;; by `read-multiple-choice'.
+    (let ((inhibit-quit nil)
+          (results (alist-get 'results response)))
+      (cl-labels
+          ((show-results ()
+             (let ((selected
+                    (condition-case nil
+                        (empv--completing-read-object
+                         prompt
+                         results
+                         :formatter #'empv--subsonic-format-candidate
+                         :category 'empv-subsonic-item
+                         :group (lambda (object)
+                                  (or (alist-get 'indexName object)
+                                      (s-titleize (symbol-name (alist-get 'kind object)))))
+                         :sort? nil)
+                      (quit
+                       (if on-quit
+                           (progn
+                             (funcall on-quit)
+                             nil)
+                         (signal 'quit nil))))))
+               (when selected
+                 (empv--subsonic-act-on-candidate selected #'show-results)))))
+        (show-results)))))
 
-(defun empv--subsonic-consult-search ()
-  (empv--subsonic-act-on-candidate
-   (consult--read
-    (empv--consult-async-generator
-     (lambda (action on-result)
-       (empv--subsonic-request
-        "search3.view"
-        :query action
-        :artistCount empv-subsonic-result-count
-        :albumCount empv-subsonic-result-count
-        :songCount empv-subsonic-result-count
-        on-result))
-     (lambda (result)
-       (mapcar #'empv--subsonic-format-candidate (alist-get 'results result))))
-    :prompt empv--subsonic-search-prompt
-    :category 'empv-subsonic-item
-    :lookup (lambda (selected candidates &rest _)
-              (empv--get-text-property (car (member selected candidates)) :item))
-    :sort nil
-    :group
-    (lambda (cand transform)
-      (if transform
-          cand
-        (s-titleize (symbol-name (alist-get 'kind (empv--get-text-property cand :item))))))
-    :history 'empv--subsonic-search-history
-    ;; TODO: :narrow ...?
-    :require-match t
-    :async-wrap #'empv--consult-async-wrapper)))
+(defun empv--subsonic-consult-search (&optional initial)
+  "Search Subsonic through Consult, starting with INITIAL input."
+  (let* ((selection
+          (consult--read
+           (empv--consult-async-generator
+            (lambda (action on-result)
+              (empv--subsonic-request
+               "search3.view"
+               :query action
+               :artistCount empv-subsonic-result-count
+               :albumCount empv-subsonic-result-count
+               :songCount empv-subsonic-result-count
+               on-result))
+            (lambda (result)
+              (mapcar #'empv--subsonic-format-candidate
+                      (alist-get 'results result))))
+           :prompt empv--subsonic-search-prompt
+           :category 'empv-subsonic-item
+           :lookup (lambda (selected candidates input &rest _)
+                     (list (empv--get-text-property
+                            (car (member selected candidates)) :item)
+                           input))
+           :sort nil
+           :group
+           (lambda (cand transform)
+             (if transform
+                 cand
+               (s-titleize
+                (symbol-name
+                 (alist-get 'kind (empv--get-text-property cand :item))))))
+           :history 'empv--subsonic-search-history
+           ;; TODO: :narrow ...?
+           :require-match t
+           :initial initial
+           :async-wrap #'empv--consult-async-wrapper))
+         (selected (car selection))
+         (input (cadr selection)))
+    (empv--subsonic-act-on-candidate
+     selected
+     (lambda ()
+       (empv--subsonic-consult-search input)))))
 
 (defun empv--subsonic-completing-read-search ()
   (empv--subsonic-request
@@ -3138,7 +3171,9 @@ them so that responses are easier to work with."
    :songCount empv-subsonic-result-count
    (empv--subsonic-result-handler empv--subsonic-search-prompt)))
 
-(defun empv--subsonic-act-on-candidate (selected)
+(defun empv--subsonic-act-on-candidate (selected &optional on-quit)
+  "Act on SELECTED Subsonic result.
+ON-QUIT is called when a selector opened for SELECTED is cancelled."
   (empv--dbg "empv--subsonic-act-on-candidate :: %s" selected)
   (let* ((id (alist-get 'id selected)))
     (pcase (alist-get 'kind selected)
@@ -3149,18 +3184,24 @@ them so that responses are easier to work with."
        (empv--subsonic-request
         "getAlbum.view"
         :id id
-        (empv--subsonic-result-handler (format "Select song from '%s':" (alist-get 'name selected)))))
+        (empv--subsonic-result-handler
+         (format "Select song from '%s':" (alist-get 'name selected))
+         on-quit)))
       ('artist
        (empv--subsonic-request
         "getArtist.view"
         :id id
-        (empv--subsonic-result-handler (format "Select song of '%s':" (alist-get 'name selected)))))
+        (empv--subsonic-result-handler
+         (format "Select song of '%s':" (alist-get 'name selected))
+         on-quit)))
       ('genre
        (empv--subsonic-request
         "getSongsByGenre.view"
         :genre (alist-get 'value selected)
         :count empv-subsonic-result-count
-        (empv--subsonic-result-handler (format "Select song from '%s' genre:" (alist-get 'value selected)))))
+        (empv--subsonic-result-handler
+         (format "Select song from '%s' genre:" (alist-get 'value selected))
+         on-quit)))
       (other (error "Not found %s" other)))))
 
 (defun empv--subsonic-select-genre-sync ()
