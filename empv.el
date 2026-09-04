@@ -1302,14 +1302,18 @@ Use FALLBACK when no title can be derived from METADATA or PATH."
 (defun empv--handle-metadata-change (data)
   "Display info about the current track using DATA."
   (empv--dbg "handle-metadata-change <> %s" data)
-  (empv--let-properties '(media-title path chapter chapter-metadata metadata)
-    (when .path
+  (empv--let-properties '(media-title path chapter chapter-metadata metadata playlist-pos)
+    (cond
+     ((< .playlist-pos 0)
+      (empv--set-media-title nil)
+      (empv--display-event "Playback stopped"))
+     (.path
       (let ((title (string-trim (empv--format-media-title .metadata .path .media-title))))
         (puthash (empv--clean-uri .path) title empv--media-title-cache)
         (empv--set-media-title (concat title (if (and .chapter (> .chapter -1))
                                                  (format " (%s)" (alist-get 'title .chapter-metadata))
                                                "")))
-        (empv--display-event "%s" empv-media-title)))))
+        (empv--display-event "%s" empv-media-title))))))
 
 ;;;; Essential functions
 
@@ -1836,6 +1840,8 @@ The display format is determined by the
                           volume option-info/volume/default-value
                           speed option-info/volume/default-value
                           file-format)
+    (when (< .playlist-pos-1 0)
+      (user-error "empv :: No media is currently playing"))
     (let ((title (string-trim (empv--format-media-title .metadata .path .media-title)))
           (state (cond
                   ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "gold")))
