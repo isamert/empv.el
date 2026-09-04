@@ -3545,6 +3545,9 @@ Also see `empv-search-prefix'."
              (string-replace "%2F" "/")
              (string-replace "%2D" "-")
              (string-replace "%2D" "+"))))
+        ;; Filter out /albums/ matches, we are more interested in
+        ;; direct song lyrics pages
+        (seq-filter (lambda (it) (not (s-matches? "/albums/" it))))
         ;; Then find the first sturmgeweiht|azlyrics|genius link
         ;; FIXME: Sort found URLs by their reliability first?
         (seq-find (lambda (it) (s-matches? "^https?://.*\\(sturmgeweiht.de/texte/.*titel\\|flashlyrics.com/lyrics/\\|lyrics.az/.*.html\\|azlyrics.com/lyrics/\\|genius.com\\)" it)))
@@ -3649,15 +3652,15 @@ lyrics with the buffers content."
 This tries to extract the lyrics from the file metada first and
 if it can't find one then downloads it from the web."
   (interactive)
-  (empv--with-media-info
-   (if-let* ((metadata-lyrics (empv--lyrics-from-metadata .metadata)))
-       (empv--lyrics-display .path .media-title metadata-lyrics)
-     (pcase-let ((`(,url ,web-lyrics) (empv--lyrics-download .media-title)))
-       (if (not web-lyrics)
-           (empv--lyrics-on-not-found .media-title)
-         (empv--lyrics-display .path .media-title web-lyrics :url url)
-         (when (and empv-lyrics-save-automatically (file-exists-p (expand-file-name .path)))
-           (empv-lyrics-save .path web-lyrics)))))))
+  (empv--let-properties '(metadata path)
+    (if-let* ((metadata-lyrics (empv--lyrics-from-metadata .metadata)))
+        (empv--lyrics-display .path empv-media-title metadata-lyrics)
+      (pcase-let ((`(,url ,web-lyrics) (empv--lyrics-download empv-media-title)))
+        (if (not web-lyrics)
+            (empv--lyrics-on-not-found empv-media-title)
+          (empv--lyrics-display .path empv-media-title web-lyrics :url url)
+          (when (and empv-lyrics-save-automatically (file-exists-p (expand-file-name .path)))
+            (empv-lyrics-save .path web-lyrics)))))))
 
 (defun empv-lyrics-show (song)
   "Show lyrics for SONG in a separate buffer.
