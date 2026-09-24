@@ -529,6 +529,36 @@ Maximum possible value is 500."
   :group 'empv
   :version "4.9.0")
 
+(defcustom empv-audiobookshelf-url nil
+  "Audiobookshelf server URL, without a trailing slash.
+For example: \"https://books.example.com\"."
+  :group 'empv
+  :type 'string
+  :version "6.3.0")
+
+(defcustom empv-audiobookshelf-api-key nil
+  "Audiobookshelf API key or user access token.
+Create one under Settings → API Keys in the Audiobookshelf web UI.  It
+is sent as a Bearer token on API calls and as the `token' query
+parameter on stream URLs handed to mpv."
+  :group 'empv
+  :type 'string
+  :version "6.3.0")
+
+(defcustom empv-audiobookshelf-result-count 50
+  "Max number of results fetched per Audiobookshelf search or shelf request."
+  :group 'empv
+  :type 'integer
+  :version "6.3.0")
+
+(defcustom empv-audiobookshelf-progress-sync-interval 15
+  "Seconds between listening-progress updates sent to Audiobookshelf.
+Progress is also sent when playback is paused and when the playing item
+changes, see `empv--audiobookshelf-handle-path-change'."
+  :group 'empv
+  :type 'integer
+  :version "6.3.0")
+
 (defcustom empv-ivjs-port 3467
   "Port to use for ivjs process.
 This is only relevant if you set `empv-invidious-instance' to \\='ivjs."
@@ -1005,6 +1035,11 @@ if invoked by `empv-play-radio' etc.)
 
 :subsonic indicates that this PATH is a Subsonic stream.
 
+:audiobookshelf indicates that this PATH is an Audiobookshelf stream.
+:id, :episodeId and :duration then carry the library item id, the
+podcast episode id (nil for books) and the total duration, used for
+progress reporting.
+
 :youtube indicates if this PATH is a YouTube path or not (only
 true if invoked by `empv-youtube' family of functions.)
 
@@ -1339,6 +1374,9 @@ URI might be a string or a list of strings."
     (empv-observe 'pause #'empv--set-player-state)
     (empv-observe 'paused-for-cache #'empv--set-player-state)
     (empv-observe 'playlist-count #'empv--set-player-state)
+    (empv-observe 'path #'empv--audiobookshelf-handle-path-change)
+    (empv-observe 'pause #'empv--audiobookshelf-handle-pause)
+    (empv-event 'end-file #'empv--audiobookshelf-handle-end-file)
     (run-hooks 'empv-init-hook)))
 
 (cl-defmacro empv--with-empv-metadata (&rest forms)
@@ -1628,6 +1666,7 @@ MPV."
     (setq empv--network-process (delete-process empv--network-process)))
   (setq empv--callback-table (make-hash-table :test 'equal))
   (setq empv--media-title-cache (make-hash-table :test 'equal))
+  (empv--audiobookshelf-handle-path-change nil)
   (empv--set-media-title nil)
   (empv--set-player-state nil)
   (when empv--ivjs-process
@@ -3320,6 +3359,657 @@ error out."
   "Create an empv bookmark from SUBSONIC-RESULT."
   (empv-bookmark-set subsonic-result))
 
+;;;; Audiobookshelf
+
+(defvar empv--audiobookshelf-search-history nil)
+(defvar empv--audiobookshelf-search-prompt "Audiobookshelf search: ")
+
+;;;;; Requests & builders
+
+(defun empv--audiobookshelf-check-config ()
+  "Signal a `user-error' unless Audiobookshelf is configured."
+  (when (seq-some #'s-blank? (list empv-audiobookshelf-url empv-audiobookshelf-api-key))
+    (user-error "Please configure `empv-audiobookshelf-url' and `empv-audiobookshelf-api-key' first")))
+
+(defun empv--audiobookshelf-headers (&optional json?)
+  "Request headers for Audiobookshelf, with a JSON content type if JSON?."
+  (append
+   empv--request-headers
+   `(("Authorization" . ,(concat "Bearer " empv-audiobookshelf-api-key)))
+   (when json? '(("Content-Type" . "application/json")))))
+
+(defun empv--audiobookshelf-wrap-callback (callback)
+  "Wrap CALLBACK so it can safely open a minibuffer from a URL callback.
+`url-retrieve' invokes callbacks with `inhibit-quit' bound and from a
+process filter, so C-g in a `completing-read' would otherwise be
+reported as an error."
+  (lambda (result)
+    (let ((inhibit-quit nil))
+      (condition-case nil
+          (funcall callback result)
+        (quit nil)))))
+
+(defun empv--audiobookshelf-request (endpoint &rest rest)
+  "Make a GET request to Audiobookshelf ENDPOINT, like \"/api/libraries\".
+REST are URL params as a plist; values are converted to strings and nil
+values are dropped.  If the last of REST is a function, the request is
+made asynchronously and that function is called with the parsed JSON
+response, but only for a successful response: `empv--request' reports
+failures itself and never calls back.  Otherwise the request is
+synchronous and the parsed response is returned."
+  (empv--audiobookshelf-check-config)
+  (let* ((callback (when-let* ((last (empv--seq-last rest))
+                               (_ (functionp last)))
+                     last))
+         (params (mapcar (lambda (pair)
+                           (cons (car pair) (and (cdr pair) (format "%s" (cdr pair)))))
+                         (empv--plist-to-alist (if callback (ignore-errors (empv--seq-init rest)) rest))))
+         (url (concat empv-audiobookshelf-url endpoint))
+         (empv--request-headers (empv--audiobookshelf-headers)))
+    (empv--dbg "empv--audiobookshelf-request :: %s %s" endpoint params)
+    (if callback
+        (empv--request url params (empv--audiobookshelf-wrap-callback callback))
+      (empv--request url params))))
+
+(defun empv--audiobookshelf-request-json (method endpoint data &optional callback)
+  "Send DATA (an alist) as a JSON body to Audiobookshelf ENDPOINT with METHOD.
+METHOD is an HTTP method string like \"PATCH\".  CALLBACK, if given,
+receives the parsed response asynchronously; otherwise the request is
+synchronous."
+  (empv--audiobookshelf-check-config)
+  (let ((url-request-method method)
+        (url-request-data (encode-coding-string (json-serialize data) 'utf-8))
+        (empv--request-headers (empv--audiobookshelf-headers t))
+        (url (concat empv-audiobookshelf-url endpoint)))
+    (empv--dbg "empv--audiobookshelf-request-json :: %s %s %s" method endpoint data)
+    (if callback
+        (empv--request url nil (empv--audiobookshelf-wrap-callback callback))
+      (empv--request url nil))))
+
+(defun empv--audiobookshelf-file-url (content-url)
+  "Return a streamable URL for CONTENT-URL, an item file path from the API.
+CONTENT-URL looks like \"/api/items/ID/file/INO\"; the API key is
+appended as the `token' query parameter so that each entry works
+stand-alone inside an `edl://' URI."
+  (format "%s%s?token=%s"
+          empv-audiobookshelf-url
+          content-url
+          (url-hexify-string empv-audiobookshelf-api-key)))
+
+(defun empv--audiobookshelf-edl (urls)
+  "Return one mpv URI that plays URLS back to back.
+A single URL is returned as is.  Several URLs are joined into an
+`edl://' URI so that mpv sees one continuous file whose timeline matches
+the whole-book timeline Audiobookshelf uses for chapters and progress.
+Each entry is length-prefixed (%N%) so URL characters need no escaping.
+The `!no_chapters' header keeps mpv from making one chapter per segment
+titled with the segment URL, which would expose the API token in the
+chapter list."
+  (if (cdr urls)
+      (concat "edl://!no_chapters;"
+              (mapconcat (lambda (url) (format "%%%d%%%s" (string-bytes url) url)) urls ";"))
+    (car urls)))
+
+(defun empv--audiobookshelf-write-chapters-file (chapters id)
+  "Write CHAPTERS of the item ID to an ffmetadata file and return its path.
+CHAPTERS is a list of alists with `start', `end' (seconds) and `title',
+as found in an item's `media.chapters'.  Return nil when CHAPTERS is
+empty.  The file lives in `temporary-file-directory' under a name
+derived from ID, so playing an item again overwrites its own file
+rather than leaving a new one behind.  It is handed to mpv through its
+`chapters-file' option so that `empv-chapter-select' and friends see
+the server-side chapters."
+  (when chapters
+    (let ((file (expand-file-name (format "empv-audiobookshelf-chapters-%s.txt" id)
+                                  temporary-file-directory))
+          (coding-system-for-write 'utf-8))
+      (with-temp-file file
+        (insert ";FFMETADATA1\n")
+        (dolist (chapter chapters)
+          (let-alist chapter
+            (insert (format "[CHAPTER]\nTIMEBASE=1/1000\nSTART=%d\nEND=%d\ntitle=%s\n"
+                            (round (* 1000 .start))
+                            (round (* 1000 .end))
+                            (thread-last (or .title "")
+                                         (replace-regexp-in-string "[\n\r]" " ")
+                                         (replace-regexp-in-string "\\([=;#\\\\]\\)" "\\\\\\1")))))))
+      file)))
+
+;;;;; Items
+
+(defun empv--audiobookshelf-normalize-library (library)
+  "Turn an Audiobookshelf LIBRARY object into an empv item."
+  (let-alist library
+    `((type . audiobookshelf)
+      (kind . library)
+      (id . ,.id)
+      (title . ,.name)
+      (mediaType . ,.mediaType))))
+
+(defun empv--audiobookshelf-normalize-item (item)
+  "Turn an Audiobookshelf library ITEM (minified or expanded) into an empv item.
+Books become `book' items and podcasts `podcast' items."
+  (let-alist item
+    `((type . audiobookshelf)
+      (kind . ,(if (equal .mediaType "podcast") 'podcast 'book))
+      (id . ,.id)
+      (libraryId . ,.libraryId)
+      (title . ,.media.metadata.title)
+      (author . ,(or .media.metadata.authorName .media.metadata.author))
+      (duration . ,.media.duration)
+      (count . ,(or .media.numTracks .media.numEpisodes)))))
+
+(defun empv--audiobookshelf-normalize-episode (episode podcast)
+  "Turn an Audiobookshelf podcast EPISODE into an empv `episode' item.
+PODCAST is the normalized podcast item the episode belongs to, or nil
+when EPISODE carries its own `podcast' object (as `recent-episodes'
+results do)."
+  (let-alist episode
+    `((type . audiobookshelf)
+      (kind . episode)
+      (id . ,.id)
+      (itemId . ,(or .libraryItemId (alist-get 'id podcast)))
+      (title . ,.title)
+      (author . ,(or (alist-get 'title podcast) .podcast.metadata.title .podcast.media.metadata.title))
+      (duration . ,.duration)
+      (publishedAt . ,.publishedAt)
+      (contentUrl . ,.audioTrack.contentUrl))))
+
+(defun empv--audiobookshelf-playable-p (item)
+  "Non-nil unless ITEM is a book known to have no audio files.
+Book libraries also hold ebook-only items; their minified form reports
+zero tracks, and there is nothing mpv could play.  Items whose track
+count is unknown (expanded items do not carry it) are kept."
+  (not (and (eq (alist-get 'kind item) 'book)
+            (eql (alist-get 'count item) 0))))
+
+(defun empv--audiobookshelf-normalize-shelf-entity (entity)
+  "Normalize ENTITY from a personalized shelf.
+Podcast entities carry a `recentEpisode'; those become `episode' items,
+everything else goes through `empv--audiobookshelf-normalize-item'."
+  (let ((item (empv--audiobookshelf-normalize-item entity)))
+    (if-let* ((episode (alist-get 'recentEpisode entity)))
+        (empv--audiobookshelf-normalize-episode episode item)
+      item)))
+
+(defun empv--audiobookshelf-format-duration (seconds)
+  "Format SECONDS as \"2h 05m\" or \"42m\"; \"?\" when SECONDS is nil."
+  (if (not (numberp seconds))
+      "?"
+    (let* ((minutes (floor (/ seconds 60)))
+           (hours (floor (/ minutes 60))))
+      (if (> hours 0)
+          (format "%dh %02dm" hours (% minutes 60))
+        (format "%dm" minutes)))))
+
+(defun empv--audiobookshelf-format-candidate (cand)
+  "Format Audiobookshelf item CAND for `completing-read'."
+  (empv--with-text-properties
+   (let-alist cand
+     (pcase .kind
+       ('library (format "%s %s"
+                         (propertize .title 'face 'bold)
+                         (propertize (format "[%s]" .mediaType) 'face 'italic)))
+       ('book (format "%s - %s %s"
+                      (propertize (or .author "?") 'face 'italic)
+                      (propertize (or .title "?") 'face 'bold)
+                      (propertize (format "[%s]" (empv--audiobookshelf-format-duration .duration)) 'face 'italic)))
+       ('podcast (format "%s %s"
+                         (propertize (or .title "?") 'face 'bold)
+                         (propertize (format "[%s episodes]" (or .count 0)) 'face 'italic)))
+       ('episode (format "%s - %s %s%s"
+                         (propertize (or .author "?") 'face 'italic)
+                         (propertize (or .title "?") 'face 'bold)
+                         (propertize (format "[%s]" (empv--audiobookshelf-format-duration .duration)) 'face 'italic)
+                         (if .contentUrl "" (propertize " [not downloaded]" 'face 'italic))))
+       (other (error "empv--audiobookshelf-format-candidate :: No formatter found for: %s" other))))
+   :item cand))
+
+;;;;; Playback
+
+(defun empv--audiobookshelf-item-extract-url (obj urls)
+  "Build the playable URI for Audiobookshelf item OBJ from its track URLS.
+The item id, episode id and duration are attached as magic info (see
+`empv--url-with-magic-info') so progress can be reported later."
+  (let ((episode? (eq (alist-get 'kind obj) 'episode)))
+    (empv--url-with-magic-info
+     (empv--audiobookshelf-edl urls)
+     :title (replace-regexp-in-string
+             "[\n\r]+" " "
+             (substring-no-properties (empv--audiobookshelf-format-candidate obj)))
+     :kind (alist-get 'kind obj)
+     :audiobookshelf t
+     :id (if episode? (alist-get 'itemId obj) (alist-get 'id obj))
+     :episodeId (when episode? (alist-get 'id obj))
+     :duration (alist-get 'duration obj))))
+
+(defun empv--audiobookshelf-progress-start (progress)
+  "Resume position in seconds from a PROGRESS object.
+Return 0 when PROGRESS is nil or the item is marked finished."
+  (if (or (null progress) (eq (alist-get 'isFinished progress) t))
+      0
+    (or (alist-get 'currentTime progress) 0)))
+
+(defun empv--audiobookshelf-resolve (obj callback)
+  "Fetch what is needed to play Audiobookshelf item OBJ and call CALLBACK.
+CALLBACK receives a playable plist: (:uri URI :start SECONDS
+:chapters-file FILE-OR-NIL).  Books and episodes both need one item
+request: books for their tracks and chapters, episodes for their audio
+file and saved progress.  The episode's progress is requested with the
+`episode' parameter, which unlike the per-item progress endpoint does
+not 404 when nothing was listened to yet."
+  (pcase (alist-get 'kind obj)
+    ('book
+     (empv--audiobookshelf-request
+      (format "/api/items/%s" (alist-get 'id obj))
+      :expanded 1 :include "progress"
+      (lambda (item)
+        (unless item
+          (user-error "Audiobookshelf: could not fetch item %s" (alist-get 'id obj)))
+        (let-alist item
+          (unless .media.tracks
+            (user-error "Audiobookshelf: '%s' has no audio files" (alist-get 'title obj)))
+          (funcall
+           callback
+           (list :uri (empv--audiobookshelf-item-extract-url
+                       obj
+                       (mapcar (lambda (track) (empv--audiobookshelf-file-url (alist-get 'contentUrl track)))
+                               .media.tracks))
+                 :start (empv--audiobookshelf-progress-start .userMediaProgress)
+                 :chapters-file (empv--audiobookshelf-write-chapters-file .media.chapters (alist-get 'id obj))))))))
+    ('episode
+     (empv--audiobookshelf-request
+      (format "/api/items/%s" (alist-get 'itemId obj))
+      :expanded 1 :include "progress" :episode (alist-get 'id obj)
+      (lambda (item)
+        (unless item
+          (user-error "Audiobookshelf: could not fetch item %s" (alist-get 'itemId obj)))
+        (let-alist item
+          (let* ((episode (seq-find (lambda (ep) (equal (alist-get 'id ep) (alist-get 'id obj)))
+                                    .media.episodes))
+                 (content-url (or (let-alist episode .audioTrack.contentUrl)
+                                  (alist-get 'contentUrl obj))))
+            (unless content-url
+              (user-error "Audiobookshelf: episode '%s' is not downloaded on the server" (alist-get 'title obj)))
+            (funcall
+             callback
+             (list :uri (empv--audiobookshelf-item-extract-url obj (list (empv--audiobookshelf-file-url content-url)))
+                   :start (empv--audiobookshelf-progress-start .userMediaProgress)
+                   :chapters-file nil)))))))
+    (other (user-error "Not playable: %s" other))))
+
+(defun empv--audiobookshelf-load-options (playable)
+  "Per-file mpv options string for PLAYABLE: resume point and chapters."
+  (string-join
+   (delq nil
+         (list (format "start=%s" (plist-get playable :start))
+               (when-let* ((file (plist-get playable :chapters-file)))
+                 (format "chapters-file=%s" file))))
+   ","))
+
+(defun empv--audiobookshelf-load (playable action)
+  "Load PLAYABLE (see `empv--audiobookshelf-resolve') into mpv.
+ACTION is one of `play', `enqueue' or `enqueue-next'.  Unlike
+`empv-play', the file is loaded with mpv's per-file options so playback
+resumes at the saved position and server chapters are attached."
+  (let ((uri (plist-get playable :uri))
+        (options (empv--audiobookshelf-load-options playable)))
+    (empv--run
+     (pcase action
+       ('play
+        (empv--cmd-seq
+         ('loadfile (list uri "append" -1 options))
+         ('get_property 'playlist-count)
+         ('playlist-play-index (1- it))
+         ('set_property '(pause :json-false))))
+       ('enqueue
+        (empv--cmd 'loadfile (list uri "append-play" -1 options)))
+       ('enqueue-next
+        (empv--let-properties '(playlist)
+          (let ((len (length .playlist))
+                (idx (or (empv--seq-find-index (lambda (it) (alist-get 'current it)) .playlist) -1)))
+            (empv--cmd 'loadfile (list uri "append-play" -1 options))
+            (empv--cmd 'playlist-move `(,len ,(1+ idx))))))))
+    (empv--display-event
+     "%s %s"
+     (if (eq action 'play) "Playing" "Enqueued")
+     (plist-get (empv--extract-empv-metadata-from-path uri) :title))))
+
+(defun empv--audiobookshelf-play-or-enqueue (playable)
+  "Ask what to do with PLAYABLE and do it, like `empv-play-or-enqueue'."
+  (empv--select-action _
+    "Play" → (empv--audiobookshelf-load playable 'play)
+    "Enqueue last" → (empv--audiobookshelf-load playable 'enqueue)
+    "Enqueue next" → (empv--audiobookshelf-load playable 'enqueue-next)))
+
+(defun empv--audiobookshelf-act (action obj)
+  "Resolve Audiobookshelf item OBJ and load it with ACTION.
+Only books and episodes are playable."
+  (unless (memq (alist-get 'kind obj) '(book episode))
+    (user-error "Not applicable for %s" (alist-get 'kind obj)))
+  (empv--audiobookshelf-resolve obj (lambda (playable) (empv--audiobookshelf-load playable action))))
+
+(defun empv-audiobookshelf-play (item)
+  "Play the Audiobookshelf ITEM (a book or an episode), resuming where it was left."
+  (empv--audiobookshelf-act 'play item))
+
+(defun empv-audiobookshelf-enqueue (item)
+  "Enqueue the Audiobookshelf ITEM at the end of the playlist."
+  (empv--audiobookshelf-act 'enqueue item))
+
+(defun empv-audiobookshelf-enqueue-next (item)
+  "Enqueue the Audiobookshelf ITEM right after the current one."
+  (empv--audiobookshelf-act 'enqueue-next item))
+
+;;;;; Progress
+
+(defvar empv--audiobookshelf-current nil
+  "Magic-info plist of the Audiobookshelf item mpv is playing, or nil.
+See `empv--audiobookshelf-item-extract-url' for the keys.")
+
+(defvar empv--audiobookshelf-last-time-pos nil
+  "Last playback position (seconds) seen for `empv--audiobookshelf-current'.")
+
+(defvar empv--audiobookshelf-sync-timer nil
+  "Timer that periodically reports progress while an Audiobookshelf item plays.")
+
+(defun empv--audiobookshelf-progress-endpoint (info)
+  "Return the `/api/me/progress' endpoint for the item described by INFO.
+INFO is a magic-info plist with `:id' and, for episodes, `:episodeId'."
+  (if-let* ((episode-id (plist-get info :episodeId)))
+      (format "/api/me/progress/%s/%s" (plist-get info :id) episode-id)
+    (format "/api/me/progress/%s" (plist-get info :id))))
+
+(defun empv--audiobookshelf-send-progress (info time-pos)
+  "Report TIME-POS (seconds) as the listening position of INFO.
+INFO is a magic-info plist with `:id', `:episodeId' and `:duration'.
+Does nothing when either argument is nil."
+  (when (and info time-pos)
+    (empv--audiobookshelf-request-json
+     "PATCH"
+     (empv--audiobookshelf-progress-endpoint info)
+     (delq nil
+           (list (cons 'currentTime (float time-pos))
+                 (when (plist-get info :duration)
+                   (cons 'duration (plist-get info :duration)))))
+     #'ignore)))
+
+(defun empv--audiobookshelf-handle-end-file (event)
+  "Mark the current Audiobookshelf item finished when EVENT says it ended.
+EVENT is mpv's `end-file' event; only a natural end (reason \"eof\")
+counts.  The finished report replaces the pending position, so the
+flush on the following path change does not send a stale one."
+  (when (and empv--audiobookshelf-current
+             (equal (alist-get 'reason event) "eof"))
+    (let ((info empv--audiobookshelf-current))
+      (setq empv--audiobookshelf-last-time-pos nil)
+      (empv--audiobookshelf-request-json
+       "PATCH"
+       (empv--audiobookshelf-progress-endpoint info)
+       (delq nil
+             (list (when (plist-get info :duration)
+                     (cons 'currentTime (float (plist-get info :duration))))
+                   (cons 'isFinished t)))
+       #'ignore))))
+
+(defun empv--audiobookshelf-sync-now ()
+  "Ask mpv for the current position and report it to Audiobookshelf."
+  (when (and empv--audiobookshelf-current (empv--running?))
+    (let ((info empv--audiobookshelf-current))
+      (empv--cmd 'get_property 'time-pos
+        ;; The item may have changed while the reply was in flight, and a
+        ;; paused player keeps returning the same position.
+        (when (and (numberp it) (eq info empv--audiobookshelf-current))
+          (unless (equal it empv--audiobookshelf-last-time-pos)
+            (empv--audiobookshelf-send-progress info it))
+          (setq empv--audiobookshelf-last-time-pos it))))))
+
+(defun empv--audiobookshelf-start-timer ()
+  "Start the periodic progress timer if it is not running."
+  (unless empv--audiobookshelf-sync-timer
+    (setq empv--audiobookshelf-sync-timer
+          (run-with-timer (max 1 empv-audiobookshelf-progress-sync-interval)
+                          (max 1 empv-audiobookshelf-progress-sync-interval)
+                          #'empv--audiobookshelf-sync-tick))))
+
+(defun empv--audiobookshelf-stop-timer ()
+  "Stop the periodic progress timer."
+  (when empv--audiobookshelf-sync-timer
+    (cancel-timer empv--audiobookshelf-sync-timer)
+    (setq empv--audiobookshelf-sync-timer nil)))
+
+(defun empv--audiobookshelf-sync-tick ()
+  "Timer function: report progress, or stop when nothing relevant plays."
+  (if (and empv--audiobookshelf-current (empv--running?))
+      (empv--audiobookshelf-sync-now)
+    (empv--audiobookshelf-stop-timer)))
+
+(defun empv--audiobookshelf-handle-path-change (path)
+  "Track whether PATH, mpv's new `path' property, is an Audiobookshelf item.
+Flushes the last known position of the previous item, then starts or
+stops the progress timer."
+  (empv--audiobookshelf-send-progress empv--audiobookshelf-current empv--audiobookshelf-last-time-pos)
+  (let ((info (and (stringp path) (empv--extract-empv-metadata-from-path path))))
+    (setq empv--audiobookshelf-current (and (plist-get info :audiobookshelf) info)
+          empv--audiobookshelf-last-time-pos nil)
+    (if empv--audiobookshelf-current
+        (empv--audiobookshelf-start-timer)
+      (empv--audiobookshelf-stop-timer))))
+
+(defun empv--audiobookshelf-handle-pause (paused)
+  "Report progress when playback of an Audiobookshelf item is PAUSED."
+  (when (and empv--audiobookshelf-current (eq paused t))
+    (empv--audiobookshelf-sync-now)))
+
+;;;###autoload
+(defun empv-audiobookshelf-sync-progress ()
+  "Report the current playback position to Audiobookshelf now."
+  (interactive)
+  (unless (and empv--audiobookshelf-current (empv--running?))
+    (user-error "Not playing an Audiobookshelf item"))
+  (empv--audiobookshelf-sync-now)
+  (empv--display-event "Progress sent to Audiobookshelf"))
+
+;;;;; Browsing
+
+(defun empv--audiobookshelf-normalize-items-response (response)
+  "Normalize a `/api/libraries/ID/items' RESPONSE into empv items.
+Ebook-only books are dropped (see `empv--audiobookshelf-playable-p')."
+  (seq-filter #'empv--audiobookshelf-playable-p
+              (mapcar #'empv--audiobookshelf-normalize-item (alist-get 'results response))))
+
+(defun empv--audiobookshelf-normalize-search-response (response)
+  "Normalize a `/api/libraries/ID/search' RESPONSE into empv items.
+Books and podcasts arrive under the `book' or `podcast' key, each
+wrapped in a `libraryItem'.  Ebook-only books are dropped (see
+`empv--audiobookshelf-playable-p')."
+  (seq-filter #'empv--audiobookshelf-playable-p
+              (mapcar (lambda (hit) (empv--audiobookshelf-normalize-item (alist-get 'libraryItem hit)))
+                      (append (alist-get 'book response) (alist-get 'podcast response)))))
+
+(defun empv--audiobookshelf-normalize-episodes (item podcast)
+  "Normalize the episodes of expanded podcast ITEM, newest first.
+PODCAST is the normalized podcast item."
+  (let-alist item
+    (thread-last .media.episodes
+                 (mapcar (lambda (episode) (empv--audiobookshelf-normalize-episode episode podcast)))
+                 (seq-sort-by (lambda (episode) (or (alist-get 'publishedAt episode) 0)) #'>))))
+
+(defun empv--audiobookshelf-result-handler (prompt &optional on-quit)
+  "Return a handler that shows Audiobookshelf items with PROMPT.
+The handler takes a list of normalized items.  ON-QUIT is called when
+the selector is cancelled; nested selectors use it to go back to the
+selector they were opened from."
+  (lambda (items)
+    (unless items
+      (user-error "Audiobookshelf: nothing found"))
+    (cl-labels
+        ((show-results ()
+           (let ((selected
+                  (condition-case nil
+                      (empv--completing-read-object
+                       prompt
+                       items
+                       :formatter #'empv--audiobookshelf-format-candidate
+                       :category 'empv-audiobookshelf-item
+                       :group (lambda (object) (s-titleize (symbol-name (alist-get 'kind object))))
+                       :sort? nil)
+                    (quit
+                     (if on-quit
+                         (progn (funcall on-quit) nil)
+                       (signal 'quit nil))))))
+             (when selected
+               (empv--audiobookshelf-act-on-candidate selected #'show-results)))))
+      (show-results))))
+
+(defun empv--audiobookshelf-act-on-candidate (selected &optional on-quit)
+  "Act on SELECTED Audiobookshelf item.
+Libraries and podcasts open a nested selector; books and episodes are
+played or enqueued.  ON-QUIT is called when a nested selector is
+cancelled."
+  (empv--dbg "empv--audiobookshelf-act-on-candidate :: %s" selected)
+  (let ((id (alist-get 'id selected))
+        (title (alist-get 'title selected)))
+    (pcase (alist-get 'kind selected)
+      ('library
+       (empv--audiobookshelf-request
+        (format "/api/libraries/%s/items" id)
+        :limit 0 :sort "media.metadata.title" :minified 1
+        (lambda (response)
+          (funcall (empv--audiobookshelf-result-handler (format "Select from '%s':" title) on-quit)
+                   (empv--audiobookshelf-normalize-items-response response)))))
+      ('podcast
+       (empv--audiobookshelf-request
+        (format "/api/items/%s" id)
+        :expanded 1
+        (lambda (item)
+          (funcall (empv--audiobookshelf-result-handler (format "Select episode of '%s':" title) on-quit)
+                   (empv--audiobookshelf-normalize-episodes item selected)))))
+      ((or 'book 'episode)
+       (empv--audiobookshelf-resolve selected #'empv--audiobookshelf-play-or-enqueue))
+      (other (error "Not found %s" other)))))
+
+(defun empv--audiobookshelf-select-library (callback &optional media-type)
+  "Let the user pick a library and call CALLBACK with it.
+MEDIA-TYPE, \"book\" or \"podcast\", restricts the choice.  When only
+one library matches it is picked without asking."
+  (empv--audiobookshelf-request
+   "/api/libraries"
+   (lambda (response)
+     (let ((libraries
+            (seq-filter (lambda (library)
+                          (or (null media-type) (equal (alist-get 'mediaType library) media-type)))
+                        (mapcar #'empv--audiobookshelf-normalize-library (alist-get 'libraries response)))))
+       (pcase (length libraries)
+         (0 (user-error "Audiobookshelf: no %slibraries found" (if media-type (concat media-type " ") "")))
+         (1 (funcall callback (car libraries)))
+         (_ (funcall callback
+                     (empv--completing-read-object
+                      "Select library:"
+                      libraries
+                      :formatter #'empv--audiobookshelf-format-candidate
+                      :category 'empv-audiobookshelf-item
+                      :sort? nil))))))))
+
+(defun empv--audiobookshelf-consult-search (library &optional initial)
+  "Live-search LIBRARY through Consult, starting with INITIAL input."
+  (let* ((selection
+          (consult--read
+           (empv--consult-async-generator
+            (lambda (action on-result)
+              (empv--audiobookshelf-request
+               (format "/api/libraries/%s/search" (alist-get 'id library))
+               :q action :limit empv-audiobookshelf-result-count
+               (lambda (response)
+                 (funcall on-result (empv--audiobookshelf-normalize-search-response response)))))
+            (lambda (items) (mapcar #'empv--audiobookshelf-format-candidate items)))
+           :prompt empv--audiobookshelf-search-prompt
+           :category 'empv-audiobookshelf-item
+           :lookup (lambda (selected candidates input &rest _)
+                     (list (empv--get-text-property (car (member selected candidates)) :item)
+                           input))
+           :sort nil
+           :group
+           (lambda (cand transform)
+             (if transform
+                 cand
+               (s-titleize
+                (symbol-name
+                 (alist-get 'kind (empv--get-text-property cand :item))))))
+           :history 'empv--audiobookshelf-search-history
+           :require-match t
+           :initial initial
+           :async-wrap #'empv--consult-async-wrapper))
+         (selected (car selection))
+         (input (cadr selection)))
+    (empv--audiobookshelf-act-on-candidate
+     selected
+     (lambda () (empv--audiobookshelf-consult-search library input)))))
+
+(defun empv--audiobookshelf-completing-read-search (library)
+  "Search LIBRARY with a plain prompt and show the results."
+  (empv--audiobookshelf-request
+   (format "/api/libraries/%s/search" (alist-get 'id library))
+   :q (read-string "Query: " nil 'empv--audiobookshelf-search-history)
+   :limit empv-audiobookshelf-result-count
+   (lambda (response)
+     (funcall (empv--audiobookshelf-result-handler empv--audiobookshelf-search-prompt)
+              (empv--audiobookshelf-normalize-search-response response)))))
+
+;;;;; Interactive functions
+
+;;;###autoload
+(defun empv-audiobookshelf-browse ()
+  "Browse an Audiobookshelf library: books, or podcasts and their episodes."
+  (interactive)
+  (empv--audiobookshelf-select-library #'empv--audiobookshelf-act-on-candidate))
+
+;;;###autoload
+(defun empv-audiobookshelf-search ()
+  "Search books or podcasts in an Audiobookshelf library."
+  (interactive)
+  (empv--audiobookshelf-select-library
+   (lambda (library)
+     (if (empv--use-consult?)
+         (empv--audiobookshelf-consult-search library)
+       (empv--audiobookshelf-completing-read-search library)))))
+
+;;;###autoload
+(defun empv-audiobookshelf-continue-listening ()
+  "Pick up an Audiobookshelf book or episode where you left off.
+Shows the `Continue Listening' shelf of a library."
+  (interactive)
+  (empv--audiobookshelf-select-library
+   (lambda (library)
+     (empv--audiobookshelf-request
+      (format "/api/libraries/%s/personalized" (alist-get 'id library))
+      :limit empv-audiobookshelf-result-count
+      (lambda (shelves)
+        (let ((shelf (seq-find (lambda (shelf) (equal (alist-get 'id shelf) "continue-listening")) shelves)))
+          (funcall (empv--audiobookshelf-result-handler "Continue listening:")
+                   (seq-filter #'empv--audiobookshelf-playable-p
+                               (mapcar #'empv--audiobookshelf-normalize-shelf-entity
+                                       (alist-get 'entities shelf))))))))))
+
+;;;###autoload
+(defun empv-audiobookshelf-recent-episodes ()
+  "List the newest unfinished podcast episodes of an Audiobookshelf library."
+  (interactive)
+  (empv--audiobookshelf-select-library
+   (lambda (library)
+     (empv--audiobookshelf-request
+      (format "/api/libraries/%s/recent-episodes" (alist-get 'id library))
+      :limit empv-audiobookshelf-result-count
+      (lambda (response)
+        (funcall (empv--audiobookshelf-result-handler "Recent episodes:")
+                 (mapcar (lambda (episode) (empv--audiobookshelf-normalize-episode episode nil))
+                         (alist-get 'episodes response))))))
+   "podcast"))
+
+(defun empv-audiobookshelf-bookmark-set (item)
+  "Create an empv bookmark from Audiobookshelf ITEM."
+  (empv-bookmark-set item))
+
 ;;;; Bookmarks integration
 
 (defconst empv--bookmark-known-mode-list '(empv-youtube-results-mode))
@@ -3348,6 +4038,23 @@ required to build the bookmark, see `empv--title-sep' for details."
           ,(assoc 'artist target)
           ,(assoc 'songCount target)
           ,(assoc 'id target))))))
+   ((and (listp target) (eq (alist-get 'type target) 'audiobookshelf))
+    (empv--create-bookmark
+     (alist-get 'title target)
+     (seq-filter
+      #'cdr
+      `((type . audiobookshelf)
+        ,(assoc 'kind target)
+        ,(assoc 'id target)
+        ,(assoc 'itemId target)
+        ,(assoc 'libraryId target)
+        ,(assoc 'title target)
+        ,(assoc 'author target)
+        ,(assoc 'mediaType target)
+        ,(assoc 'duration target)
+        ,(assoc 'count target)
+        ,(assoc 'publishedAt target)
+        ,(assoc 'contentUrl target)))))
    ((stringp target)
     (let ((info (empv--extract-empv-metadata-from-path target)))
       (empv--create-bookmark
@@ -3391,6 +4098,8 @@ required to build the bookmark, see `empv--title-sep' for details."
            data))))
       (`(subsonic ,_kind)
        (empv--subsonic-act-on-candidate record))
+      (`(audiobookshelf ,_kind)
+       (empv--audiobookshelf-act-on-candidate record))
       ;; Rest is for matching YouTube bookmarks
       ;; FIXME: this type & kind is just mess for YouTube.  Probably
       ;; going to break people's bookmarks when I rework those.  Maybe
@@ -3728,6 +4437,10 @@ get the lyrics for currently playing/paused song, use
 (defun empv--embark-subsonic-item-transformer (type target)
   (cons type (empv--get-text-property target :item)))
 
+(defun empv--embark-audiobookshelf-item-transformer (type target)
+  "Extract the Audiobookshelf item object from TARGET, keeping its TYPE."
+  (cons type (empv--get-text-property target :item)))
+
 (defun empv--embark-radio-item-transformer (type target)
   "Extract the radio URL from TARGET without changing it's TYPE."
   (cons type (empv--radio-item-extract-link (get-text-property 0 'empv-item target))))
@@ -3764,6 +4477,14 @@ get the lyrics for currently playing/paused song, use
     "n" #'empv-subsonic-enqueue-next
     "b" #'empv-subsonic-bookmark-set)
 
+  (defvar-keymap empv-audiobookshelf-item-action-map
+    :doc "Action map for Audiobookshelf items, utilized by Embark."
+    :parent embark-general-map
+    "p" #'empv-audiobookshelf-play
+    "e" #'empv-audiobookshelf-enqueue
+    "n" #'empv-audiobookshelf-enqueue-next
+    "b" #'empv-audiobookshelf-bookmark-set)
+
   (defvar-keymap empv-youtube-item-action-map
     :doc "Action map for YouTube items, utilized by Embark."
     :parent embark-general-map
@@ -3782,11 +4503,13 @@ get the lyrics for currently playing/paused song, use
   (add-to-list 'embark-keymap-alist '(empv-radio-item . empv-radio-item-action-map))
   (add-to-list 'embark-keymap-alist '(empv-youtube-item . empv-youtube-item-action-map))
   (add-to-list 'embark-keymap-alist '(empv-subsonic-item . empv-subsonic-item-action-map))
+  (add-to-list 'embark-keymap-alist '(empv-audiobookshelf-item . empv-audiobookshelf-item-action-map))
 
   (setf (alist-get 'empv-playlist-item embark-transformer-alist) #'empv--embark-playlist-item-transformer)
   (setf (alist-get 'empv-radio-item embark-transformer-alist) #'empv--embark-radio-item-transformer)
   (setf (alist-get 'empv-youtube-item embark-transformer-alist) #'empv--embark-youtube-item-transformer)
-  (setf (alist-get 'empv-subsonic-item embark-transformer-alist) #'empv--embark-subsonic-item-transformer))
+  (setf (alist-get 'empv-subsonic-item embark-transformer-alist) #'empv--embark-subsonic-item-transformer)
+  (setf (alist-get 'empv-audiobookshelf-item embark-transformer-alist) #'empv--embark-audiobookshelf-item-transformer))
 
 (defun empv-embark-initialize-extra-actions ()
   "Add empv actions like play, enqueue etc. to embark file and url actions.
