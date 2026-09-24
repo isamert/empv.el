@@ -884,7 +884,7 @@ until they are non-nil."
        :object-type 'alist
        :array-type 'list
        :false-object :json-false
-       :null-object result)
+       :null-object nil)
     (error (empv--dbg "Error while reading JSON :: %s" result) nil)))
 
 (defvar empv--request-id 0)
