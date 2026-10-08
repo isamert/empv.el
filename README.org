@@ -198,6 +198,26 @@ Configure ~empv-subsonic-username~, ~empv-subsonic-password~, ~empv-subsonic-url
 With [[#embark-and-consult-integration][embark integration]], you can bulk enqueue search results. For example, doing ~M-x empv-subsonic-songs~ and then hitting ~r~ will bring up 50 random songs in a completing read window. To enqueue them all, use ~embark-act-all~ and then select ~empv-enqueue~. If you want to just enqueue couple of items from the list, do ~C-u embark-act~ and then select the ~empv-enqueue~ (or ~empv-play~) action. This will enqueue/play the selected item and will keep the ~completing-read~ window open for you to act on different items. This is not limited to Subsonic integration but every ~completing-read~ like interface that /empv/ offers can be used in this way.
 #+end_quote
 
+** Audiobookshelf integration
+empv can browse and play audiobooks and podcast episodes from an [[https://www.audiobookshelf.org/][Audiobookshelf]] server. Configure the server URL and an API key (Audiobookshelf → Settings → API Keys):
+
+#+begin_src elisp
+(setq empv-audiobookshelf-url "https://books.example.com"
+      empv-audiobookshelf-api-key "your-api-key")
+#+end_src
+
+Then use:
+
+- ~empv-audiobookshelf-browse~ :: Pick a library, then a book or a podcast and one of its episodes.
+- ~empv-audiobookshelf-search~ :: Search a library (live search when Consult is available).
+- ~empv-audiobookshelf-continue-listening~ :: The server's /Continue Listening/ shelf.
+- ~empv-audiobookshelf-recent-episodes~ :: Newest unfinished podcast episodes of a library.
+- ~empv-audiobookshelf-sync-progress~ :: Send the current position to the server right now.
+
+Playback resumes where you left off on any device. Progress is reported back every ~empv-audiobookshelf-progress-sync-interval~ seconds, when you pause, and when the item changes, so your phone and the web UI stay in sync. Multi-file audiobooks play as one continuous file and the server's chapters are available through ~empv-chapter-select~, ~empv-chapter-next~ and ~empv-chapter-prev~. Items can be bookmarked with ~empv-bookmark-set~ (through Embark, ~b~) and reopened with ~empv-bookmark-jump~. Loading with a resume position and chapters uses mpv's per-file options, which needs mpv 0.38 or newer.
+
+Only episodes already downloaded to the server can be played; empv does not trigger downloads.
+
 ** Embark and Consult integration
 :PROPERTIES:
 :CUSTOM_ID: embark-and-consult-integration
