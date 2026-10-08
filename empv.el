@@ -863,6 +863,13 @@ until they are non-nil."
   (when empv--dbg
     (apply #'message `(,(format "(empv) %s" msg) ,@rest))))
 
+(defun empv--abort-and (fn msg &rest args)
+  "Call FN but close the mini-buffer first if it's active.
+MSG and ARGS are passed to FN."
+  (when (active-minibuffer-window)
+    (exit-minibuffer))
+  (apply fn (concat empv-log-prefix msg) args))
+
 (defun empv--display-event (msg &rest rest)
   "Print MSG with REST if `empv-display-events' is non-nil."
   (let ((formatted-msg `(,(format "%s%s" empv-log-prefix msg) ,@rest)))
@@ -2817,29 +2824,33 @@ nicely formatted buffer."
   (equal (url-host (url-generic-parse-url (empv--invidious-url)))
          (url-host (url-generic-parse-url url))))
 
+(defconst empv--ivjs-process-buffer-name " *empv-ivjs-process*")
 (defun empv--invidious-request (endpoint &optional params callback)
   "Simple wrapper around `empv--request' to handle invidious specific requests.
 See `empv--request' to learn about ENDPOINT, PARAMS, CALLBACK."
   (let ((invidious-url (empv--invidious-url)))
     (unless invidious-url
       (user-error "Please configure `empv-invidious-instance' first to use YouTube functionality"))
-    (when (and (eq 'ivjs empv-invidious-instance)
-               (or
-                (not empv--ivjs-process)
-                (not (process-live-p empv--ivjs-process))))
+    (and-let* (((and (eq 'ivjs empv-invidious-instance)
+                     (or
+                      (not empv--ivjs-process)
+                      (not (process-live-p empv--ivjs-process)))))
+               ;; TODO: This assumes empv.el is in load-path. Maybe make the path customizable.
+               (ivjs-path (concat (file-name-directory (file-truename (locate-file "empv.el" load-path)))
+                                  "ivjs/main.ts")))
       (unless (executable-find "deno")
-        (user-error "Deno is not installed.  To use ivjs as Invidious replacement, install it first.  See: https://deno.com/"))
+        (empv--abort-and #'user-error "Deno is not installed.  To use ivjs as Invidious replacement, install it first.  See: https://deno.com/"))
+      (unless (file-exists-p ivjs-path)
+        (empv--abort-and #'user-error "ivjs is not installed.  See empv README for further instructions."))
       (setq empv--ivjs-process
             (make-process :name "empv-ivjs-process"
-                          :buffer " *empv-ivjs-process*"
+                          :buffer empv--ivjs-process-buffer-name
                           :command `("deno"
                                      "--allow-net"
                                      "--allow-read"
                                      "--allow-write"
                                      "--allow-import"
-                                     ;; TODO: This assumes empv.el is in load-path. Maybe make the path customizable.
-                                     ,(concat (file-name-directory (file-truename (locate-file "empv.el" load-path)))
-                                              "ivjs/main.ts")
+                                     ,ivjs-path
                                      ,(format "--port=%s" empv-ivjs-port)
                                      ,(format "--baseTempDir=%s" temporary-file-directory)))))
     (when (and (eq 'ivjs empv-invidious-instance)
@@ -2852,7 +2863,9 @@ See `empv--request' to learn about ENDPOINT, PARAMS, CALLBACK."
                                              (thread-first
                                                (format "%s/ping" invidious-url)
                                                (empv--request-raw-sync)
-                                               (s-trim))))))))
+                                               (s-trim)))))))
+      (unless (process-get empv--ivjs-process :ready)
+        (empv--abort-and #'error "Failed to start ivjs.  See buffer `%s' for detail" empv--ivjs-process-buffer-name)))
     (let ((empv--request-headers (append
                                   empv--request-headers
                                   empv-invidious-request-headers)))
