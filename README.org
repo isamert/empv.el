@@ -51,18 +51,26 @@ First, you need to install [[https://mpv.io][mpv]], go check out its installatio
 
 empv is available through [[https://melpa.org/#/empv][MELPA]]. If you have it set up already, just do ~M-x package-install empv~ and you are good to go. Otherwise please see [[https://melpa.org/#/getting-started][MELPA getting started]] page to learn how you can install packages through MELPA or see the following installation options.
 
-Another way to install =empv.el= would be using either [[https://github.com/radian-software/straight.el][straight]] or [[https://github.com/quelpa/quelpa-use-package][quelpa]] package managers:
+Another way to install =empv.el= would be using one of the package managers: [[https://github.com/progfolio/elpaca/tree/7763ede8babd238b7a9a5835833ef4f4bdc4e53e][elpaca]], [[https://github.com/radian-software/straight.el][straight]], [[https://github.com/quelpa/quelpa-use-package][quelpa]] or [[https://www.gnu.org/software/emacs/manual/html_node/use-package/Install-package.html][vc]]:
 
 #+begin_src elisp
-  ;; Using straight:
-  (use-package empv
-    :straight (:host github :repo "isamert/empv.el"))
+;; Using vc:
+(use-package empv
+  :vc (:url "https://github.com/isamert/empv.el"))
 
-  ;; Using quelpa:
-  (use-package empv
-    :quelpa (empv
-             :fetcher github
-             :repo "isamert/empv.el"))
+;; Using elpaca:
+(use-package empv
+  :ensure (:host github :repo "isamert/empv.el"))
+
+;; Using straight:
+(use-package empv
+  :straight (:host github :repo "isamert/empv.el"))
+
+;; Using quelpa:
+(use-package empv
+  :quelpa (empv
+           :fetcher github
+           :repo "isamert/empv.el"))
 #+end_src
 
 Yet another option is just downloading =empv.el= file and putting into your =load-path=, afterwards you can simply do the following in your =init.el=:
