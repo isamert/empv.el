@@ -2826,42 +2826,87 @@ nicely formatted buffer."
          (url-host (url-generic-parse-url url))))
 
 (defconst empv--ivjs-process-buffer-name " *empv-ivjs-process*")
-(defun empv--ensure-ivjs-started ()
-  "Start IVJS when configured and wait for its API to become ready."
-  (when (eq 'ivjs empv-invidious-instance)
-    (let ((invidious-url (empv--invidious-url)))
-      (unless (and empv--ivjs-process
-                   (process-live-p empv--ivjs-process))
-        ;; TODO: This assumes empv.el is in load-path. Maybe make the path customizable.
-        (let ((ivjs-path (concat (file-name-directory (file-truename (locate-file "empv.el" load-path)))
-                                 "ivjs/main.ts")))
-          (unless (executable-find "deno")
-            (empv--abort-and #'user-error "Deno is not installed.  To use ivjs as Invidious replacement, install it first.  See: https://deno.com/"))
-          (unless (file-exists-p ivjs-path)
-            (empv--abort-and #'user-error "ivjs is not installed.  See empv README for further instructions."))
-          (setq empv--ivjs-process
-                (make-process :name "empv-ivjs-process"
-                              :buffer empv--ivjs-process-buffer-name
-                              :command `("deno"
-                                         "--allow-net"
-                                         "--allow-read"
-                                         "--allow-write"
-                                         "--allow-import"
-                                         ,ivjs-path
-                                         ,(format "--port=%s" empv-ivjs-port)
-                                         ,(format "--baseTempDir=%s" temporary-file-directory))))))
-      (when (and empv--ivjs-process
-                 (not (process-get empv--ivjs-process :ready)))
-        (process-put
-         empv--ivjs-process
-         :ready (empv--try-until-non-nil (result 20 0.3)
-                  (setq result (equal "pong" (ignore-errors
-                                               (thread-first
-                                                 (format "%s/ping" invidious-url)
-                                                 (empv--request-raw-sync)
-                                                 (s-trim)))))))
-        (unless (process-get empv--ivjs-process :ready)
-          (empv--abort-and #'error "Failed to start ivjs.  See buffer `%s' for detail" empv--ivjs-process-buffer-name))))))
+(defun empv--ensure-ivjs-started (&optional callback)
+  "Start IVJS when configured without blocking Emacs.
+If CALLBACK is non-nil, call it once the IVJS API is ready.  Return non-nil
+if IVJS is already ready."
+  (if (not (eq 'ivjs empv-invidious-instance))
+      (progn
+        (when callback (funcall callback))
+        t)
+    (unless (and empv--ivjs-process
+                 (process-live-p empv--ivjs-process))
+      ;; TODO: This assumes empv.el is in load-path. Maybe make the path customizable.
+      (let ((ivjs-path (concat (file-name-directory (file-truename (locate-file "empv.el" load-path)))
+                               "ivjs/main.ts")))
+        (unless (executable-find "deno")
+          (empv--abort-and #'user-error "Deno is not installed.  To use ivjs as Invidious replacement, install it first.  See: https://deno.com/"))
+        (unless (file-exists-p ivjs-path)
+          (empv--abort-and #'user-error "ivjs is not installed.  See empv README for further instructions."))
+        (setq empv--ivjs-process
+              (make-process :name "empv-ivjs-process"
+                            :buffer empv--ivjs-process-buffer-name
+                            :command `("deno"
+                                       "--allow-net"
+                                       "--allow-read"
+                                       "--allow-write"
+                                       "--allow-import"
+                                       ,ivjs-path
+                                       ,(format "--port=%s" empv-ivjs-port)
+                                       ,(format "--baseTempDir=%s" temporary-file-directory))))
+        (process-put empv--ivjs-process :ready nil)
+        (process-put empv--ivjs-process :waiters nil)
+        (process-put empv--ivjs-process :attempts 0)
+        (process-put empv--ivjs-process :checking nil)))
+    (if (process-get empv--ivjs-process :ready)
+        (progn
+          (when callback (funcall callback))
+          t)
+      (when callback
+        (process-put empv--ivjs-process :waiters
+                     (cons callback (process-get empv--ivjs-process :waiters))))
+      (unless (process-get empv--ivjs-process :checking)
+        (process-put empv--ivjs-process :checking t)
+        (run-at-time 0 nil #'empv--ivjs-check-ready empv--ivjs-process))
+      nil)))
+
+(defun empv--ivjs-check-ready (process)
+  (when (process-get process :checking)
+    (if (not (process-live-p process))
+        (empv--ivjs-startup-failed process)
+      (process-put process :attempts (1+ (process-get process :attempts)))
+      (url-retrieve (format "%s/ping" (empv--invidious-url))
+                    #'empv--ivjs-handle-ready
+                    (list process)
+                    t
+                    t))))
+
+(defun empv--ivjs-startup-failed (process)
+  (process-put process :checking nil)
+  (process-put process :waiters nil)
+  (empv--display-event "Failed to start ivjs. See buffer `%s' for details."
+                       empv--ivjs-process-buffer-name))
+
+(defun empv--ivjs-handle-ready (status process)
+  (let ((body (unless (plist-get status :error)
+                (goto-char (point-min))
+                (when (re-search-forward "\r?\n\r?\n" nil t)
+                  (buffer-substring-no-properties (point) (point-max)))))
+        (buffer (current-buffer)))
+    (when (buffer-live-p buffer)
+      (kill-buffer buffer))
+    (process-put process :checking nil)
+    (cond
+     ((and body (equal "pong" (s-trim body)))
+      (process-put process :ready t)
+      (let ((waiters (nreverse (process-get process :waiters))))
+        (process-put process :waiters nil)
+        (mapc #'funcall waiters)))
+     ((< (process-get process :attempts) 20)
+      (process-put process :checking t)
+      (run-at-time 0.3 nil #'empv--ivjs-check-ready process))
+     (t
+      (empv--ivjs-startup-failed process)))))
 
 (defun empv--invidious-request (endpoint &optional params callback)
   "Simple wrapper around `empv--request' to handle invidious specific requests.
@@ -2869,12 +2914,23 @@ See `empv--request' to learn about ENDPOINT, PARAMS, CALLBACK."
   (let ((invidious-url (empv--invidious-url)))
     (unless invidious-url
       (user-error "Please configure `empv-invidious-instance' first to use YouTube functionality"))
-    (empv--ensure-ivjs-started)
-    (let ((empv--request-headers (append
-                                  empv--request-headers
-                                  empv-invidious-request-headers)))
-      (empv--request (format "%s/%s" invidious-url endpoint)
-                     params callback))))
+    (if (and (eq 'ivjs empv-invidious-instance)
+             callback)
+        (empv--ensure-ivjs-started
+         (lambda ()
+           (let ((empv--request-headers (append
+                                         empv--request-headers
+                                         empv-invidious-request-headers)))
+             (empv--request (format "%s/%s" invidious-url endpoint)
+                            params callback))))
+      (when (and (eq 'ivjs empv-invidious-instance)
+                 (not (empv--ensure-ivjs-started)))
+        (user-error "IVJS is starting; retry this request when it is ready"))
+      (let ((empv--request-headers (append
+                                    empv--request-headers
+                                    empv-invidious-request-headers)))
+        (empv--request (format "%s/%s" invidious-url endpoint)
+                       params callback)))))
 
 (defun empv--youtube-search (term type page callback)
   "Search TERM in YouTube.
