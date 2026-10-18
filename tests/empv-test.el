@@ -3,6 +3,12 @@
 (require 'ert)
 (require 'empv)
 
+(ert-deftest empv-invidious-url-uses-ipv4-for-ivjs ()
+  (let ((empv-invidious-instance 'ivjs)
+        (empv-ivjs-port 3467))
+    (should (equal (empv--invidious-url)
+                   "http://127.0.0.1:3467/api/v1"))))
+
 (ert-deftest empv-start-starts-ivjs-before-mpv ()
   (let ((empv-invidious-instance 'ivjs)
         (calls nil))

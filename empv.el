@@ -2817,7 +2817,7 @@ nicely formatted buffer."
 
 (defun empv--invidious-url ()
   (if (eq 'ivjs empv-invidious-instance)
-      (format "http://localhost:%s/api/v1" empv-ivjs-port)
+      (format "http://127.0.0.1:%s/api/v1" empv-ivjs-port)
     empv-invidious-instance))
 
 (defun empv--invidious-host? (url)
