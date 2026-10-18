@@ -5,6 +5,7 @@ import {
   Types as InnerTubeTypes,
   UniversalCache,
 } from "npm:youtubei.js@^17.2.0";
+import { convertLockupPlaylist } from "./playlist.ts";
 
 // * CLI
 
@@ -173,6 +174,10 @@ const search = async (req: SearchParams): Promise<SearchResponse> => {
           return convertVideo(item);
         case "Playlist":
           return convertPlaylist(item);
+        case "LockupView":
+          return "content_type" in item && item.content_type === "PLAYLIST"
+            ? convertLockupPlaylist(item)
+            : null;
         case "Channel":
           return convertChannel(item);
         default:
