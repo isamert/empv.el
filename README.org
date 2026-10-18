@@ -128,7 +128,7 @@ Lately, YouTube has aggressively targeted Invidious instances, making working on
   (setq empv-invidious-instance 'ivjs)
 #+end_src
 
-/empv.el/ will handle the lifecycle of ivjs process, you don't need to anything else. If you want to manually manage it, see [[file:ivjs/README.org][ivjs README]]. This requires [[https://deno.com/][Deno]] to be installed on your machine.
+/empv.el/ starts the ivjs process automatically when it starts mpv, so you don't need to launch it yourself. This requires [[https://deno.com/][Deno]] to be installed and available in your ~PATH~. If you want to manage ivjs manually, see [[file:ivjs/README.org][ivjs README]].
 
 ivjs currently does not support pagination, you will only get the first page of the results.
 #+end_quote
@@ -136,7 +136,7 @@ ivjs currently does not support pagination, you will only get the first page of 
 #+begin_quote
 [!IMPORTANT]
 
-/empv.el/ doesn't use Invidious to play videos; it redirects YouTube links that it gathers from Invidious directly to MPV. This is beneficial, especially given [[https://github.com/iv-org/invidious/issues/4734][this issue]] affecting Invidious. Since /empv.el/ only utilizes Invidious for metadata retrieval, the issue doesn't impact playback. But it's important to note this distinction for privacy considerations.
+/empv.el/ doesn't use Invidious to play videos; it redirects YouTube links that it gathers from Invidious directly to MPV. MPV then uses ~yt-dlp~ to retrieve the media stream. This is beneficial, especially given [[https://github.com/iv-org/invidious/issues/4734][this issue]] affecting Invidious. Since /empv.el/ only utilizes Invidious for metadata retrieval, the issue doesn't impact playback. But it's important to note this distinction for privacy considerations. If YouTube search works but a selected video fails to play or has no audio, check that MPV is using a current version of ~yt-dlp~. An outdated version can fail to retrieve YouTube streams; update it using the same installation method that provides the ~yt-dlp~ executable to MPV.
 #+end_quote
 
 The entry-point function is ~empv-youtube~ which asks your input to search in YouTube videos. If you have ~consult~ installed, it'll also show you search suggestions while you are typing.

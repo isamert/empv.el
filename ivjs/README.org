@@ -12,8 +12,8 @@ Install /Deno/ and ensure it is in your ~PATH~. Then:
 (setq empv-invidious-instance 'ivjs)
 #+end_src
 
-Now YouTube related functionality should work without doing anything
-else. /empv/ manages the external process.
+When /empv/ starts MPV, it automatically starts the IVJS process and
+checks that its API is ready. You don't need to launch it manually.
 
 ** Manual usage
 
