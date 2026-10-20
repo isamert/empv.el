@@ -1,3 +1,13 @@
+* 6.3.0
+
+- Add ~empv-media-title-function~ to customize how media titles are displayed. Playlist items now use the same titles as notifications once they have been played.
+- Improve lyrics lookup on the web, avoiding album pages when searching for song lyrics.
+- Handle stopped playback more gracefully: clear the current media title and show a helpful message when calling ~empv-display-current~ with no media playing.
+- *Subsonic*: Add back navigation to Subsonic results: hit ~C-g~ when browsing an artist, album or genre to return to the previous results. When using Consult, your search input is preserved. Quitting Subsonic selectors no longer produces spurious errors.
+- *YouTube*, *ivjs*: Fix YouTube playlist search and channel video listings when using ivjs, and improve the accuracy of displayed video and comment counts.
+- *ivjs*: Show clearer errors when ivjs cannot start or its dependencies are missing.
+- Various bug fixes, stability improvements and documentation updates.
+
 * 6.2.0
 
 - Add ~empv-youtube-show-video-details~, replacing the old ~empv-youtube-show-comments~. Now it also shows video metadata, thumbnail and automatically detects URL at point.
