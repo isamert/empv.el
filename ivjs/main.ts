@@ -195,8 +195,11 @@ function textFrom(t: any): string {
 
 function parseNumber(s: string | undefined): number {
   if (!s) return 0;
-  const match = s.replace(/,/g, "").match(/(\d+(\.\d+)?)/);
-  return match ? Number(match[1]) : 0;
+  const match = s.replace(/,/g, "").match(/(\d+(?:\.\d+)?)\s*([KMB])?\b/i);
+  if (!match) return 0;
+  const multipliers: Record<string, number> = { K: 1e3, M: 1e6, B: 1e9 };
+  const multiplier = multipliers[match[2]?.toUpperCase() ?? ""] ?? 1;
+  return Number(match[1]) * multiplier;
 }
 
 function parseDuration(s: string | undefined): number {
@@ -395,8 +398,8 @@ export function convertLockupPlaylist(playlist: any) {
     authorUrl: authorUrl.startsWith("/")
       ? `https://www.youtube.com${authorUrl}`
       : authorUrl,
-    authorVerified: false,
-    videoCount: count ? Number(count) : 0,
+    authorVerified,
+    videoCount: parseNumber(badgeText),
     videos: [],
   };
 }
