@@ -4,7 +4,7 @@ import {
   Innertube,
   Types as InnerTubeTypes,
   UniversalCache,
-} from "npm:youtubei.js@^17.2.0";
+} from "npm:youtubei.js@^18.2.0";
 
 // * CLI
 
@@ -64,7 +64,7 @@ export type SearchParams = {
   q: string;
   // FIXME: Page is *not* utilized
   page?: number;
-  sort?: InnerTubeTypes.SortBy;
+  sort?: InnerTubeTypes.Prioritize | "view_count" | "rating" | "upload_date";
   date?: InnerTubeTypes.UploadDate;
   duration?: InnerTubeTypes.Duration;
   type?: InnerTubeTypes.SearchType;
@@ -162,7 +162,11 @@ const search = async (req: SearchParams): Promise<SearchResponse> => {
     upload_date: req.date,
     type: req.type,
     duration: req.duration,
-    sort_by: req.sort,
+    prioritize: req.sort === "view_count"
+      ? "popularity"
+      : req.sort === "relevance" || req.sort === "popularity"
+      ? req.sort
+      : undefined,
     features: req.features,
   });
 
@@ -174,8 +178,11 @@ const search = async (req: SearchParams): Promise<SearchResponse> => {
         case "Playlist":
           return convertPlaylist(item);
         case "LockupView":
-          return "content_type" in item && item.content_type === "PLAYLIST"
+          if (!("content_type" in item)) return null;
+          return item.content_type === "PLAYLIST"
             ? convertLockupPlaylist(item)
+            : item.content_type === "VIDEO" || item.content_type === "MOVIE"
+            ? convertLockupVideo(item)
             : null;
         case "Channel":
           return convertChannel(item);
@@ -352,6 +359,41 @@ export function convertVideo(item: any, authorInfo?: any): VideoResult {
   };
 }
 
+export function convertLockupVideo(item: any, authorInfo?: any): VideoResult {
+  const thumbnail = item.content_image?.primary_thumbnail ?? item.content_image;
+  const parts = item.metadata?.metadata?.metadata_rows
+    ?.flatMap((row: any) => row.metadata_parts ?? [])
+    .map((part: any) => part.text) ?? [];
+  const authorText = parts.find((part: any) =>
+    part?.endpoint?.payload?.browseId ||
+    part?.runs?.some((run: any) => run.endpoint?.payload?.browseId)
+  ) ?? parts[0];
+  const authorEndpoint = authorText?.endpoint?.payload ??
+    authorText?.runs?.[0]?.endpoint?.payload;
+  const viewCount = parts.find((part: any) =>
+    /views|^\d[\d,.]*[KMB]?$/i.test(part?.text ?? "")
+  );
+  const published = parts.find((part: any) => /ago$/i.test(part?.text ?? ""));
+
+  return convertVideo({
+    title: item.metadata?.title,
+    video_id: item.content_id,
+    thumbnails: thumbnail?.image,
+    length_text: { text: item.duration?.text },
+    view_count: viewCount,
+    short_view_count: viewCount,
+    published,
+    author: {
+      name: authorText?.text,
+      id: authorEndpoint?.browseId,
+      url: authorEndpoint?.canonicalBaseUrl
+        ? new URL(authorEndpoint.canonicalBaseUrl, "https://www.youtube.com").href
+        : "",
+    },
+    badges: thumbnail?.overlays?.flatMap((overlay: any) => overlay.badges ?? []),
+  }, authorInfo);
+}
+
 function convertPlaylist(playlist: any): PlaylistResult {
   const videos: PlaylistVideo[] = (playlist.first_videos || []).map((vid: any) => ({
     title: textFrom(vid.title),
@@ -469,7 +511,14 @@ const getChannelVideos = async (
   const authorInfo = { author, authorId, authorUrl };
 
   return {
-    videos: response?.videos?.filter((item) => item?.type === "Video").map(video => convertVideo(video, authorInfo)),
+    videos: response.videos.flatMap((item) => {
+      if (item.type === "Video") return [convertVideo(item, authorInfo)];
+      if (item.type === "LockupView" && "content_type" in item &&
+        (item.content_type === "VIDEO" || item.content_type === "MOVIE")) {
+        return [convertLockupVideo(item, authorInfo)];
+      }
+      return [];
+    }),
     continuation,
   };
 };
@@ -634,7 +683,7 @@ const getVideoComments = async (
 
   return {
     videoId: id,
-    commentCount: Number(commentsResponse.header?.comments_count.text) ??
+    commentCount: parseNumber(commentsResponse.header?.comments_count?.text) ||
       comments.length,
     comments,
     // TODO: continuation
@@ -770,8 +819,10 @@ const getVideo = async (id: string): Promise<SingleVideoResponse> => {
   const response = await innertube.getBasicInfo(id);
 
   const basicInfo = response.basic_info ?? {};
-  const streamingData = response.streaming_data ?? {};
-  const storyboardsData = response.storyboards?.boards ?? [];
+  const streamingData = response.streaming_data;
+  const storyboardsData = response.storyboards && "boards" in response.storyboards
+    ? response.storyboards.boards
+    : [];
   const authorInfo = extractAuthorInfo(basicInfo);
 
   function extractContainer(mimeType: string): string {
@@ -803,7 +854,7 @@ const getVideo = async (id: string): Promise<SingleVideoResponse> => {
       storyboardCount: board.storyboard_count ?? 0,
     }));
 
-  const adaptiveFormats: AdaptiveFormat[] = (streamingData.adaptive_formats ?? []).map((fmt: any) => ({
+  const adaptiveFormats: AdaptiveFormat[] = (streamingData?.adaptive_formats ?? []).map((fmt: any) => ({
     index: fmt.index_range ? `${fmt.index_range.start}-${fmt.index_range.end}` : "",
     bitrate: String(fmt.bitrate ?? ""),
     init: fmt.init_range ? `${fmt.init_range.start}-${fmt.init_range.end}` : "",
@@ -824,7 +875,7 @@ const getVideo = async (id: string): Promise<SingleVideoResponse> => {
     audioChannels: fmt.audio_channels ? String(fmt.audio_channels) : undefined,
   }));
 
-  const formatStreams: FormatStream[] = (streamingData.formats ?? []).map((fmt: any) => ({
+  const formatStreams: FormatStream[] = (streamingData?.formats ?? []).map((fmt: any) => ({
     url: fmt.url ?? "",
     itag: String(fmt.itag ?? ""),
     type: fmt.mime_type ?? "",
