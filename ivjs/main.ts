@@ -377,16 +377,20 @@ function convertPlaylist(playlist: any): PlaylistResult {
 }
 
 export function convertLockupPlaylist(playlist: any) {
-  const thumbnail = playlist.content_image?.primary_thumbnail;
-  const author = playlist.metadata?.metadata?.metadata_rows?.[0]
-    ?.metadata_parts?.[0]?.text;
+  const thumbnail = playlist.content_image?.primary_thumbnail ?? playlist.content_image;
+  const authorRow = playlist.metadata?.metadata?.metadata_rows?.[0];
+  const author = authorRow?.metadata_parts?.[0]?.text;
+  const authorVerified = authorRow?.badges?.some((badge: any) =>
+    /(?:^|_)VERIFIED(?:_ARTIST)?$/i.test(badge.style ?? "") ||
+    /^(verified|official artist channel)$/i.test(badge.accessibility_label ?? "") ||
+    /^(verified|official artist channel)$/i.test(badge.text ?? "")
+  ) ?? false;
   const authorEndpoint = author?.endpoint?.payload ??
     author?.runs?.[0]?.endpoint?.payload;
   const authorUrl = authorEndpoint?.canonicalBaseUrl ?? "";
   const badgeText = thumbnail?.overlays
     ?.flatMap((overlay: any) => overlay.badges ?? [])
     .find((badge: any) => /\d/.test(badge.text ?? ""))?.text ?? "";
-  const count = badgeText.replace(/,/g, "").match(/(\d+(\.\d+)?)/)?.[1];
 
   return {
     type: "playlist" as const,
