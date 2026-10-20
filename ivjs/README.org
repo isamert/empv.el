@@ -29,6 +29,20 @@ use it as your Invidious instance:
 (setq empv-invidious-instance "http://localhost:3467/api/v1")
 #+end_src
 
+** One-shot requests
+
+Use ~--request~ to run one request without starting a listening server:
+
+#+begin_src sh
+deno run --allow-all main.ts --request '/api/v1/search?q=emacs&type=video'
+deno run --allow-all main.ts --request '/api/v1/videos/jNQXAC9IVRw'
+#+end_src
+
+The response is printed to standard output; request logs go to
+standard error. The process exits after the request, with a nonzero
+exit status for errors (including unknown routes). Good for letting
+your clanker test the requests.
+
 * Roadmap [60%]
 :PROPERTIES:
 :COOKIE_DATA: recursive

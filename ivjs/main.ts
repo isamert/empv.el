@@ -9,7 +9,7 @@ import {
 // * CLI
 
 const flags = parseArgs(Deno.args, {
-  string: ["port", "baseTempDir"],
+  string: ["port", "baseTempDir", "request"],
   default: {
     port: 3467,
   },
@@ -884,11 +884,11 @@ const getVideo = async (id: string): Promise<SingleVideoResponse> => {
 
 // * Server
 
-Deno.serve({ port: Number(flags.port) }, async (req) => {
+async function handleRequest(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const searchParams: any = Object.fromEntries(url.searchParams);
 
-  console.log("→", { url: req.url });
+  console.error("→", { url: req.url });
 
   const routes: [string, (params?: any) => Promise<string | object>][] = [
     [
@@ -929,7 +929,7 @@ Deno.serve({ port: Number(flags.port) }, async (req) => {
     }
   }
 
-  console.log("←", response ? "OK" : undefined);
+  console.error("←", response ? "OK" : undefined);
 
   if (response) {
     return typeof response === "string"
@@ -938,4 +938,13 @@ Deno.serve({ port: Number(flags.port) }, async (req) => {
   }
 
   return new Response(`Not found`, { status: 404 });
-});
+}
+
+if (flags.request !== undefined) {
+  const url = new URL(flags.request, `http://localhost:${flags.port}`);
+  const response = await handleRequest(new Request(url));
+  console.log(await response.text());
+  if (!response.ok) Deno.exitCode = 1;
+} else {
+  Deno.serve({ port: Number(flags.port) }, handleRequest);
+}
