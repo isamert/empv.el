@@ -992,10 +992,13 @@ async function handleRequest(req: Request): Promise<Response> {
 }
 
 if (flags.request !== undefined) {
-  const url = new URL(flags.request, `http://localhost:${flags.port}`);
+  const url = new URL(flags.request, `http://127.0.0.1:${flags.port}`);
   const response = await handleRequest(new Request(url));
   console.log(await response.text());
   if (!response.ok) Deno.exitCode = 1;
 } else {
-  Deno.serve({ port: Number(flags.port) }, handleRequest);
+  Deno.serve({
+    hostname: "127.0.0.1",
+    port: Number(flags.port),
+  }, handleRequest);
 }
