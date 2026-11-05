@@ -1324,17 +1324,15 @@ Use FALLBACK when no title can be derived from METADATA or PATH."
 
 ;;;; Essential functions
 
-(defvar empv-uri-history nil
+(defvar empv--uri-history nil
   "History of URIs entered for playback.")
-
-(defvar savehist-additional-variables)
 
 ;;;###autoload
 (defun empv-play-or-enqueue (uri)
   "Play or enqueue the URI based on user input.
 URI might be a string or a list of strings."
   (interactive
-   (list (read-string "Enter a URI to play: " nil 'empv-uri-history)))
+   (list (read-string "Enter a URI to play: " nil 'empv--uri-history)))
   (empv--select-action _
     "Play" → (empv-play uri)
     "Enqueue last" → (empv-enqueue uri)
@@ -1447,7 +1445,7 @@ Add given URI to end of the current playlist and immediately switch to
 it.  URI also might be a list of URIs.  In that case all items are
 enqueued and the first one starts playing."
   (interactive
-   (list (read-string "Enter a URI to play: " nil 'empv-uri-history)))
+   (list (read-string "Enter a URI to play: " nil 'empv--uri-history)))
   (if (listp uri)
       (empv--cmd
        'stop nil
