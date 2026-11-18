@@ -985,20 +985,24 @@ NOTE: Only supports SSH/SSHX methods on tramp."
 (defun empv--clean-uri (it)
   (car (split-string it empv--title-sep)))
 
-(defun empv--url-with-magic-info (url &rest info)
-  "Return URL, but with magic info attached into it.
-Magic info is just a PLIST (the INFO) that is added end of the URL, see
-`empv--title-sep' for more details."
+(defun empv-uri-with-metadata (url &rest info)
+  "Return URL with metadata plist INFO appended for use by empv.
+The result is not a normal URL for external tools.  Decode it with
+`empv-metadata-from-path', for example:
+
+  (empv-metadata-from-path
+    (empv-uri-with-metadata \"https://example.org\" :title \"Example\"))"
   (format
    "%s%s%s"
    url
    empv--title-sep
    (prin1-to-string info)))
 
-(defun empv--extract-empv-metadata-from-path (path &optional fallback)
-  "Extract the metadata encoded in PATH.
-Some metadata is encoded into PATH and this function tries to
-parse that and returns a form along the lines of:
+(defun empv-metadata-from-path (path &optional fallback)
+  "Extract metadata from PATH, returning a plist.
+PATH may be an empv URI made by `empv-uri-with-metadata'.  Some metadata
+is encoded into PATH and this function tries to parse that and returns a
+form along the lines of:
 
     \\='(:title \"...\" :uri \"the-real-uri-without-metadata\"
          :radio nil/t :youtube nil/t)
@@ -1356,7 +1360,7 @@ Use FALLBACK when no title can be derived from METADATA or PATH."
      (empv--normalize-string .genre)
      (empv--normalize-string
       (plist-get
-       (empv--extract-empv-metadata-from-path path fallback)
+       (empv-metadata-from-path path fallback)
        :title)))))
 
 (defun empv--handle-metadata-change (data)
@@ -1407,10 +1411,10 @@ URI might be a string or a list of strings."
 
 (cl-defmacro empv--with-empv-metadata (&rest forms)
   "Gives you a context containing `empv-metadata' and execute FORMS.
-See `empv--extract-empv-metadata-from-path' documentation to
+See `empv-metadata-from-path' documentation to
 see what `empv-metadata' object looks like."
   `(empv--let-properties '(path)
-     (let ((empv-metadata (empv--extract-empv-metadata-from-path .path)))
+     (let ((empv-metadata (empv-metadata-from-path .path)))
        ,@forms)))
 
 (defun empv--format-playlist-item (item)
@@ -1428,7 +1432,7 @@ see what `empv-metadata' object looks like."
           (alist-get 'title item)
           (thread-first
             filename
-            empv--extract-empv-metadata-from-path
+            empv-metadata-from-path
             (plist-get :title)))))))
 
 (defmacro empv--playlist-select-item-and (&rest forms)
@@ -1734,7 +1738,7 @@ along with the log."
   (interactive "P")
   (empv--let-properties '(metadata path)
     (when-let* ((title (alist-get 'icy-title .metadata))
-                (empv-metadata (empv--extract-empv-metadata-from-path .path)))
+                (empv-metadata (empv-metadata-from-path .path)))
       (write-region
        (thread-last
          empv-radio-log-format
@@ -1912,7 +1916,7 @@ The display format is determined by the
                   ((eq .paused-for-cache t) (propertize "Buffering..." 'face '(:foreground "gold")))
                   ((eq .pause t) (propertize "Paused" 'face '(:foreground "grey")))
                   (t (propertize "Playing" 'face '(:foreground "green")))))
-          (empv-metadata (empv--extract-empv-metadata-from-path .path))
+          (empv-metadata (empv-metadata-from-path .path))
           (empv-display-events t))
       (empv--display-event
        "%s"
@@ -1992,7 +1996,7 @@ The display format is determined by the
 ;;;; Radio
 
 (defun empv--radio-item-extract-link (channel)
-  (empv--url-with-magic-info
+  (empv-uri-with-metadata
    (cdr channel)
    :title (car channel) :radio t))
 
@@ -2347,7 +2351,7 @@ By default it downloads as MP3 file, please see
 `empv-ytdl-download-options' to change this behavior."
   (interactive "sLink: ")
   (let* ((url (empv--clean-uri link))
-         (title (or (plist-get (empv--extract-empv-metadata-from-path link) :title) ""))
+         (title (or (plist-get (empv-metadata-from-path link) :title) ""))
          ;; For some reason, embark triggers this
          (use-dialog-box nil)
          (where (or path
@@ -2777,7 +2781,7 @@ nicely formatted buffer."
   (when-let* ((match (s-match "\\/channel\\/\\([^/?]+\\)" channel-id)))
     (setq channel-id (nth 1 match)))
   ;; Extract the channelid id from empv enriched url
-  (when-let* ((metadata (empv--extract-empv-metadata-from-path channel-id))
+  (when-let* ((metadata (empv-metadata-from-path channel-id))
               (id (plist-get metadata :authorId)))
     (setq channel-id id))
   (let ((sort-by (or sort-by
@@ -2972,7 +2976,7 @@ parameter."
         (playlist-id (alist-get 'playlistId item))
         (author-id (alist-get 'authorId item)))
     (let-alist item
-      (empv--url-with-magic-info
+      (empv-uri-with-metadata
        (concat "https://youtube.com/"
                (cond
                 (video-id (concat "watch?v=" video-id))
@@ -3052,7 +3056,7 @@ PROMPT is passed to `completing-read' as-is."
 
 (defun empv--subsonic-item-extract-url (object)
   "Build streamable url for given Subsonic OBJECT."
-  (empv--url-with-magic-info
+  (empv-uri-with-metadata
    (empv--subsonic-build-url "stream.view" :id (alist-get 'id object))
    :title (substring-no-properties (empv--subsonic-format-candidate object))
    :kind (alist-get 'kind object)
@@ -3401,7 +3405,7 @@ TARGET is either a buffer (like `empv-youtube-results-mode' buffer) or a
 URL.  If invoked by empv itself, URL generally contains all the metadata
 required to build the bookmark, see `empv--title-sep' for details."
   (interactive (unless (member major-mode empv--bookmark-known-mode-list)
-       (list (read-string "URL: "))))
+                 (list (read-string "URL: "))))
   (cond
    ((and (listp target) (eq (alist-get 'type target) 'subsonic))
     (let ((name (alist-get 'name target))
@@ -3420,7 +3424,7 @@ required to build the bookmark, see `empv--title-sep' for details."
           ,(assoc 'songCount target)
           ,(assoc 'id target))))))
    ((stringp target)
-    (let ((info (empv--extract-empv-metadata-from-path target)))
+    (let ((info (empv-metadata-from-path target)))
       (empv--create-bookmark
        (plist-get info :title)
        (append
@@ -3440,14 +3444,13 @@ required to build the bookmark, see `empv--title-sep' for details."
 (defun empv-bookmark-jump (bookmark)
   "Jump to empv BOOKMARK."
   (interactive (list
-      (progn
-        (assoc
-         (completing-read
-          "Bookmark: "
-          (or (empv--get-bookmarks)
-              (user-error "No empv bookmarks found"))
-          nil t nil 'bookmark-history)
-         bookmark-alist))))
+                (assoc
+                 (completing-read
+                  "Bookmark: "
+                  (or (empv--get-bookmarks)
+                      (user-error "No empv bookmarks found"))
+                  nil t nil 'bookmark-history)
+                 bookmark-alist)))
   (let ((type (bookmark-prop-get bookmark 'type))
         (kind (bookmark-prop-get bookmark 'kind))
         (query (bookmark-prop-get bookmark 'query))
@@ -3457,7 +3460,7 @@ required to build the bookmark, see `empv--title-sep' for details."
        (let ((data (empv--alist-to-plist record)))
          (empv-play
           (apply
-           #'empv--url-with-magic-info
+           #'empv-uri-with-metadata
            (plist-get data :uri)
            data))))
       (`(subsonic ,_kind)
