@@ -718,7 +718,7 @@ Each plist is (:fn FUNCTION :event? BOOLEAN).")
 (defvar empv--youtube-search-history nil)
 
 (defvar empv--request-headers '(("Accept" . "*/*"))
-  "Headers to use while sending requests with `empv--request'.")
+  "Default headers for `empv-request'.")
 
 (defvar empv--ivjs-process nil
   "ivjs process.
@@ -2148,16 +2148,26 @@ Limit directory traversal at most DEPTH levels.  By default it's
                 ""
               (concat "?" url-params)))))
 
-(defun empv--request (url &optional params callback)
-  "Send a GET request to given URL and return the response body.
+(cl-defun empv-request (url &key (method "GET") headers data params callback)
+  "Send a request to given URL and return the response body.
 PARAMS should be an alist.  CALLBACK is called with the resulting JSON
 object.  If no callback is given, request is made synchronously and
-resulting object is returned."
+resulting object is returned.
+
+Use METHOD to override request method, by default it's \"GET\".  Use
+HEADERS to pass request headers, PARAMS for passing url parameters.  Use
+DATA to pass request data."
   (let* ((full-url (empv--build-url url params))
-         (url-request-extra-headers empv--request-headers)
+         (url-request-extra-headers (append headers
+                                            (seq-remove
+                                             (lambda (header)
+                                               (assoc-string (car header) headers t))
+                                             empv--request-headers)))
+         (url-request-method method)
+         (url-request-data data)
          (handler
           (lambda (status)
-            (empv--dbg "empv--request(%s, %s) → error: %s" url params (plist-get status :error))
+            (empv--dbg "empv-request(%s, %s) → error: %s" url params (plist-get status :error))
             (if-let* ((err (plist-get status :error)))
                 (progn
                   (kill-buffer)
@@ -2168,7 +2178,7 @@ resulting object is returned."
                                (buffer-substring-no-properties (point-min) (point))))
                     (body (decode-coding-string
                            (buffer-substring-no-properties (point) (point-max)) 'utf-8)))
-                (empv--dbg "empv--request(%s, %s) → headers: %s, body: %s" url params headers body)
+                (empv--dbg "empv-request(%s, %s) → headers: %s, body: %s" url params headers body)
                 (kill-buffer)
                 (let ((parsed (empv--read-result body)))
                   (if callback
@@ -2888,8 +2898,8 @@ nicely formatted buffer."
 
 (defconst empv--ivjs-process-buffer-name " *empv-ivjs-process*")
 (defun empv--invidious-request (endpoint &optional params callback)
-  "Simple wrapper around `empv--request' to handle invidious specific requests.
-See `empv--request' to learn about ENDPOINT, PARAMS, CALLBACK."
+  "Simple wrapper around `empv-request' to handle invidious specific requests.
+See `empv-request' to learn about ENDPOINT, PARAMS, CALLBACK."
   (let ((invidious-url (empv--invidious-url)))
     (unless invidious-url
       (user-error "Please configure `empv-invidious-instance' first to use YouTube functionality"))
@@ -2928,11 +2938,10 @@ See `empv--request' to learn about ENDPOINT, PARAMS, CALLBACK."
                                                (s-trim)))))))
       (unless (process-get empv--ivjs-process :ready)
         (empv--abort-and #'error "Failed to start ivjs.  See buffer `%s' for detail" empv--ivjs-process-buffer-name)))
-    (let ((empv--request-headers (append
-                                  empv--request-headers
-                                  empv-invidious-request-headers)))
-      (empv--request (format "%s/%s" invidious-url endpoint)
-                     params callback))))
+    (empv-request (format "%s/%s" invidious-url endpoint)
+                  :params params
+                  :headers empv-invidious-request-headers
+                  :callback callback)))
 
 (defun empv--youtube-search (term type page callback)
   "Search TERM in YouTube.
@@ -3146,8 +3155,8 @@ them so that responses are easier to work with."
                           (quit nil))
                       all))))))))
     (if callback
-        (empv--request (apply #'empv--subsonic-build-url endpoint params) nil handler)
-      (funcall handler (empv--request (apply #'empv--subsonic-build-url endpoint params) nil)))))
+        (empv-request (apply #'empv--subsonic-build-url endpoint params) :callback handler)
+      (funcall handler (empv-request (apply #'empv--subsonic-build-url endpoint params))))))
 
 (defun empv--subsonic-format-candidate (cand)
   (empv--with-text-properties
@@ -3476,7 +3485,6 @@ required to build the bookmark, see `empv--title-sep' for details."
       ('(playlist search) (empv-youtube-playlist (bookmark-prop-get bookmark 'query)))
       ;; TODO: We don't have a way of showing playlist videos right now in empv
       ('(channel search) (empv-youtube-channel query)))))
-
 
 (defvar empv--bookmark-name-prefix "empv :: ")
 
