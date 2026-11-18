@@ -696,7 +696,9 @@ items.  See [1] for more information on this.
 
 (defvar empv--process nil)
 (defvar empv--network-process nil)
-(defvar empv--callback-table (make-hash-table :test 'equal))
+(defvar empv--callback-table (make-hash-table :test 'equal)
+  "Map event names or request IDs to lists of callback plists.
+Each plist is (:fn FUNCTION :event? BOOLEAN).")
 (defvar empv--dbg nil)
 (defvar empv--last-youtube-search nil
   "Latest YouTube search, an `empv--yt-search' struct.")
@@ -1095,21 +1097,23 @@ the result.
                      (id (map-elt json-data 'id))
                      (request-id (map-elt json-data 'request_id))
                      (event-name (map-elt json-data 'event))
-                     (callback (map-elt empv--callback-table (format "%s" (or request-id id event-name)))))
+                     (table-key (format "%s" (or request-id id event-name)))
+                     (callbacks (map-elt empv--callback-table table-key)))
                 (empv--dbg
                  "<< data: %s, request_id: %s, has-cb?: %s"
                  json-data
                  request-id
-                 (and callback t))
-                ;; Remove it first from callback table, so we don't get into
-                ;; a loop if an error occurs on the callback function
-                (when (not (plist-get callback :event?))
-                  (map-delete empv--callback-table request-id))
-                (when-let* ((cb-fn (plist-get callback :fn)))
-                  (ignore-error (quit minibuffer-quit)
-                    (if (or request-id id)
-                        (funcall cb-fn (cdr (assoc 'data json-data)))
-                      (funcall cb-fn json-data))))))))
+                 (and callbacks t))
+                (dolist (callback callbacks)
+                  ;; Remove it first from callback table, so we don't get into
+                  ;; a loop if an error occurs on the callback function
+                  (when (not (plist-get callback :event?))
+                    (map-delete empv--callback-table table-key))
+                  (when-let* ((cb-fn (plist-get callback :fn)))
+                    (ignore-error (quit minibuffer-quit)
+                      (if (or request-id id)
+                          (funcall cb-fn (cdr (assoc 'data json-data)))
+                        (funcall cb-fn json-data)))))))))
       (setq empv--filter-running nil))))
 
 ;;;; Process primitives
@@ -1150,7 +1154,7 @@ happens."
                   `((command . ,command)
                     (request_id . ,(string-to-number request-id)))))))
      (when callback
-       (map-put! empv--callback-table request-id (list :fn callback :event? event?)))
+       (map-put! empv--callback-table request-id (list (list :fn callback :event? event?))))
      (process-send-string empv--network-process (format "%s\n" msg))
      (empv--dbg ">> %s" msg)
      request-id)))
@@ -1247,7 +1251,10 @@ https://github.com/mpv-player/mpv/blob/master/DOCS/man/input.rst#property-list"
   "Every time mpv fires an EVENT, call CALLBACK.
 EVENT is a symbol representing the event name, see list of
 events: https://mpv.io/manual/stable/#list-of-events"
-  (map-put! empv--callback-table (symbol-name event) (list :fn callback :event? t)))
+  (let ((key (symbol-name event)))
+    (map-put! empv--callback-table key
+              (append (map-elt empv--callback-table key)
+                      (list (list :fn callback :event? t))))))
 
 ;;;; Some callbacks
 
