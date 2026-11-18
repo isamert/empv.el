@@ -3406,48 +3406,106 @@ error out."
 
 ;;;; Bookmarks integration
 
+(defvar empv--bookmark-types nil
+  "Registered bookmark types and their callback plists.
+Entries are tried in registration order, before the generic URI fallback.")
+
+(cl-defun empv-register-bookmark-type (type &key record jump)
+  "Register bookmark TYPE with RECORD and JUMP callbacks.
+
+The RECORD callback receives the target of `empv-bookmark-set'.  It
+returns nil if it does not recognize the target, otherwise a cons
+cell (DEFAULT-NAME . PROPERTIES).  DEFAULT-NAME is a string and
+PROPERTIES is an alist of serializable bookmark properties.
+
+The JUMP callback receives the stored property alist, without the
+bookmark name.  It is responsible for resolving and opening the item.
+
+Registering TYPE again replaces its callbacks without changing its
+position in the registration order."
+  (let ((callbacks (list :jump jump :record record)))
+    (if-let* ((entry (assq type empv--bookmark-types)))
+        (setcdr entry callbacks)
+      (setq empv--bookmark-types
+            (append empv--bookmark-types (list (cons type callbacks)))))))
+
+(defun empv--subsonic-bookmark-record (target)
+  (when (and (listp target) (eq (alist-get 'type target) 'subsonic))
+    (cons
+     (or (alist-get 'title target) (alist-get 'value target) (alist-get 'name target))
+     (seq-filter
+      #'identity
+      `((kind . ,(alist-get 'kind target))
+        ,(assoc 'name target)
+        ,(assoc 'title target)
+        ,(assoc 'value target)
+        ,(assoc 'artist target)
+        ,(assoc 'songCount target)
+        ,(assoc 'id target))))))
+
+(defun empv--youtube-bookmark-record (type target)
+  (when (and (not (stringp target))
+             (derived-mode-p 'empv-youtube-results-mode)
+             (eq type (empv--yt-search-type empv--buffer-youtube-search)))
+    (cons
+     (string-replace "*" "" (empv--yt-search-generate-buffer-name empv--buffer-youtube-search))
+     `((kind . ,(empv--yt-search-kind empv--buffer-youtube-search))
+       (query . ,(empv--yt-search-query empv--buffer-youtube-search))
+       (channel-id . ,(empv--yt-search-channel-id empv--buffer-youtube-search))
+       (sort-by . ,(empv--yt-search-sort-by empv--buffer-youtube-search))))))
+
+(defun empv--youtube-bookmark-jump (record)
+  (pcase (list (alist-get 'type record) (alist-get 'kind record))
+    ('(video search) (empv-youtube (alist-get 'query record)))
+    ('(video channel-videos) (empv-youtube-show-channel-videos
+                              (alist-get 'channel-id record)
+                              (alist-get 'sort-by record)))
+    ('(playlist search) (empv-youtube-playlist (alist-get 'query record)))
+    ;; TODO: We don't have a way of showing playlist videos right now in empv.
+    ('(channel search) (empv-youtube-channel (alist-get 'query record)))
+    (_ (user-error "Unsupported YouTube bookmark kind: %S" (alist-get 'kind record)))))
+
+(empv-register-bookmark-type
+ 'subsonic
+ :record #'empv--subsonic-bookmark-record
+ :jump #'empv--subsonic-act-on-candidate)
+
+(dolist (type '(video playlist channel))
+  (empv-register-bookmark-type
+   type
+   :record (apply-partially #'empv--youtube-bookmark-record type)
+   :jump #'empv--youtube-bookmark-jump))
+
 (defconst empv--bookmark-known-mode-list '(empv-youtube-results-mode))
 
 (defun empv-bookmark-set (&optional target)
   "Create an empv bookmark from TARGET.
 TARGET is either a buffer (like `empv-youtube-results-mode' buffer) or a
 URL.  If invoked by empv itself, URL generally contains all the metadata
-required to build the bookmark, see `empv--title-sep' for details."
+required to build the bookmark, see `empv--title-sep' for details.
+Registered bookmark types may also accept other targets; see
+`empv-register-bookmark-type'."
   (interactive (unless (member major-mode empv--bookmark-known-mode-list)
                  (list (read-string "URL: "))))
-  (cond
-   ((and (listp target) (eq (alist-get 'type target) 'subsonic))
-    (let ((name (alist-get 'name target))
-          (title (alist-get 'title target))
-          (value (alist-get 'value target)))
+  (if-let* ((record
+             (seq-some
+              (lambda (entry)
+                (when-let* ((result (funcall (plist-get (cdr entry) :record) target)))
+                  (cons (car entry) result)))
+              empv--bookmark-types)))
       (empv--create-bookmark
-       (or title value name)
-       (seq-filter
-        #'identity
-        `((type . subsonic)
-          (kind . ,(alist-get 'kind target))
-          ,(assoc 'name target)
-          ,(assoc 'title target)
-          ,(assoc 'value target)
-          ,(assoc 'artist target)
-          ,(assoc 'songCount target)
-          ,(assoc 'id target))))))
-   ((stringp target)
-    (let ((info (empv-metadata-from-path target)))
-      (empv--create-bookmark
-       (plist-get info :title)
-       (append
-        `((type . uri))
-        (empv--plist-to-alist info)))))
-   ((derived-mode-p 'empv-youtube-results-mode)
-    (empv--create-bookmark
-     (string-replace "*" "" (empv--yt-search-generate-buffer-name empv--buffer-youtube-search))
-     `((type . ,(empv--yt-search-type empv--buffer-youtube-search))
-       (kind . ,(empv--yt-search-kind empv--buffer-youtube-search))
-       (query . ,(empv--yt-search-query empv--buffer-youtube-search))
-       (channel-id . ,(empv--yt-search-channel-id empv--buffer-youtube-search))
-       (sort-by . ,(empv--yt-search-sort-by empv--buffer-youtube-search)))))
-   (:otherwise (user-error "This mode is not supported by empv-bookmarks: %s" major-mode))))
+       (cadr record)
+       (cons (cons 'type (car record))
+             (seq-remove (lambda (prop) (memq (car prop) '(type handler)))
+                         (cddr record))))
+    (if (stringp target)
+        (let ((info (empv-metadata-from-path target)))
+          (empv--create-bookmark
+           (plist-get info :title)
+           (append
+            `((type . uri))
+            (empv--plist-to-alist info))))
+      (user-error "This mode is not supported by empv-bookmarks: %s" major-mode))))
 
 ;;;###autoload
 (defun empv-bookmark-jump (bookmark)
@@ -3461,30 +3519,17 @@ required to build the bookmark, see `empv--title-sep' for details."
                   nil t nil 'bookmark-history)
                  bookmark-alist)))
   (let ((type (bookmark-prop-get bookmark 'type))
-        (kind (bookmark-prop-get bookmark 'kind))
-        (query (bookmark-prop-get bookmark 'query))
         (record (bookmark-get-bookmark-record bookmark)))
-    (pcase (list type kind)
-      (`(uri ,_)
-       (let ((data (empv--alist-to-plist record)))
-         (empv-play
-          (apply
-           #'empv-uri-with-metadata
-           (plist-get data :uri)
-           data))))
-      (`(subsonic ,_kind)
-       (empv--subsonic-act-on-candidate record))
-      ;; Rest is for matching YouTube bookmarks
-      ;; FIXME: this type & kind is just mess for YouTube.  Probably
-      ;; going to break people's bookmarks when I rework those.  Maybe
-      ;; I can add a small migrator when I do that.
-      ('(video search) (empv-youtube (bookmark-prop-get bookmark 'query)))
-      ('(video channel-videos) (empv-youtube-show-channel-videos
-                                (bookmark-prop-get bookmark 'channel-id)
-                                (bookmark-prop-get bookmark 'sort-by)))
-      ('(playlist search) (empv-youtube-playlist (bookmark-prop-get bookmark 'query)))
-      ;; TODO: We don't have a way of showing playlist videos right now in empv
-      ('(channel search) (empv-youtube-channel query)))))
+    (if-let* ((entry (assq type empv--bookmark-types)))
+        (funcall (plist-get (cdr entry) :jump) record)
+      (if (eq type 'uri)
+          (let ((data (empv--alist-to-plist record)))
+            (empv-play
+             (apply
+              #'empv-uri-with-metadata
+              (plist-get data :uri)
+              data)))
+        (user-error "Unknown empv bookmark type %S; load its providing package" type)))))
 
 (defvar empv--bookmark-name-prefix "empv :: ")
 
