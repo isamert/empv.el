@@ -1254,11 +1254,26 @@ https://github.com/mpv-player/mpv/blob/master/DOCS/man/input.rst#property-list"
 (defun empv-event (event callback)
   "Every time mpv fires an EVENT, call CALLBACK.
 EVENT is a symbol representing the event name, see list of
-events: https://mpv.io/manual/stable/#list-of-events"
+events: https://mpv.io/manual/stable/#list-of-events
+
+When empv is stopped (like via `empv-exit'), the callbacks are cleared.
+If you want your handler to survive the restarts, use the
+`empv-init-hook' to register your callbacks.  This way, they get
+re-registered when empv is restarted.
+
+Use `empv-remove-event' if you want to manually unregister the CALLBACK."
   (let ((key (symbol-name event)))
     (map-put! empv--callback-table key
               (append (map-elt empv--callback-table key)
                       (list (list :fn callback :event? t))))))
+
+(defun empv-remove-event (event callback)
+  "Remove CALLBACK from listeners registered for EVENT."
+  (when-let* ((key (symbol-name event))
+              (callbacks (map-elt empv--callback-table key)))
+    (map-put!
+     empv--callback-table key
+     (seq-remove (lambda (cb) (equal (plist-get cb :fn) callback)) callbacks))))
 
 ;;;; Some callbacks
 
