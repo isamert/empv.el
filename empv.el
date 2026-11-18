@@ -1174,17 +1174,44 @@ happens."
 
 ;;;; Essential macros
 
-(defmacro empv--cmd (cmd &optional args &rest forms)
-  "Run CMD with ARGS and then call FORMS with the result."
-  (let ((cb (when (not (seq-empty-p forms))
-              `(lambda (it) (ignore it) ,@forms))))
-    `(if (listp ,args)
-         (empv--send-command `(,,cmd ,@,args) ,cb)
-       (empv--send-command `(,,cmd ,,args) ,cb))))
+(defmacro empv-cmd (cmd &optional args &rest forms)
+  "Run mpv command CMD with ARGS, then evaluate FORMS asynchronously.
+If ARGS is a list, its elements become separate command arguments;
+otherwise it becomes one argument.  nil means no arguments.
 
-(defmacro empv--cmd-seq (&rest forms)
+Start mpv if necessary.  Return a request ID string.  When mpv responds,
+evaluate FORMS with its response data bound to `it'.
+
+Example usages:
+
+  (empv-cmd \\='set_property \\='(speed 1.5))
+
+  (empv-cmd \\='get_property \\='volume
+    (message \"Volume: %s\" it))"
+  (declare (indent 2) (debug (form &optional form &rest form)))
+  (let ((command (make-symbol "command"))
+        (arguments (make-symbol "arguments"))
+        (cb (when (not (seq-empty-p forms))
+              `(lambda (it) (ignore it) ,@forms))))
+    `(let* ((,command ,cmd)
+            (,arguments ,args))
+       (if (listp ,arguments)
+           (empv--send-command (cons ,command ,arguments) ,cb)
+         (empv--send-command (list ,command ,arguments) ,cb)))))
+
+(defmacro empv-cmd-seq (&rest forms)
+  "Run mpv commands in FORMS sequentially and asynchronously.
+Each form is (CMD ARGS), with ARGS optional, as in `empv-cmd'.  Send
+each command after the previous response arrives.  In each form after
+the first, `it' holds the previous command response data.
+
+For example, increase the volume by five:
+
+  (empv-cmd-seq
+    (\\='get_property \\='volume)
+    (\\='set_property (list \\='volume (+ it 5))))"
   (seq-reduce
-   (lambda (acc it) `(empv--cmd ,(nth 0 it) ,(nth 1 it) (,@acc)))
+   (lambda (acc it) `(empv-cmd ,(nth 0 it) ,(nth 1 it) (,@acc)))
    (reverse forms)
    '()))
 
@@ -1215,7 +1242,7 @@ Executes BODY with this context."
 (defmacro empv--with-video-enabled (&rest forms)
   `(let* ((empv-mpv-args (seq-filter (lambda (it) (not (equal it "--no-video"))) empv-mpv-args))
           (result (progn ,@forms)))
-     (empv--cmd
+     (empv-cmd
       'get_property 'video
       (when (eq it :json-false)
         (empv-toggle-video)))
@@ -1473,7 +1500,7 @@ enqueued and the first one starts playing."
   (interactive
    (list (read-string "Enter a URI to play: " nil 'empv--uri-history)))
   (if (listp uri)
-      (empv--cmd
+      (empv-cmd
        'stop nil
        (dolist (u uri)
          (empv-enqueue u))
@@ -1482,7 +1509,7 @@ enqueued and the first one starts playing."
       (setq uri (expand-file-name uri)))
     (setq uri (empv--tramp-to-sftp-uri uri))
     (if (empv--running?)
-        (empv--cmd-seq
+        (empv-cmd-seq
          ('loadfile (list uri 'append))
          ('get_property 'playlist-count)
          ('playlist-play-index (1- it))
@@ -1522,7 +1549,7 @@ See this[1] for more information.
    (let ((type (list (empv--select-action "How? " ("relative" "absolute" "relative-percent" "absolute-percent" "keyframes" "exact"))))
          (target (read-string "Target: ")))
      (list target type)))
-  (empv--cmd 'seek `(,target ,(string-join (or type '("relative")) "+"))))
+  (empv-cmd 'seek `(,target ,(string-join (or type '("relative")) "+"))))
 
 ;;;###autoload
 (defun empv-play-file (path)
@@ -1555,13 +1582,13 @@ see `empv-base-directory'."
 (defun empv-resume ()
   "Resume the playback."
   (interactive)
-  (empv--cmd 'set_property '(pause :json-false)))
+  (empv-cmd 'set_property '(pause :json-false)))
 
 ;;;###autoload
 (defun empv-pause ()
   "Pause the playback."
   (interactive)
-  (empv--cmd 'set_property '(pause t)))
+  (empv-cmd 'set_property '(pause t)))
 
 ;;;###autoload
 (defun empv-toggle ()
@@ -1577,7 +1604,7 @@ see `empv-base-directory'."
 (defun empv-current-loop-on ()
   "Turn on loop for current file."
   (interactive)
-  (empv--cmd 'set_property '(loop-file inf))
+  (empv-cmd 'set_property '(loop-file inf))
   (empv--display-event "↻ File loop on."))
 
 (defalias 'empv-file-loop-on #'empv-current-loop-on)
@@ -1586,7 +1613,7 @@ see `empv-base-directory'."
 (defun empv-current-loop-off ()
   "Turn off loop for current file."
   (interactive)
-  (empv--cmd 'set_property '(loop-file no))
+  (empv-cmd 'set_property '(loop-file no))
   (empv--display-event "File loop off."))
 
 (defalias 'empv-file-loop-off #'empv-current-loop-off)
@@ -1652,9 +1679,9 @@ MPV."
     (lambda (it)
       (pcase it
         (1 0)
-        (_ (empv--cmd 'set_property '(force-window immediate))
+        (_ (empv-cmd 'set_property '(force-window immediate))
            1))))
-  (empv--cmd 'set_property '(force-window no)))
+  (empv-cmd 'set_property '(force-window no)))
 
 ;;;###autoload
 (defun empv-exit ()
@@ -1678,7 +1705,7 @@ Playing that file later will seek to the previous position on
 start.  This is equivalent to doing `Shift + q' on an mpv
 window."
   (interactive)
-  (empv--cmd
+  (empv-cmd
    'quit-watch-later '()
    (empv-exit)))
 
@@ -1731,7 +1758,7 @@ URI might be a list of URIs, then they are all enqueued in order."
     (when (string-prefix-p "~/" uri)
       (setq uri (expand-file-name uri)))
     (setq uri (empv--tramp-to-sftp-uri uri))
-    (empv--cmd 'loadfile `(,uri append-play))
+    (empv-cmd 'loadfile `(,uri append-play))
     (empv--display-event "Enqueued %s" uri)))
 
 (defalias 'empv-enqueue-last #'empv-enqueue)
@@ -1746,32 +1773,32 @@ URI might be a list of URIs, then they are all enqueued in order."
       (let ((len (length .playlist))
             (idx (empv--seq-find-index (lambda (it) (alist-get 'current it)) .playlist)))
         (empv-enqueue uri)
-        (empv--cmd 'playlist-move `(,len ,(1+ idx)))))))
+        (empv-cmd 'playlist-move `(,len ,(1+ idx)))))))
 
 ;;;###autoload
 (defun empv-playlist-next ()
   "Play next in the playlist."
   (interactive)
-  (empv--cmd 'playlist-next))
+  (empv-cmd 'playlist-next))
 
 ;;;###autoload
 (defun empv-playlist-prev ()
   "Play previous in the playlist."
   (interactive)
-  (empv--cmd 'playlist-prev))
+  (empv-cmd 'playlist-prev))
 
 ;;;###autoload
 (defun empv-playlist-clear ()
   "Clear the current playlist."
   (interactive)
-  (empv--cmd 'playlist-clear)
+  (empv-cmd 'playlist-clear)
   (empv--display-event "Playlist cleared."))
 
 ;;;###autoload
 (defun empv-playlist-shuffle ()
   "Shuffle the current playlist."
   (interactive)
-  (empv--cmd 'playlist-shuffle)
+  (empv-cmd 'playlist-shuffle)
   (empv--display-event "Playlist shuffled."))
 
 ;;;###autoload
@@ -1785,14 +1812,14 @@ URI might be a list of URIs, then they are all enqueued in order."
 (defun empv-playlist-loop-on ()
   "Turn on loop for playlist."
   (interactive)
-  (empv--cmd 'set_property '(loop-playlist inf))
+  (empv-cmd 'set_property '(loop-playlist inf))
   (empv--display-event "↻ Playlist loop on."))
 
 ;;;###autoload
 (defun empv-playlist-loop-off ()
   "Turn off loop for playlist."
   (interactive)
-  (empv--cmd 'set_property '(loop-playlist no))
+  (empv-cmd 'set_property '(loop-playlist no))
   (empv--display-event "Playlist loop off."))
 
 (defun empv-toggle-playlist-loop ()
@@ -1960,7 +1987,7 @@ The display format is determined by the
                                             (alist-get 'title it id)
                                             (or (and (= .chapter id) empv--playlist-current-indicator) ""))))
                      :sort? nil))))
-      (empv--cmd 'set_property `(chapter ,result)))))
+      (empv-cmd 'set_property `(chapter ,result)))))
 
 ;;;; Radio
 
@@ -3487,7 +3514,7 @@ To make this behavior permanant, add the following to your init file:
 
 Also see `empv-reset-playback-speed-on-quit' for resetting playback
 speed to 1 after quitting the video view."
-  (empv--cmd
+  (empv-cmd
    'keybind `("q" ,(format "set pause yes; %s set force-window no; cycle video;"
                            (if empv-reset-playback-speed-on-quit
                                "set speed 1;"
@@ -3726,25 +3753,25 @@ get the lyrics for currently playing/paused song, use
 ;;;; Actions, mainly for embark but used in other places too
 
 (defun empv-playlist-play (item)
-  (empv--cmd-seq
+  (empv-cmd-seq
    ('playlist-play-index (alist-get 'index item))
    ('set_property '(pause :json-false))))
 
 (defun empv-playlist-remove (item)
-  (empv--cmd 'playlist-remove (alist-get 'index item)))
+  (empv-cmd 'playlist-remove (alist-get 'index item)))
 
 (defun empv-playlist-remove-others (item)
-  (empv--cmd 'loadfile (list (alist-get 'filename item) 'replace)))
+  (empv-cmd 'loadfile (list (alist-get 'filename item) 'replace)))
 
 (defun empv-playlist-move (item)
   (let ((index (alist-get 'index item)))
     (empv--select-action "Move to"
-      "Top"    → (empv--cmd 'playlist-move (list index 0))
-      "Bottom" → (empv--cmd 'playlist-move (list index 1000))
+      "Top"    → (empv-cmd 'playlist-move (list index 0))
+      "Bottom" → (empv-cmd 'playlist-move (list index 1000))
       "Next"   → (empv--let-properties '(playlist-pos)
-                   (empv--cmd 'playlist-move (list index (1+ .playlist-pos))))
+                   (empv-cmd 'playlist-move (list index (1+ .playlist-pos))))
       "Index"  → (let ((i (read-number "Index: ")))
-                   (empv--cmd 'playlist-move (list index i))))
+                   (empv-cmd 'playlist-move (list index i))))
     (empv--display-event "Moved %s." (abbreviate-file-name (alist-get 'filename item)))))
 
 (defun empv-youtube-copy-link (link)
