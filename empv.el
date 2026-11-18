@@ -1110,10 +1110,14 @@ the result.
                   (when (not (plist-get callback :event?))
                     (map-delete empv--callback-table table-key))
                   (when-let* ((cb-fn (plist-get callback :fn)))
-                    (ignore-error (quit minibuffer-quit)
-                      (if (or request-id id)
-                          (funcall cb-fn (cdr (assoc 'data json-data)))
-                        (funcall cb-fn json-data)))))))))
+                    (condition-case err
+                        (if (or request-id id)
+                            (funcall cb-fn (cdr (assoc 'data json-data)))
+                          (funcall cb-fn json-data))
+                      ((quit minibuffer-quit) nil)
+                      (error
+                       (message "empv callback failed :: %s" (error-message-string err))
+                       (empv--dbg "Failed callback :: %s" callback)))))))))
       (setq empv--filter-running nil))))
 
 ;;;; Process primitives
