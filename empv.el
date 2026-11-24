@@ -855,7 +855,7 @@ until they are non-nil."
 
 ;;;; Utility: empv
 
-(defun empv--running? ()
+(defun empv-running? ()
   "Return if there is an mpv instance running or not."
   empv--process)
 
@@ -871,7 +871,7 @@ MSG and ARGS are passed to FN."
     (exit-minibuffer))
   (apply fn (concat empv-log-prefix msg) args))
 
-(defun empv--display-event (msg &rest rest)
+(defun empv-display-event (msg &rest rest)
   "Print MSG with REST if `empv-display-events' is non-nil."
   (let ((formatted-msg `(,(format "%s%s" empv-log-prefix msg) ,@rest)))
     (when empv-log-events-to-file
@@ -900,7 +900,7 @@ MSG and ARGS are passed to FN."
   "Generate a new unique request id."
   (format "%s" (setq empv--request-id (1+ empv--request-id))))
 
-(defmacro empv--select-action (prompt &rest forms)
+(defmacro empv-select-action (prompt &rest forms)
   (declare (indent 1))
   (let* ((selection-only? (listp (car forms)))
          (actions
@@ -940,7 +940,7 @@ MSG and ARGS are passed to FN."
 (defmacro empv--run (&rest forms)
   "Start if mpv is not running already and then run FORMS."
   `(progn
-     (unless (empv--running?)
+     (unless (empv-running?)
        (empv-start))
      ,@forms))
 
@@ -1066,7 +1066,7 @@ documentation."
 (defun empv--sentinel (_proc msg)
   "Clean up after connection closes with MSG."
   (empv--dbg "<< sentinel -> %s" msg)
-  (empv--display-event "Closed.")
+  (empv-display-event "Closed.")
   (empv-exit))
 
 (defvar empv--process-buffer ""
@@ -1258,7 +1258,7 @@ Executes BODY with this context."
     (lambda (result)
       (let ((new-val (funcall ,fn result)))
         (empv--send-command (list "set_property" ,property new-val) #'ignore)
-        (empv--display-event
+        (empv-display-event
          "%s is %s"
          (capitalize (symbol-name ,property))
          (pcase new-val
@@ -1311,7 +1311,7 @@ Use `empv-remove-event' if you want to manually unregister the CALLBACK."
   (cl-flet ((run-hooks
              ()
              (seq-each (lambda (x) (funcall x empv-player-state)) empv-player-state-changed-hook)))
-    (if (empv--running?)
+    (if (empv-running?)
         (empv--let-properties '(paused-for-cache pause playlist-pos)
           (setq empv-player-state
                 (cond
@@ -1324,7 +1324,7 @@ Use `empv-remove-event' if you want to manually unregister the CALLBACK."
       (run-hooks))))
 
 (defun empv--set-media-title (title)
-  (if (empv--running?)
+  (if (empv-running?)
       (setq empv-media-title title)
     (setq empv-media-title nil))
   (seq-each (lambda (x) (funcall x empv-media-title)) empv-media-title-changed-hook))
@@ -1369,14 +1369,14 @@ Use FALLBACK when no title can be derived from METADATA or PATH."
     (cond
      ((< .playlist-pos 0)
       (empv--set-media-title nil)
-      (empv--display-event "Playback stopped"))
+      (empv-display-event "Playback stopped"))
      (.path
       (let ((title (string-trim (empv--format-media-title .metadata .path .media-title))))
         (puthash (empv--clean-uri .path) title empv--media-title-cache)
         (empv--set-media-title (concat title (if (and .chapter (> .chapter -1))
                                                  (format " (%s)" (alist-get 'title .chapter-metadata))
                                                "")))
-        (empv--display-event "%s" empv-media-title))))))
+        (empv-display-event "%s" empv-media-title))))))
 
 ;;;; Essential functions
 
@@ -1389,7 +1389,7 @@ Use FALLBACK when no title can be derived from METADATA or PATH."
 URI might be a string or a list of strings."
   (interactive
    (list (read-string "Enter a URI to play: " nil 'empv--uri-history)))
-  (empv--select-action _
+  (empv-select-action _
     "Play" → (empv-play uri)
     "Enqueue last" → (empv-enqueue uri)
     "Enqueue next" → (empv-enqueue-next uri)))
@@ -1397,7 +1397,7 @@ URI might be a string or a list of strings."
 (defun empv-start (&rest uris)
   "Start mpv using `empv-mpv-command' with given URIS."
   (interactive)
-  (unless (empv--running?)
+  (unless (empv-running?)
     (empv--dbg "Starting MPV.")
     (apply #'empv--make-process uris)
     (empv--make-network-process)
@@ -1438,7 +1438,7 @@ see what `empv-metadata' object looks like."
   "Select a playlist item and then run FORMS with the input.
 This function also tries to disable sorting in `completing-read' function."
   `(empv--let-properties '(playlist)
-     (let ((item (empv--completing-read-object
+     (let ((item (empv-completing-read-object
                   "Select track: "
                   (seq-map-indexed (lambda (item index) (map-insert item 'index index)) .playlist)
                   :formatter #'empv--format-playlist-item
@@ -1447,7 +1447,7 @@ This function also tries to disable sorting in `completing-read' function."
        (ignore item)
        ,@forms)))
 
-(cl-defun empv--completing-read-object
+(cl-defun empv-completing-read-object
     (prompt objects &key (formatter #'identity) category group (sort? t) def multiple?)
   "`completing-read' with formatter and sort control.
 Applies FORMATTER to every object in OBJECTS and propertizes
@@ -1503,15 +1503,14 @@ enqueued and the first one starts playing."
   (interactive
    (list (read-string "Enter a URI to play: " nil 'empv--uri-history)))
   (if (listp uri)
-      (empv-cmd
-       'stop nil
-       (dolist (u uri)
-         (empv-enqueue u))
-       (empv-resume))
+      (empv-cmd 'stop nil
+        (dolist (u uri)
+          (empv-enqueue u))
+        (empv-resume))
     (when (file-exists-p uri)
       (setq uri (expand-file-name uri)))
     (setq uri (empv--tramp-to-sftp-uri uri))
-    (if (empv--running?)
+    (if (empv-running?)
         (empv-cmd-seq
          ('loadfile (list uri 'append))
          ('get_property 'playlist-count)
@@ -1519,7 +1518,7 @@ enqueued and the first one starts playing."
          ('set_property '(pause :json-false)))
       (empv-start uri))
     (when (called-interactively-p 'interactive)
-      (empv--display-event "Playing %s" uri))))
+      (empv-display-event "Playing %s" uri))))
 
 (defun empv-seek (target &optional type)
   "Change the playback position according to TARGET.
@@ -1549,7 +1548,7 @@ See this[1] for more information.
 
 [1]: https://mpv.io/manual/master/#command-interface-seek-%3Ctarget%3E-[%3Cflags%3E]"
   (interactive
-   (let ((type (list (empv--select-action "How? " ("relative" "absolute" "relative-percent" "absolute-percent" "keyframes" "exact"))))
+   (let ((type (list (empv-select-action "How? " ("relative" "absolute" "relative-percent" "absolute-percent" "keyframes" "exact"))))
          (target (read-string "Target: ")))
      (list target type)))
   (empv-cmd 'seek `(,target ,(string-join (or type '("relative")) "+"))))
@@ -1608,7 +1607,7 @@ see `empv-base-directory'."
   "Turn on loop for current file."
   (interactive)
   (empv-cmd 'set_property '(loop-file inf))
-  (empv--display-event "↻ File loop on."))
+  (empv-display-event "↻ File loop on."))
 
 (defalias 'empv-file-loop-on #'empv-current-loop-on)
 
@@ -1617,7 +1616,7 @@ see `empv-base-directory'."
   "Turn off loop for current file."
   (interactive)
   (empv-cmd 'set_property '(loop-file no))
-  (empv--display-event "File loop off."))
+  (empv-display-event "File loop off."))
 
 (defalias 'empv-file-loop-off #'empv-current-loop-off)
 
@@ -1718,14 +1717,14 @@ window."
 See `empv-display-events' for details."
   (interactive)
   (setq empv-display-events (not empv-display-events))
-  (empv--display-event "Display event mode is %s" empv-display-events))
+  (empv-display-event "Display event mode is %s" empv-display-events))
 
 ;;;###autoload
 (defun empv-toggle-debug ()
   "Toggle debug mode."
   (interactive)
   (setq empv--dbg (not empv--dbg))
-  (empv--display-event  "Debug mode is %s" empv--dbg))
+  (empv-display-event  "Debug mode is %s" empv--dbg))
 
 (defun empv-log-current-radio-song-name (&optional capture?)
   "Log current radio song name with the radio channel name.
@@ -1762,7 +1761,7 @@ URI might be a list of URIs, then they are all enqueued in order."
       (setq uri (expand-file-name uri)))
     (setq uri (empv--tramp-to-sftp-uri uri))
     (empv-cmd 'loadfile `(,uri append-play))
-    (empv--display-event "Enqueued %s" uri)))
+    (empv-display-event "Enqueued %s" uri)))
 
 (defalias 'empv-enqueue-last #'empv-enqueue)
 
@@ -1795,14 +1794,14 @@ URI might be a list of URIs, then they are all enqueued in order."
   "Clear the current playlist."
   (interactive)
   (empv-cmd 'playlist-clear)
-  (empv--display-event "Playlist cleared."))
+  (empv-display-event "Playlist cleared."))
 
 ;;;###autoload
 (defun empv-playlist-shuffle ()
   "Shuffle the current playlist."
   (interactive)
   (empv-cmd 'playlist-shuffle)
-  (empv--display-event "Playlist shuffled."))
+  (empv-display-event "Playlist shuffled."))
 
 ;;;###autoload
 (defun empv-playlist-select ()
@@ -1816,14 +1815,14 @@ URI might be a list of URIs, then they are all enqueued in order."
   "Turn on loop for playlist."
   (interactive)
   (empv-cmd 'set_property '(loop-playlist inf))
-  (empv--display-event "↻ Playlist loop on."))
+  (empv-display-event "↻ Playlist loop on."))
 
 ;;;###autoload
 (defun empv-playlist-loop-off ()
   "Turn off loop for playlist."
   (interactive)
   (empv-cmd 'set_property '(loop-playlist no))
-  (empv--display-event "Playlist loop off."))
+  (empv-display-event "Playlist loop off."))
 
 (defun empv-toggle-playlist-loop ()
   "Turn on or off the loop for current file."
@@ -1917,7 +1916,7 @@ The display format is determined by the
                   (t (propertize "Playing" 'face '(:foreground "green")))))
           (empv-metadata (empv-metadata-from-path .path))
           (empv-display-events t))
-      (empv--display-event
+      (empv-display-event
        "%s"
        (s-replace-all
         `(("#{state}" . ,state)
@@ -1959,7 +1958,7 @@ The display format is determined by the
   (empv--let-properties '(path)
     (if (not .path)
         (user-error "Nothing is currently playing")
-      (empv--display-event "URI copied: %s" (empv--clean-uri .path))
+      (empv-display-event "URI copied: %s" (empv--clean-uri .path))
       (kill-new (empv--clean-uri .path)))))
 
 ;;;; Interactive - Chapters
@@ -1981,7 +1980,7 @@ The display format is determined by the
     (let* ((chapters (seq-map-indexed (lambda (it it-index) `(,@it (id . ,it-index))) .chapter-list))
            (result (alist-get
                     'id
-                    (empv--completing-read-object
+                    (empv-completing-read-object
                      "Select chapter: "
                      chapters
                      :formatter (lambda (it)
@@ -2009,12 +2008,12 @@ The display format is determined by the
     (empv--with-empv-metadata
      (empv-play-or-enqueue
       (empv--radio-item-extract-link
-       (empv--completing-read-object
+       (empv-completing-read-object
         "Channel: "
         empv-radio-channels
         :formatter (lambda (x) (if (equal (cdr x) (plist-get empv-metadata :uri))
-                              (format "%s %s" (car x) empv--playlist-current-indicator)
-                            (car x)))
+                                   (format "%s %s" (car x) empv--playlist-current-indicator)
+                                 (car x)))
         :group (when favorites
                  (lambda (x)
                    (if (member (cdr x) favorites)
@@ -2031,7 +2030,7 @@ The display format is determined by the
                    (length)
                    (random)
                    (empv--flipcall #'nth empv-radio-channels))))
-    (empv--display-event "Playing %s" (car channel))
+    (empv-display-event "Playing %s" (car channel))
     (empv-play (empv--radio-item-extract-link channel))))
 
 ;;;; Videos and music
@@ -2071,7 +2070,7 @@ PROMPT is shown to user while selecting.
 Limit directory traversal at most DEPTH levels.  By default it's
 `empv-max-directory-search-depth'"
   (expand-file-name
-   (empv--completing-read-object
+   (empv-completing-read-object
     prompt
     (empv--find-files path extensions depth)
     :formatter #'abbreviate-file-name
@@ -2202,7 +2201,7 @@ DATA to pass request data."
             (if-let* ((err (plist-get status :error)))
                 (progn
                   (kill-buffer)
-                  (empv--display-event "Request failed: %s → %s" full-url err))
+                  (empv-display-event "Request failed: %s → %s" full-url err))
               (let ((headers (progn
                                (goto-char (point-min))
                                (re-search-forward "\n\n" nil t)
@@ -2256,7 +2255,7 @@ DATA to pass request data."
   "Show and act on last search results."
   (interactive)
   (ignore-error (quit minibuffer-quit)
-    (let ((selected (empv--completing-read-object
+    (let ((selected (empv-completing-read-object
                      "YouTube results"
                      (empv--yt-search-results empv--last-youtube-search)
                      :formatter #'empv--format-yt-item
@@ -2366,7 +2365,7 @@ buffer (otherwise it will be fetched automatically)."
                      (goto-char (point-min)))))))))
     (if video-info
         (funcall cb video-info)
-      (empv--display-event "Getting video info...")
+      (empv-display-event "Getting video info...")
       (empv--invidious-request
        (format "videos/%s" video-id)
        '()
@@ -2376,7 +2375,7 @@ buffer (otherwise it will be fetched automatically)."
   "Toggle YouTube results display between tabulated mode and `completing-read'."
   (interactive)
   (setq empv-youtube-use-tabulated-results (not empv-youtube-use-tabulated-results))
-  (empv--display-event
+  (empv-display-event
    "YouTube results will be shown in %s."
    (if empv-youtube-use-tabulated-results "tabulated mode" "completing-read")))
 
@@ -2440,7 +2439,7 @@ By default it downloads as MP3 file, please see
                  (message "Downloaded: %s to %s" url where)
                  (kill-new where))
                (empv-play-or-enqueue where)))
-         (empv--display-event "Failed to download: %s. See buffer %s for details." url (buffer-name buffer)))))))
+         (empv-display-event "Failed to download: %s. See buffer %s for details." url (buffer-name buffer)))))))
 
 ;;;;; empv-youtube-results-mode
 ;;;;;; Mode
@@ -2769,7 +2768,7 @@ A variable representing currently hovered search result named
   (empv-youtube-download
    (empv-youtube-results--current-item-url)
    nil
-   (lambda (file) (empv--display-event "Download completed: %s" file))))
+   (lambda (file) (empv-display-event "Download completed: %s" file))))
 
 (defun empv-youtube-results-inspect ()
   "Inspect the currently selected video in `empv-youtube-results-mode'.
@@ -2826,7 +2825,7 @@ nicely formatted buffer."
               (id (plist-get metadata :authorId)))
     (setq channel-id id))
   (let ((sort-by (or sort-by
-                     (empv--select-action "Sort videos of channel by: "
+                     (empv-select-action "Sort videos of channel by: "
                        "Popular" → 'popular
                        "Newest" → 'newest))))
     (empv--youtube-channel-videos
@@ -3200,26 +3199,27 @@ selectors use this to return to the selector from which they were opened."
     (let ((inhibit-quit nil)
           (results (alist-get 'results response)))
       (cl-labels
-          ((show-results ()
-             (let ((selected
-                    (condition-case nil
-                        (empv--completing-read-object
-                         prompt
-                         results
-                         :formatter #'empv--subsonic-format-candidate
-                         :category 'empv-subsonic-item
-                         :group (lambda (object)
-                                  (or (alist-get 'indexName object)
-                                      (s-titleize (symbol-name (alist-get 'kind object)))))
-                         :sort? nil)
-                      (quit
-                       (if on-quit
-                           (progn
-                             (funcall on-quit)
-                             nil)
-                         (signal 'quit nil))))))
-               (when selected
-                 (empv--subsonic-act-on-candidate selected #'show-results)))))
+          ((show-results
+            ()
+            (let ((selected
+                   (condition-case nil
+                       (empv-completing-read-object
+                        prompt
+                        results
+                        :formatter #'empv--subsonic-format-candidate
+                        :category 'empv-subsonic-item
+                        :group (lambda (object)
+                                 (or (alist-get 'indexName object)
+                                     (s-titleize (symbol-name (alist-get 'kind object)))))
+                        :sort? nil)
+                     (quit
+                      (if on-quit
+                          (progn
+                            (funcall on-quit)
+                            nil)
+                        (signal 'quit nil))))))
+              (when selected
+                (empv--subsonic-act-on-candidate selected #'show-results)))))
         (show-results)))))
 
 (defun empv--subsonic-search-request (query on-result)
@@ -3319,7 +3319,7 @@ ON-QUIT is called when a selector opened for SELECTED is cancelled."
   "List songs by a filter and act."
   (interactive)
   (let ((handler (empv--subsonic-result-handler "Select song:")))
-    (empv--select-action "Get songs: "
+    (empv-select-action "Get songs: "
       "Random" →
       (empv--subsonic-request
        "getRandomSongs.view"
@@ -3340,7 +3340,7 @@ ON-QUIT is called when a selector opened for SELECTED is cancelled."
 (defun empv-subsonic-albums ()
   "List albums by a filter and act."
   (interactive)
-  (let ((get-type (empv--select-action "Get albums: "
+  (let ((get-type (empv-select-action "Get albums: "
                     "Random" → "random"
                     "Recently played" → "recent"
                     "Newest" → "newest"
@@ -3770,7 +3770,7 @@ lyrics with the buffers content."
      (lambda (proc out)
        (empv--dbg "*eyeD3* output: %s" out)
        (if (eq (process-exit-status proc) 0)
-           (empv--display-event "Lyrics saved for '%s'" file)
+           (empv-display-event "Lyrics saved for '%s'" file)
          (error "Failed to save lyrics into '%s'.  exit-code=%s, output=%s"
                 file (process-exit-status proc) out))))))
 
@@ -3815,22 +3815,22 @@ get the lyrics for currently playing/paused song, use
 
 (defun empv-playlist-move (item)
   (let ((index (alist-get 'index item)))
-    (empv--select-action "Move to"
+    (empv-select-action "Move to"
       "Top"    → (empv-cmd 'playlist-move (list index 0))
       "Bottom" → (empv-cmd 'playlist-move (list index 1000))
       "Next"   → (empv--let-properties '(playlist-pos)
                    (empv-cmd 'playlist-move (list index (1+ .playlist-pos))))
       "Index"  → (let ((i (read-number "Index: ")))
                    (empv-cmd 'playlist-move (list index i))))
-    (empv--display-event "Moved %s." (abbreviate-file-name (alist-get 'filename item)))))
+    (empv-display-event "Moved %s." (abbreviate-file-name (alist-get 'filename item)))))
 
 (defun empv-youtube-copy-link (link)
-  (empv--display-event "URI copied: %s" (empv--clean-uri link))
+  (empv-display-event "URI copied: %s" (empv--clean-uri link))
   (kill-new (empv--clean-uri link)))
 
 (defun empv-playlist-copy-path (item)
   (let ((path (alist-get 'filename item)))
-    (empv--display-event "URI copied: %s" (empv--clean-uri path))
+    (empv-display-event "URI copied: %s" (empv--clean-uri path))
     (kill-new (empv--clean-uri path))))
 
 ;;;; Embark integration
