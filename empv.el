@@ -46,7 +46,6 @@
 (require 'json)
 (require 'url)
 (require 's)
-(require 'consult nil t)
 (require 'compat)
 (require 'text-property-search)
 (require 'bookmark)
@@ -2095,6 +2094,7 @@ Limit directory traversal at most DEPTH levels.  By default it's
 
 ;;;; Consult integration
 
+(defvar consult-async-split-style)
 (declare-function consult--read "consult")
 (declare-function consult--async-pipeline "consult")
 (declare-function consult--async-refresh "consult")
@@ -2124,8 +2124,39 @@ Limit directory traversal at most DEPTH levels.  By default it's
    (consult--async-indicator)
    (consult--async-refresh)))
 
-(defun empv--use-consult? ()
-  (and empv-use-consult-if-possible (require 'consult nil t)))
+(cl-defun empv--read-async (prompt request mapper &key category history initial require-match group lookup fallback)
+  "Read with live candidates from REQUEST and MAPPER when Consult is enabled.
+
+REQUEST takes the query and a result callback.  MAPPER turns the result
+into completion candidates.
+
+Without Consult, call FALLBACK with no args, or call `read-string' with
+appropriate args (like HISTORY, INITIAL etc. where it makes sense).
+
+For PROMPT, CATEGORY, HISTORY, INITIAL, REQUIRE-MATCH, GROUP; see
+`consult-read'."
+  (cond
+   ((and empv-use-consult-if-possible (require 'consult nil t))
+    (let ((consult-async-split-style
+           ;; If require-match is nil and a lookup function is not
+           ;; supplied, then disable `consult-async-split-style'.  It
+           ;; may introduce additional characters to the user input
+           ;; and it may be hard to get rid of properly.
+           (if (and (not require-match) (not lookup))
+               'none consult-async-split-style)))
+      (consult--read
+       (empv--consult-async-generator request mapper)
+       :prompt prompt
+       :category category
+       :history history
+       :initial initial
+       :require-match require-match
+       :group group
+       :lookup (or lookup (lambda (selected &rest _) selected))
+       :sort nil
+       :async-wrap #'empv--consult-async-wrapper)))
+   (fallback (funcall fallback))
+   (t (read-string prompt initial history))))
 
 ;;;; Request utils
 
@@ -3012,34 +3043,15 @@ See `empv--youtube-search' for TYPE."
          (empv-youtube-tabulated-last-results)
        (empv-youtube-last-results)))))
 
-;;;;; Consult integration
-
-(defvar consult-async-split-style)
-
-(defun empv--consult-get-input-with-suggestions (prompt)
-  "Get an input from user, using YouTube search suggestions.
-PROMPT is passed to `completing-read' as-is."
-  (let ((consult-async-split-style 'none))
-    (consult--read
-     (empv--consult-async-generator
-      (lambda (action on-result)
-        (empv--invidious-request
-         "search/suggestions"
-         `(("q" . ,action))
-         on-result))
-      (lambda (result)
-        (alist-get 'suggestions result)))
-     :prompt prompt
-     :category 'empv-youtube-suggestion-item
-     :sort nil
-     :history 'empv--youtube-search-history
-     :require-match nil
-     :async-wrap #'empv--consult-async-wrapper)))
-
 (defun empv--youtube-suggest (prompt)
-  (if (empv--use-consult?)
-      (empv--consult-get-input-with-suggestions prompt)
-    (read-string prompt nil 'empv--youtube-search-history)))
+  "Read a YouTube query with PROMPT, offering suggestions when possible."
+  (empv--read-async
+   prompt
+   (lambda (query on-result)
+     (empv--invidious-request "search/suggestions" `(("q" . ,query)) on-result))
+   (lambda (result) (alist-get 'suggestions result))
+   :category 'empv-youtube-suggestion-item
+   :history 'empv--youtube-search-history))
 
 ;;;; Subsonic
 
@@ -3210,56 +3222,14 @@ selectors use this to return to the selector from which they were opened."
                  (empv--subsonic-act-on-candidate selected #'show-results)))))
         (show-results)))))
 
-(defun empv--subsonic-consult-search (&optional initial)
-  "Search Subsonic through Consult, starting with INITIAL input."
-  (let* ((selection
-          (consult--read
-           (empv--consult-async-generator
-            (lambda (action on-result)
-              (empv--subsonic-request
-               "search3.view"
-               :query action
-               :artistCount empv-subsonic-result-count
-               :albumCount empv-subsonic-result-count
-               :songCount empv-subsonic-result-count
-               on-result))
-            (lambda (result)
-              (mapcar #'empv--subsonic-format-candidate
-                      (alist-get 'results result))))
-           :prompt empv--subsonic-search-prompt
-           :category 'empv-subsonic-item
-           :lookup (lambda (selected candidates input &rest _)
-                     (list (empv--get-text-property
-                            (car (member selected candidates)) :item)
-                           input))
-           :sort nil
-           :group
-           (lambda (cand transform)
-             (if transform
-                 cand
-               (s-titleize
-                (symbol-name
-                 (alist-get 'kind (empv--get-text-property cand :item))))))
-           :history 'empv--subsonic-search-history
-           ;; TODO: :narrow ...?
-           :require-match t
-           :initial initial
-           :async-wrap #'empv--consult-async-wrapper))
-         (selected (car selection))
-         (input (cadr selection)))
-    (empv--subsonic-act-on-candidate
-     selected
-     (lambda ()
-       (empv--subsonic-consult-search input)))))
-
-(defun empv--subsonic-completing-read-search ()
+(defun empv--subsonic-search-request (query on-result)
   (empv--subsonic-request
    "search3.view"
-   :query (read-string "Query: " nil 'empv--subsonic-search-history)
+   :query query
    :artistCount empv-subsonic-result-count
    :albumCount empv-subsonic-result-count
    :songCount empv-subsonic-result-count
-   (empv--subsonic-result-handler empv--subsonic-search-prompt)))
+   on-result))
 
 (defun empv--subsonic-act-on-candidate (selected &optional on-quit)
   "Act on SELECTED Subsonic result.
@@ -3305,12 +3275,36 @@ ON-QUIT is called when a selector opened for SELECTED is cancelled."
 ;;;;; Interactive functions
 
 ;;;###autoload
-(defun empv-subsonic-search ()
+(defun empv-subsonic-search (&optional initial)
   "Search for artists/songs/albums in Subsonic."
   (interactive)
-  (if (empv--use-consult?)
-      (empv--subsonic-consult-search)
-    (empv--subsonic-completing-read-search)))
+  (pcase (empv--read-async
+          empv--subsonic-search-prompt
+          #'empv--subsonic-search-request
+          (lambda (result)
+            (mapcar #'empv--subsonic-format-candidate (alist-get 'results result)))
+          :category 'empv-subsonic-item
+          :lookup (lambda (selected candidates input &rest _)
+                    (list (empv--get-text-property
+                           (car (member selected candidates)) :item)
+                          input))
+          :group (lambda (cand transform)
+                   (if transform
+                       cand
+                     (s-titleize
+                      (symbol-name
+                       (alist-get 'kind (empv--get-text-property cand :item))))))
+          :history 'empv--subsonic-search-history
+          :require-match t
+          :initial initial
+          :fallback (lambda ()
+                      (empv--subsonic-search-request
+                       (read-string "Query: " initial 'empv--subsonic-search-history)
+                       (empv--subsonic-result-handler empv--subsonic-search-prompt))
+                      nil))
+    (`(,selected ,input)
+     (empv--subsonic-act-on-candidate
+      selected (lambda () (empv-subsonic-search input))))))
 
 ;;;###autoload
 (defun empv-subsonic-artists ()
